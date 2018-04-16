@@ -44,7 +44,7 @@ var dhtchMgr = dhtChunkerManager{
 //
 // Table manager entry
 //
-func DhtchMgrProc(ptn interface{}, msg sch.SchMessage) sch.SchErrno {
+func DhtchMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	yclog.LogCallerFileLine("DhtchMgrProc: scheduled, msg: %d", msg.Id)
 	return sch.SchEnoNone
 }

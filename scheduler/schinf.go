@@ -40,8 +40,12 @@ const (
 	SchEnoNotFound		SchErrno = 4	// not found
 	SchEnoInternal		SchErrno = 5	// internal errors
 	SchEnoMismatched	SchErrno = 7	// mismatched
-	SchEnoUnknown		SchErrno = 8	// unknowns
-	SchEnoMax			SchErrno = 9	// just for bound checking
+	SchEnoOS			SchErrno = 8	// operating system
+	SchEnoConfig		SchErrno = 9	// configuration
+	SchEnoKilled		SchErrno = 10	// task killed
+	SchEnoNotImpl		SchErrno = 11	// not implemented
+	SchEnoUnknown		SchErrno = 12	// unknowns
+	SchEnoMax			SchErrno = 13	// just for bound checking
 )
 
 var SchErrnoDescription = []string {
@@ -80,7 +84,7 @@ func SchErrnoString(eno SchErrno) string {
 // user task should try to interpret the msg.body by msg.id, which is defined by user
 // task than scheduler itself, of course, timer event is an exception.
 //
-type SchUserTaskEp func(ptn interface{}, msg SchMessage) SchErrno
+type SchUserTaskEp func(ptn interface{}, msg *SchMessage) SchErrno
 
 //
 // message type for scheduling between user tasks
@@ -228,10 +232,21 @@ func SchinfStartTaskGroup(grp string) (SchErrno, int) {
 }
 
 //
-// Stop a single task
+// Stop a single task by name
 //
-func SchinfStopTask(name string) SchErrno {
+func SchinfStopTaskByName(name string) SchErrno {
 	return schimplStopTask(name)
+}
+
+//
+// Stop a single task by task node pointer
+//
+func SchinfStopTask(ptn interface{}) SchErrno {
+	if eno := SchinfTaskDone(ptn.(*schTaskNode), SchEnoKilled); eno != SchEnoNone {
+		yclog.LogCallerFileLine("SchinfStopTask: SchinfTaskDone failed, eno: %d", eno)
+		return eno
+	}
+	return schimplStopTaskEx(ptn.(*schTaskNode))
 }
 
 //
@@ -288,6 +303,21 @@ func SchinfSendMsg2Task(msg *SchMessage) SchErrno {
 }
 
 //
+// Make scheduling message
+//
+func SchinfMakeMessage(msg *SchMessage, s, r interface{}, id int, body interface{}) SchErrno {
+	if msg == nil || s == nil || r == nil {
+		yclog.LogCallerFileLine("SchinfMakeMessage: invalid parameter(s)")
+		return SchEnoParameter
+	}
+	msg.sender = s.(*schTaskNode)
+	msg.recver = r.(*schTaskNode)
+	msg.Id = id
+	msg.Body = body
+	return SchEnoNone
+}
+
+//
 // Send message to a specific task group
 //
 func SchinfSendMsg2TaskGroup(grp string, msg *SchMessage) (eno SchErrno, failedCount int) {
@@ -311,7 +341,33 @@ func SchinfKillTimer(ptn *schTaskNode, tid int) SchErrno {
 //
 // Done a task
 //
-func SchinfTaskDone(ptn *schTaskNode, eno SchErrno) SchErrno {
-	return schimplTaskDone(ptn, eno)
+func SchinfTaskDone(ptn interface{}, eno SchErrno) SchErrno {
+	return schimplTaskDone(ptn.(*schTaskNode), eno)
 }
 
+//
+// Check if KILLED signal fired for task
+//
+func SchinfTaskKilled(ptn interface{}) bool {
+	return schimplTaskKilled(ptn.(*schTaskNode))
+}
+
+//
+// Get message sender
+//
+func SchinfGetMessageSender(msg *SchMessage) string {
+	if msg == nil {
+		return ""
+	}
+	return msg.sender.task.name
+}
+
+//
+// Get message recevier
+//
+func SchinfGetMessageRecver(msg *SchMessage) string {
+	if msg == nil {
+		return ""
+	}
+	return msg.recver.task.name
+}

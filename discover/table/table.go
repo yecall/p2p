@@ -45,7 +45,7 @@ var dcvMgr = tableManager{
 //
 // Table manager entry
 //
-func TabMgrProc(ptn interface{}, msg sch.SchMessage) sch.SchErrno {
+func TabMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	yclog.LogCallerFileLine("TabMgrProc: scheduled, msg: %d", msg.Id)
 	return sch.SchEnoNone
 }

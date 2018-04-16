@@ -44,7 +44,7 @@ var dhtMgr = dhtManager{
 //
 // Table manager entry
 //
-func DhtMgrProc(ptn interface{}, msg sch.SchMessage) sch.SchErrno {
+func DhtMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	yclog.LogCallerFileLine("DhtMgrProc: scheduled, msg: %d", msg.Id)
 	return sch.SchEnoNone
 }

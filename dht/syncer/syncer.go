@@ -18,7 +18,6 @@
  *
  */
 
-
 package syncer
 
 import (
@@ -44,7 +43,7 @@ var dhtsyMgr = dhtSyncerManager{
 //
 // sync manager entry
 //
-func DhtsyMgrProc(ptn interface{}, msg sch.SchMessage) sch.SchErrno {
+func DhtsyMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	yclog.LogCallerFileLine("DhtsyMgrProc: scheduled, msg: %d", msg.Id)
 	return sch.SchEnoNone
 }

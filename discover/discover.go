@@ -44,7 +44,7 @@ var dcvMgr = discoverManager{
 //
 // Discover manager entry
 //
-func DcvMgrProc(ptn interface{}, msg sch.SchMessage) sch.SchErrno {
+func DcvMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	yclog.LogCallerFileLine("DcvMgrProc: scheduled, msg: %d", msg.Id)
 	return sch.SchEnoNone
 }

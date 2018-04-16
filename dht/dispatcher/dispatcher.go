@@ -44,7 +44,7 @@ var dhtdiMgr = dhtDispatcherManager{
 //
 // dispatch manager entry
 //
-func DhtdiMgrProc(ptn interface{}, msg sch.SchMessage) sch.SchErrno {
+func DhtdiMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	yclog.LogCallerFileLine("DhtdiMgrProc: scheduled, msg: %d", msg.Id)
 	return sch.SchEnoNone
 }

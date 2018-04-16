@@ -18,34 +18,4 @@
  *
  */
 
-
-package route
-
-import (
-	sch 	"ycp2p/scheduler"
-	yclog	"ycp2p/logger"
-)
-
-//
-// Route manager
-//
-const DhtroMgrName = "DhtroMgr"
-
-type dhtRouteManager struct {
-	name	string				// name
-	tep		sch.SchUserTaskEp	// entry
-}
-
-var dhtrMgr = dhtRouteManager{
-	name:	DhtroMgrName,
-	tep:	DhtroMgrProc,
-}
-
-//
-// Table manager entry
-//
-func DhtroMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
-	yclog.LogCallerFileLine("DhtroMgrProc: scheduled, msg: %d", msg.Id)
-	return sch.SchEnoNone
-}
-
+package udpmsg

@@ -44,7 +44,7 @@ var dhtreMgr = dhtRetriverManager{
 //
 // retrive manager entry
 //
-func DhtreMgrProc(ptn interface{}, msg sch.SchMessage) sch.SchErrno {
+func DhtreMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	yclog.LogCallerFileLine("DhtreMgrProc: scheduled, msg: %d", msg.Id)
 	return sch.SchEnoNone
 }

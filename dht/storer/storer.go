@@ -44,7 +44,7 @@ var dhtstMgr = dhtStorerManager{
 //
 // store manager entry
 //
-func DhtstMgrProc(ptn interface{}, msg sch.SchMessage) sch.SchErrno {
+func DhtstMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	yclog.LogCallerFileLine("DhtstMgrProc: scheduled, msg: %d", msg.Id)
 	return sch.SchEnoNone
 }

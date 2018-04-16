@@ -82,18 +82,27 @@ const (
 	EvNblUdpBase		= 1400
 	EvNblFindNodeTimer	= EvTimerBase	+ NblFindNodeTimerId
 	EvNblPingpongTimer	= EvTimerBase	+ NblPingpongTimerId
-	EvNblMsgInd			= EvNblUdpBase	+ 1
-	EvNblFindNodeReq	= EvNblUdpBase	+ 2
-	EvNblFindNodeRsp	= EvNblUdpBase	+ 3
-	EvNblPingpongReq	= EvNblUdpBase	+ 4
-	EvNblPingpongRsp	= EvNblUdpBase	+ 5
+	EvNblFindNodeReq	= EvNblUdpBase	+ 1
+	EvNblFindNodeRsp	= EvNblUdpBase	+ 2
+	EvNblPingpongReq	= EvNblUdpBase	+ 3
+	EvNblPingpongRsp	= EvNblUdpBase	+ 4
+)
+
+//
+// Neighbor listenner event
+//
+const (
+	EvNblListennerBase	= 1500
+	EvNblMsgInd			= EvNblListennerBase + 1
+	EvNblStop			= EvNblListennerBase + 2
+	EvNblStart			= EvNblListennerBase + 3
 )
 
 //
 // Peer manager event
 //
 const (
-	EvPeerMgrBase = 1500
+	EvPeerMgrBase = 1600
 )
 
 
@@ -101,14 +110,14 @@ const (
 // Peer listerner event
 //
 const (
-	EvPeerLsnBase = 1600
+	EvPeerLsnBase = 1700
 )
 
 //
 // Peer connection establishment event
 //
 const (
-	EvPeerEstBase		= 1700
+	EvPeerEstBase		= 1800
 	EvPeConnOutReq		= EvPeerEstBase	+ 1
 	EvPeConnOutRsp		= EvPeerEstBase	+ 2
 	EvPeHandshakeReq	= EvPeerEstBase	+ 3
@@ -123,14 +132,14 @@ const (
 //
 // DHT manager event
 //
-const EvDhtMgrBase = 1800
+const EvDhtMgrBase = 1900
 
 //
 // DHT peer lookup on Tcp event
 //
-const EvDhtPeerLkBase = 1900
+const EvDhtPeerLkBase = 2000
 
 //
 // DHT provider event
 //
-const EvDhtPrdBase = 2000
+const EvDhtPrdBase = 2100

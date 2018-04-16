@@ -70,7 +70,7 @@ var dcvMgr = peerManager{
 //
 // Table manager entry
 //
-func PeerMgrProc(ptn interface{}, msg sch.SchMessage) sch.SchErrno {
+func PeerMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 
 	yclog.LogCallerFileLine("PeerMgrProc: scheduled, msg: %d", msg.Id)
 	return sch.SchEnoNone

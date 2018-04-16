@@ -44,7 +44,7 @@ var lsnMgr = listenerManager{
 //
 // Listen manager entry
 //
-func LsnMgrProc(ptn interface{}, msg sch.SchMessage) sch.SchErrno {
+func LsnMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	yclog.LogCallerFileLine("LsnMgrProc: scheduled, msg: %d", msg.Id)
 	return sch.SchEnoNone
 }

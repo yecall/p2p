@@ -116,7 +116,7 @@ taskLoop:
 		select {
 
 		case msg := <-*queMsg:
-			ptn.task.utep(ptn, SchMessage(msg))
+			ptn.task.utep(ptn, (*SchMessage)(&msg))
 
 		case eno = <-*done:
 			if eno != SchEnoNone {
@@ -1044,6 +1044,30 @@ func schimplTaskDone(ptn *schTaskNode, eno SchErrno) SchErrno {
 	}
 
 	return SchEnoNone
+}
+
+//
+// Check if KILLED signal fired for task
+//
+func schimplTaskKilled(ptn *schTaskNode) bool {
+
+	if ptn == nil {
+		yclog.LogCallerFileLine("schimplTaskKilled: invalid parameter(s)")
+		return false
+	}
+
+	var killed = false
+
+	select {
+	case eno:= <-ptn.task.done:
+		ptn.task.done<-eno
+		if eno == SchEnoKilled {
+			killed = true
+		}
+	default:
+	}
+
+	return killed
 }
 
 //
