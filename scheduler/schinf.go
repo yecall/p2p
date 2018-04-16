@@ -1,0 +1,317 @@
+/*
+ *  Copyright (C) 2017 gyee authors
+ *
+ *  This file is part of the gyee library.
+ *
+ *  the gyee library is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  the gyee library is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with the gyee library.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+
+package scheduler
+
+import(
+	"fmt"
+	"time"
+	yclog "ycp2p/logger"
+)
+
+//
+// Scheduler interface errnos
+//
+type SchErrno int
+
+const (
+	SchEnoNone			SchErrno = 0	// none of errors
+	SchEnoParameter		SchErrno = 1	// invalid parameters
+	SchEnoResource		SchErrno = 2	// no resources
+	SchEnoWatchDog		SchErrno = 3	// watch dog
+	SchEnoNotFound		SchErrno = 4	// not found
+	SchEnoInternal		SchErrno = 5	// internal errors
+	SchEnoMismatched	SchErrno = 7	// mismatched
+	SchEnoUnknown		SchErrno = 8	// unknowns
+	SchEnoMax			SchErrno = 9	// just for bound checking
+)
+
+var SchErrnoDescription = []string {
+	"none of errors",
+	"invalid parameters",
+	"no resources",
+	"watch dog",
+	"not found",
+	"internal errors",
+	"mismathced",
+	"unknowns",
+}
+
+//
+// Stringz an errno with itself
+//
+func (eno SchErrno) SchErrnoString() string {
+	if eno < SchEnoNone || eno >= SchEnoMax {
+		return fmt.Sprintf("Can't be stringzed, invalid eno:%d", eno)
+	}
+	return SchErrnoDescription[eno]
+}
+
+//
+// Stringz an errno with an eno parameter
+//
+func SchErrnoString(eno SchErrno) string {
+	return eno.SchErrnoString()
+}
+
+//
+// User task entry point: notice, parameter ptn would be type of pointer to schTaskNode,
+// the user task should never try to access the field directly, instead, interface func
+// provide by scheduler module should by applied. for example, when user task try to set
+// a timer, it should then pass this ptn to function SchInfSetTimer, see it pls. Also,
+// user task should try to interpret the msg.body by msg.id, which is defined by user
+// task than scheduler itself, of course, timer event is an exception.
+//
+type SchUserTaskEp func(ptn interface{}, msg SchMessage) SchErrno
+
+//
+// message type for scheduling between user tasks
+//
+type SchMessage struct {
+	sender 	*schTaskNode	// sender task node pointer
+	recver	*schTaskNode	// receiver task node pointer
+	Id		int				// message identity
+	Body	interface{}		// message body
+}
+
+//
+// Watch dog for a user task
+//
+const (
+	SchDeaultWatchCycle			= time.Second
+	SchDefaultDogCycle			= time.Second
+	SchDefaultDogDieThresold	= 2
+)
+
+type SchWatchDog struct {
+	HaveDog			bool				// if dog would come out
+	Feed			<-chan interface{}	// channel to feed the dog
+	Cycle			time.Duration		// feed cycle expected, must be times of second
+	BiteCounter		int					// counter of user task bited by dog
+	DieThreshold	int					// threshold counter of dog-bited to die
+}
+
+//
+// Flag for user just be created
+//
+const (
+	SchCreatedGo		= iota			// go at once
+	SchCreatedSuspend					// suspended
+)
+
+//
+// Descriptor for a user tack to be created
+//
+const SchMaxGroupSize = 64					// max number of group members
+
+//
+// max mail box size
+//
+const SchMaxMbSize	 = 1024
+
+type SchTaskDescription struct {
+	Name	string						// user task name
+	MbSize	int							// mailbox size
+	Ep		SchUserTaskEp				// user task entry point
+	Wd		SchWatchDog					// watchdog
+	Flag	int							// flag: start at once or to be suspended
+	DieCb	func(interface{}) SchErrno	// callbacked when going to die
+}
+
+//
+// Descriptor for a user task group to be created
+//
+type SchTaskGroupDescription struct {
+	Grp		string							// user task group name
+	MbList	[]string							// member name list
+	MbSize	int								// mailbox size
+	Ep		SchUserTaskEp					// user task entry point
+	Wd		SchWatchDog						// watchdog
+	Flag	int								// flag: start at once or to be suspended
+	DieCb	func(interface{}) SchErrno	// callbacked when going to die
+}
+
+//
+// Timer type
+//
+const (
+	SchTmTypePeriod		= 0	// cycle timer
+	SchTmTypeAbsolute	= 1	// absolute timer
+)
+
+type SchTimerType int
+
+//
+// Timer description
+//
+const SchMaxTaskTimer 	= 128	// max timers can be held by one user task
+const SchInvalidTid		= -1	// invalid timer identity
+
+type TimerDescription struct {
+	name	string			// timer name
+	utid	int				// user timer identity
+	tmt		SchTimerType	// timer type, see aboved
+	dur		time.Duration	// duration: a period value or duration from now
+	extra	interface{}		// extra data return to timer owner when expired
+}
+
+//
+// Static user task description
+//
+type TaskStaticDescription struct {
+	Name	string							// task name
+	Tep		SchUserTaskEp					// task entry point
+	MbSize	int								// mailbox size
+	Wd		SchWatchDog						// watchdog
+	Flag	int								// flag: start at once or to be suspended
+	DieCb	func(task interface{}) SchErrno	// callbacked when going to die
+}
+
+//
+// Scheduler initilization
+//
+func SchinfSchedulerInit() SchErrno {
+	return schimplSchedulerInit()
+}
+
+//
+// Start scheduler
+//
+func SchinfSchedulerStart(tsd []TaskStaticDescription) (SchErrno, *map[string]interface{}){
+	return schimplSchedulerStart(tsd)
+}
+
+//
+// Create a single task
+//
+func SchinfCreateTaskGroup(taskGrpDesc *SchTaskGroupDescription)(SchErrno, interface{}) {
+	return schimplCreateTaskGroup((*schTaskGroupDescription)(taskGrpDesc))
+}
+
+//
+// Create a task group
+//
+func SchinfCreateTask(taskDesc *SchTaskDescription)(SchErrno, interface{}) {
+	return schimplCreateTask((*schTaskDescription)(taskDesc))
+}
+
+//
+// Start a single task
+//
+func SchinfStartTask(name string) SchErrno {
+	return schimplStartTask(name)
+}
+
+//
+// Start a task group
+//
+func SchinfStartTaskGroup(grp string) (SchErrno, int) {
+	return schimplStartTaskGroup(grp)
+}
+
+//
+// Stop a single task
+//
+func SchinfStopTask(name string) SchErrno {
+	return schimplStopTask(name)
+}
+
+//
+// Delete a single task
+//
+func SchinfDeleteTask(name string) SchErrno {
+	return schimplDeleteTask(name)
+}
+
+//
+// Delete a task group
+//
+func SchinfDeleteTaskGroup(grp string) SchErrno {
+	return schimplDeleteTaskGroup(grp)
+}
+
+//
+// Get user task node pointer: the return type is a pointer a user task named by parameter
+// "name" passed in. but the user caller need not to know details about the task node pointed
+// by that pointer returned. any actions to the task should be carried out by calling funcs
+// exported here in this file, which would call into the core of the scheduler.
+//
+func SchinfGetTaskNodeByName(name string) (eno SchErrno, task interface{}) {
+	return schimplGetTaskNodeByName(name)
+}
+
+//
+// Send message to a specific task
+//
+func SchinfSendMsg2TaskByName(dstTask string, srcTask string, msg *SchMessage) SchErrno {
+
+	eno, src := SchinfGetTaskNodeByName(srcTask)
+	if eno != SchEnoNone || src == nil {
+		yclog.LogCallerFileLine("SchinfSendMsg2TaskByName: " +
+			"SchinfGetTaskNodeByName failed, name: %s, eno: %d", srcTask, eno)
+		return eno
+	}
+
+	eno, dst := SchinfGetTaskNodeByName(dstTask)
+	if eno != SchEnoNone || dst == nil {
+		yclog.LogCallerFileLine("SchinfSendMsg2TaskByName: " +
+			"SchinfGetTaskNodeByName failed, name: %s, eno: %d", dstTask, eno)
+		return eno
+	}
+
+	msg.sender = src.(*schTaskNode)
+	msg.recver = dst.(*schTaskNode)
+
+	return SchinfSendMsg2Task(msg)
+}
+
+func SchinfSendMsg2Task(msg *SchMessage) SchErrno {
+	return schimplSendMsg2Task((*schMessage)(msg))
+}
+
+//
+// Send message to a specific task group
+//
+func SchinfSendMsg2TaskGroup(grp string, msg *SchMessage) (eno SchErrno, failedCount int) {
+	return schimplSendMsg2TaskGroup(grp, (*schMessage)(msg))
+}
+
+//
+// Set a timer
+//
+func SchInfSetTimer(ptn *schTaskNode, tdc *TimerDescription) (eno SchErrno, tid int) {
+	return schimplSetTimer(ptn, (*timerDescription)(tdc))
+}
+
+//
+// Kill a timer
+//
+func SchinfKillTimer(ptn *schTaskNode, tid int) SchErrno {
+	return schimplKillTimer(ptn, tid)
+}
+
+//
+// Done a task
+//
+func SchinfTaskDone(ptn *schTaskNode, eno SchErrno) SchErrno {
+	return schimplTaskDone(ptn, eno)
+}
+
