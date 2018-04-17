@@ -94,6 +94,7 @@ type Node struct {
 // Node static Configuration parameters
 //
 type Config struct {
+	Version			string				// p2p version
 	PrivateKey		*ecdsa.PrivateKey	// node private key
 	MaxPeers		int					// max peers can be
 	MaxPendingPeers int					// max peers in establishing can be
@@ -137,10 +138,10 @@ var config = Config {
 	BootstrapNodes:		nil,
 	StaticNodes:		nil,
 	TrustedNodes:		nil,
-	NodeDataDir:		DefaultDataDir(),
+	NodeDataDir:		P2pDefaultDataDir(),
 	NodeDatabase:		"node.db",
 	ListenAddr:			"*:0",
-	local:				dftLocal,
+	Local:				dftLocal,
 }
 
 //
@@ -161,7 +162,7 @@ func P2pConfig(cfg *Config) P2pCfgErrno {
 // Get default data directory
 //
 func P2pDefaultDataDir() string {
-	home := GetUserHomeDir()
+	home := P2pGetUserHomeDir()
 	if home != "" {
 		if runtime.GOOS == "darwin" {
 			return filepath.Join(home, "Library", "yee")

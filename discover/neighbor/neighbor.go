@@ -42,8 +42,27 @@ type ngbCtrlBlock struct {
 //
 // Neighbor task entry
 //
-func NgbProtoProc(ptn interface{}, msg sch.SchMessage) sch.SchErrno {
+func NgbProtoProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	yclog.LogCallerFileLine("NgbProtoProc: scheduled, msg: %d", msg.Id)
 	return sch.SchEnoNone
 }
 
+//
+// Neighbor manager task name
+//
+const NgbMgrName = "ngbmgr"
+
+//
+// Control block of neighbor manager task
+//
+type ngbMgrCtrlBlock struct {
+	name	string
+}
+
+//
+// Neighbor manager task entry
+//
+func NgbMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
+	yclog.LogCallerFileLine("NgbMgrProc: scheduled, msg: %d", msg.Id)
+	return sch.SchEnoNone
+}

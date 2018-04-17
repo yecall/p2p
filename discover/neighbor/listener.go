@@ -27,6 +27,7 @@ import (
 	"fmt"
 	sch		"ycp2p/scheduler"
 	cfg		"ycp2p/config"
+	umsg	"ycp2p/discover/udpmsg"
 	yclog	"ycp2p/logger"
 )
 
@@ -76,7 +77,7 @@ var lsnMgr = listenerManager{
 //
 func LsnMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 
-	var eno sch.SchErrno = sch.SchEnoUnknown
+	var eno = sch.SchEnoUnknown
 
 	yclog.LogCallerFileLine("LsnMgrProc: " +
 		"scheduled, sender: %s, recver: %s, msg: %d",
@@ -150,21 +151,21 @@ func (mgr *listenerManager)setupUdpConn() sch.SchErrno {
 	strAddr := fmt.Sprintf("%s:%d", lsnMgr.cfg.IP.String(), lsnMgr.cfg.UDP)
 	udpAddr, err := net.ResolveUDPAddr("udp", strAddr)
 	if err != nil {
-		yclog.LogCallerFileLine("")
+		yclog.LogCallerFileLine("setupUdpConn: ResolveUDPAddr failed, err: %s", err.Error())
 		return sch.SchEnoOS
 	}
 
 	// setup connection
 	conn, err = net.ListenUDP("udp", udpAddr)
 	if err != nil || conn == nil {
-		yclog.LogCallerFileLine("")
+		yclog.LogCallerFileLine("setupUdpConn: ListenUDP failed, err: %s", err.Error())
 		return sch.SchEnoOS
 	}
 
 	// get real address
 	realAddr = conn.LocalAddr().(*net.UDPAddr)
 	if realAddr == nil {
-		yclog.LogCallerFileLine("")
+		yclog.LogCallerFileLine("setupUdpConn: LocalAddr failed")
 		return sch.SchEnoOS
 	}
 
@@ -198,7 +199,17 @@ func (mgr *listenerManager) start() sch.SchErrno {
 			"SchinfMakeMessage failed, sender: %s, recver: %s, eno: %d",
 			sch.SchinfGetMessageSender(&msg),
 			sch.SchinfGetMessageRecver(&msg),
-			eno);
+			eno)
+		return eno
+	}
+
+	eno = sch.SchinfSendMsg2Task(&msg)
+	if eno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("start: " +
+			"SchinfSendMsg2Task failed, sender: %s, recver: %s, eno: %d",
+			sch.SchinfGetMessageSender(&msg),
+			sch.SchinfGetMessageRecver(&msg),
+			eno)
 		return eno
 	}
 
@@ -374,10 +385,12 @@ var noDog = sch.SchWatchDog {
 }
 
 type udpReaderTask struct {
-	name	string					// name
-	tep		sch.SchUserTaskEp		// entry
-	conn	*net.UDPConn			// udp connection
-	desc	sch.SchTaskDescription	// description
+	name		string					// name
+	tep			sch.SchUserTaskEp		// entry
+	conn		*net.UDPConn			// udp connection
+	ptnMe		interface{}				// pointer to myself task
+	ptnNgbMgr	interface{}				// pointer to neighbor manager task
+	desc		sch.SchTaskDescription	// description
 }
 
 var udpReader  = udpReaderTask {
@@ -402,9 +415,33 @@ var udpReader  = udpReaderTask {
 }
 
 //
+// EvNblMsgInd message body
+//
+type UdpMsgInd struct {
+	msgType	umsg.UdpMsgType	// message type
+	msgBody	interface{}		// message body, like Ping, Pong, ... see udpmsg.go
+}
+
+//
 // Reader task entry
 //
 func udpReaderLoop(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
+
+	// never not be scheduled for any messages
+	var _ = msg
+
+	eno := sch.SchEnoNone
+	buf := make([]byte, 2048)
+
+	// get related task node pointers
+	udpReader.ptnMe = ptn
+	eno, udpReader.ptnNgbMgr = sch.SchinfGetTaskNodeByName(NgbMgrName)
+	if eno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("udpReaderLoop: " +
+			"SchinfGetTaskNodeByName failed, name: %s, eno: %d",
+			NgbMgrName, eno)
+		return eno
+	}
 
 	//
 	// We just read until errors fired from udp, for example, when
@@ -415,9 +452,6 @@ func udpReaderLoop(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	// discover protocol message, it than create a protocol task to
 	// deal with the message received.
 	//
-
-	eno := sch.SchEnoNone
-	buf := make([]byte, 2048)
 
 _loop:
 
@@ -432,10 +466,8 @@ _loop:
 			break _loop
 		}
 
-		// decode
-		udpReader.decodeMsg(buf, bys, peer)
-
 		// deal with the message
+		udpReader.msgHandler(buf, bys, peer)
 	}
 
 	//
@@ -470,6 +502,56 @@ func (rd udpReaderTask) canErrIgnored(err error) bool {
 //
 // Decode message
 //
-func (rd udpReaderTask) decodeMsg(buf []byte, len int, from *net.UDPAddr) {
-	return
+func (rd udpReaderTask) msgHandler(buf []byte, len int, from *net.UDPAddr) sch.SchErrno {
+
+	//
+	// We need not to interprete the message, we jsut decode it and
+	// then hand it over to protocol handler task, see file neighbor.go
+	// for details please.
+	//
+
+	var schEno sch.SchErrno
+	var msg sch.SchMessage
+	var eno umsg.UdpMsgErrno
+
+	if eno := umsg.PtrUdpMsg.SetRawMessage(buf, len, from); eno != umsg.UdpMsgEnoNone {
+		yclog.LogCallerFileLine("msgHandler: SetRawMessage failed, eno: %d", eno)
+		return sch.SchEnoUserTask
+	}
+
+	if eno = umsg.PtrUdpMsg.Decode(); eno != umsg.UdpMsgEnoNone {
+		yclog.LogCallerFileLine("msgHandler: Decode failed, eno: %d", eno)
+		return sch.SchEnoUserTask
+	}
+
+	//
+	// Dispatch the UDP message deocoded ok to neighbor manager task
+	//
+
+	var udpMsgInd = UdpMsgInd {
+		msgType:umsg.PtrUdpMsg.GetDecodedMsgType(),
+		msgBody:umsg.PtrUdpMsg.GetDecodedMsg(),
+	}
+
+	schEno = sch.SchinfMakeMessage(&msg, rd.ptnMe, rd.ptnNgbMgr, sch.EvNblMsgInd, &udpMsgInd)
+	if schEno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("start: " +
+			"SchinfMakeMessage failed, sender: %s, recver: %s, eno: %d",
+			sch.SchinfGetMessageSender(&msg),
+			sch.SchinfGetMessageRecver(&msg),
+			eno)
+		return schEno
+	}
+
+	schEno = sch.SchinfSendMsg2Task(&msg)
+	if schEno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("start: " +
+			"SchinfSendMsg2Task failed, sender: %s, recver: %s, eno: %d",
+			sch.SchinfGetMessageSender(&msg),
+			sch.SchinfGetMessageRecver(&msg),
+			schEno)
+		return schEno
+	}
+
+	return sch.SchEnoNone
 }

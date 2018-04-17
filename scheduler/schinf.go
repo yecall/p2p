@@ -44,6 +44,7 @@ const (
 	SchEnoConfig		SchErrno = 9	// configuration
 	SchEnoKilled		SchErrno = 10	// task killed
 	SchEnoNotImpl		SchErrno = 11	// not implemented
+	SchEnoUserTask		SchErrno = 12	// internal user task application
 	SchEnoUnknown		SchErrno = 12	// unknowns
 	SchEnoMax			SchErrno = 13	// just for bound checking
 )
