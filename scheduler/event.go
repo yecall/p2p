@@ -28,8 +28,8 @@ package scheduler
 //
 const (
 	EvSchNull		= 0
-	EvSchPoweron	= EvSchNull
-	EvSchPoweroff	= EvSchNull + 1
+	EvSchPoweron	= EvSchNull + 1
+	EvSchPoweroff	= EvSchNull + 2
 )
 
 //
@@ -60,8 +60,8 @@ const TabRefreshTimerId = 0
 const (
 	EvTabMgrBase 		= 1200
 	EvTabRefreshTimer	= EvTimerBase	+ TabRefreshTimerId
-	EvTabRefreshReq		= EvTabMgrBase	+ 1
-	EvTabRefreshRsp		= EvTabMgrBase	+ 2
+	EvTabRefreshReq	= EvTabMgrBase	+ 1
+	EvTabRefreshRsp	= EvTabMgrBase	+ 2
 )
 
 //
@@ -79,13 +79,13 @@ const (
 const NblFindNodeTimerId	= 0
 const NblPingpongTimerId	= 1
 const (
-	EvNblUdpBase		= 1400
+	EvNblUdpBase			= 1400
 	EvNblFindNodeTimer	= EvTimerBase	+ NblFindNodeTimerId
 	EvNblPingpongTimer	= EvTimerBase	+ NblPingpongTimerId
-	EvNblFindNodeReq	= EvNblUdpBase	+ 1
-	EvNblFindNodeRsp	= EvNblUdpBase	+ 2
-	EvNblPingpongReq	= EvNblUdpBase	+ 3
-	EvNblPingpongRsp	= EvNblUdpBase	+ 4
+	EvNblFindNodeReq		= EvNblUdpBase	+ 1
+	EvNblFindNodeRsp		= EvNblUdpBase	+ 2
+	EvNblPingpongReq		= EvNblUdpBase	+ 3
+	EvNblPingpongRsp		= EvNblUdpBase	+ 4
 )
 
 //
@@ -94,8 +94,8 @@ const (
 const (
 	EvNblListennerBase	= 1500
 	EvNblMsgInd			= EvNblListennerBase + 1
-	EvNblStop			= EvNblListennerBase + 2
-	EvNblStart			= EvNblListennerBase + 3
+	EvNblStop				= EvNblListennerBase + 2
+	EvNblStart				= EvNblListennerBase + 3
 )
 
 //
@@ -118,14 +118,14 @@ const (
 //
 const (
 	EvPeerEstBase		= 1800
-	EvPeConnOutReq		= EvPeerEstBase	+ 1
-	EvPeConnOutRsp		= EvPeerEstBase	+ 2
-	EvPeHandshakeReq	= EvPeerEstBase	+ 3
-	EvPeHandshakeRsp	= EvPeerEstBase	+ 4
-	EvPePingpongReq		= EvPeerEstBase	+ 5
-	EvPePingpongRsp		= EvPeerEstBase	+ 6
-	EvPeCloseReq		= EvPeerEstBase	+ 7
-	EvPeCloseCfm		= EvPeerEstBase	+ 8
+	EvPeConnOutReq		= EvPeerEstBase + 1
+	EvPeConnOutRsp		= EvPeerEstBase + 2
+	EvPeHandshakeReq	= EvPeerEstBase + 3
+	EvPeHandshakeRsp	= EvPeerEstBase + 4
+	EvPePingpongReq	= EvPeerEstBase + 5
+	EvPePingpongRsp	= EvPeerEstBase + 6
+	EvPeCloseReq		= EvPeerEstBase + 7
+	EvPeCloseCfm		= EvPeerEstBase + 8
 	EvPeCloseInd		= EvPeerEstBase + 9
 )
 

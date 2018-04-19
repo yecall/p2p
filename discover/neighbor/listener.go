@@ -49,8 +49,8 @@ type listenerManager struct {
 	conn		*net.UDPConn		// udp connection
 	addr		net.UDPAddr			// real udp address
 	state		int					// state
-	ptnMe		interface{}			// pointer to myself task
-	ptnReader	interface{}			// pointer to udp reader task
+	ptnMe		interface{}		// pointer to myself task
+	ptnReader	interface{}		// pointer to udp reader task
 }
 
 //

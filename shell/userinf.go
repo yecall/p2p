@@ -80,7 +80,7 @@ type UserCallbackMessageId	int			// message identity as integer
 type UserCallbackMessage struct {
 	MsgId		UserCallbackMessageId	// message identity
 	PeerInfo	*peer.PeerInfo			// peer information
-	MsgBody		interface{}				// message body
+	MsgBody		interface{}			// message body
 }
 
 //
@@ -90,7 +90,7 @@ type UserMessage2Peer struct {
 	IdList		[]peer.PeerId	// peer identity list
 	PayloadLen	int				// payload length
 	Payload		[]byte			// payload
-	ExtraInfo	interface{}		// extra info: user this field to tell p2p more about this message,
+	ExtraInfo	interface{}	// extra info: user this field to tell p2p more about this message,
 								// for example, if broadcasting is wanted, then set IdList to nil
 								// and setup thie extra info field.
 }

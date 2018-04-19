@@ -41,12 +41,15 @@ const (
 type UdpMsgType int
 
 type (
+
+	// Endpoint: a network end point
 	Endpoint struct {
 		IP			net.IP
 		UDP			uint16
 		TCP 		uint16
 	}
 
+	// Node: endpoint with node identity
 	Node struct {
 		IP			net.IP
 		UDP			uint16
@@ -54,6 +57,7 @@ type (
 		NodeId		ycfg.NodeID
 	}
 
+	// Ping
 	Ping struct {
 		From		Endpoint
 		To			Endpoint
@@ -61,6 +65,7 @@ type (
 		Extra		[]byte
 	}
 
+	// Pong: response to Ping
 	Pong struct {
 		From		Endpoint
 		To			Endpoint
@@ -68,6 +73,7 @@ type (
 		Extra		[]byte
 	}
 
+	// FindNode: request the endpoint of the target
 	FindNode struct {
 		From		Endpoint
 		To			Endpoint
@@ -76,6 +82,7 @@ type (
 		Extra		[]byte
 	}
 
+	// Neighbors: response to FindNode
 	Neighbors struct {
 		From		Endpoint
 		To			Endpoint
@@ -192,7 +199,7 @@ func (pum *UdpMsg) GetDecodedMsgType() UdpMsgType {
 		pb.UdpMessage_PING:			UdpMsgTypePing,
 		pb.UdpMessage_PONG:			UdpMsgTypePong,
 		pb.UdpMessage_FINDNODE:		UdpMsgTypePong,
-		pb.UdpMessage_NEIGHBORS:	UdpMsgTypePing,
+		pb.UdpMessage_NEIGHBORS:		UdpMsgTypePing,
 	}
 
 	var key pb.UdpMessage_MessageType
