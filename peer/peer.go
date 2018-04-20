@@ -55,7 +55,7 @@ type PeerInfo struct {
 //
 // Peer manager
 //
-const PeerMgrName = "PeerMgr"
+const PeerMgrName = sch.PeerMgrName
 
 type peerManager struct {
 	name	string				// name

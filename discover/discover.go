@@ -29,7 +29,7 @@ import (
 //
 // Discover manager
 //
-const DcvMgrName = "dcvmgr"
+const DcvMgrName = sch.DcvMgrName
 
 type discoverManager struct {
 	name	string				// name

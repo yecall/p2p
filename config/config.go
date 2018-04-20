@@ -28,6 +28,7 @@ import (
 	"os"
 	"os/user"
 	"runtime"
+	"fmt"
 )
 
 
@@ -156,6 +157,17 @@ func p2pSetupLocalNodeId() P2pCfgErrno {
 //
 func P2pConfig(cfg *Config) P2pCfgErrno {
 	return PcfgEnoNone
+}
+
+//
+// Node identity to string
+//
+func P2pNodeId2HexString(id NodeID) string {
+	var str = ""
+	for _, b := range id {
+		str = str + fmt.Sprintf("%02x", b)
+	}
+	return str
 }
 
 //

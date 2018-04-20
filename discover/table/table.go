@@ -30,7 +30,7 @@ import (
 //
 // Table manager
 //
-const TabMgrName = "tabmgr"
+const TabMgrName = sch.TabMgrName
 
 type tableManager struct {
 	name	string				// name

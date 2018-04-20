@@ -57,7 +57,7 @@ var TaskStaticTab = []sch.TaskStaticDescription {
 	{	Name:ngb.LsnMgrName,		Tep:ngb.LsnMgrProc,			DieCb: nil,		Wd:noDog,	},
 	{	Name:ngb.NgbMgrName,		Tep:ngb.NgbMgrProc,			DieCb: nil,		Wd:noDog,	},
 	{	Name:peer.PeerMgrName,		Tep:peer.PeerMgrProc,		DieCb: nil,		Wd:noDog,	},
-	{	Name:peer.LsnMgrName,		Tep:peer.LsnMgrProc,		DieCb: nil,		Wd:noDog,	},
+	{	Name:peer.PeerLsnMgrName,	Tep:peer.LsnMgrProc,		DieCb: nil,		Wd:noDog,	},
 	{	Name:dht.DhtMgrName,		Tep:dht.DhtMgrProc,			DieCb: nil,		Wd:noDog,	},
 	{	Name:dhtro.DhtroMgrName,	Tep:dhtro.DhtroMgrProc,		DieCb: nil,		Wd:noDog,	},
 	{	Name:dhtch.DhtchMgrName,	Tep:dhtch.DhtchMgrProc,		DieCb: nil,		Wd:noDog,	},

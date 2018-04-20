@@ -59,24 +59,24 @@ type (
 
 	// Ping
 	Ping struct {
-		From		Endpoint
-		To			Endpoint
+		From		Node
+		To			Node
 		Expiration	uint64
 		Extra		[]byte
 	}
 
 	// Pong: response to Ping
 	Pong struct {
-		From		Endpoint
-		To			Endpoint
+		From		Node
+		To			Node
 		Expiration	uint64
 		Extra		[]byte
 	}
 
 	// FindNode: request the endpoint of the target
 	FindNode struct {
-		From		Endpoint
-		To			Endpoint
+		From		Node
+		To			Node
 		Target		Node
 		Expiration	uint64
 		Extra		[]byte
@@ -84,9 +84,9 @@ type (
 
 	// Neighbors: response to FindNode
 	Neighbors struct {
-		From		Endpoint
-		To			Endpoint
-		nodes		Node
+		From		Node
+		To			Node
+		Nodes		Node
 		Expiration	uint64
 		Extra		[]byte
 	}
@@ -239,6 +239,37 @@ func (pum *UdpMsg) GetFindNode() *FindNode {
 //
 func (pum *UdpMsg) GetNeighbors() *Neighbors {
 	return nil
+}
+
+//
+// Check decoded message from peer with endpoint where the message received
+//
+func (pum *UdpMsg) CheckUdpMsgFromPeer(from *net.UDPAddr) bool {
+
+	// we just check the ip address simply now, more might be needed
+	funcBytesEqu := func(bys1[]byte, bys2[]byte) bool {
+		if len(bys1) != len(bys2) {
+			return false
+		}
+		for idx, b := range bys1 {
+			if b != bys2[idx] {
+				return false
+			}
+		}
+		return true
+	}
+
+	if *pum.Msg.MsgType == pb.UdpMessage_PING {
+		return funcBytesEqu(pum.Msg.Ping.From.IP, from.IP)
+	} else if *pum.Msg.MsgType == pb.UdpMessage_PONG  {
+		return funcBytesEqu(pum.Msg.Pong.From.IP, from.IP)
+	} else if *pum.Msg.MsgType == pb.UdpMessage_FINDNODE {
+		return funcBytesEqu(pum.Msg.FindNode.From.IP, from.IP)
+	} else if *pum.Msg.MsgType == pb.UdpMessage_NEIGHBORS {
+		return funcBytesEqu(pum.Msg.Neighbors.From.IP, from.IP)
+	}
+
+	return false
 }
 
 //

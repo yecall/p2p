@@ -34,7 +34,7 @@ import (
 //
 // Listen manager
 //
-const LsnMgrName = "NgbLsnMgr"
+const LsnMgrName = sch.NgbLsnName
 
 type listenerConfig struct {
 	IP	net.IP		// len 4 for IPv4 or 16 for IPv6
@@ -378,7 +378,7 @@ func (mgr *listenerManager) procStop() sch.SchErrno {
 //
 // Reader task on UDP connection
 //
-const udpReaderName = "urtask"
+const udpReaderName = sch.NgbReaderName
 
 var noDog = sch.SchWatchDog {
 	HaveDog:false,
@@ -388,8 +388,8 @@ type udpReaderTask struct {
 	name		string					// name
 	tep			sch.SchUserTaskEp		// entry
 	conn		*net.UDPConn			// udp connection
-	ptnMe		interface{}				// pointer to myself task
-	ptnNgbMgr	interface{}				// pointer to neighbor manager task
+	ptnMe		interface{}			// pointer to myself task
+	ptnNgbMgr	interface{}			// pointer to neighbor manager task
 	desc		sch.SchTaskDescription	// description
 }
 
@@ -413,6 +413,9 @@ var udpReader  = udpReaderTask {
 		DieCb:	nil,
 	},
 }
+
+var UdpConn = udpReader.conn
+
 
 //
 // EvNblMsgInd message body
@@ -533,9 +536,15 @@ func (rd udpReaderTask) msgHandler(buf []byte, len int, from *net.UDPAddr) sch.S
 		msgBody:umsg.PtrUdpMsg.GetDecodedMsg(),
 	}
 
+	// check this message agaigst the endpoint sent it
+	if umsg.PtrUdpMsg.CheckUdpMsgFromPeer(from) != true {
+		yclog.LogCallerFileLine("msgHandler: invalid udp message, CheckUdpMsg failed")
+		return sch.SchEnoUserTask
+	}
+
 	schEno = sch.SchinfMakeMessage(&msg, rd.ptnMe, rd.ptnNgbMgr, sch.EvNblMsgInd, &udpMsgInd)
 	if schEno != sch.SchEnoNone {
-		yclog.LogCallerFileLine("start: " +
+		yclog.LogCallerFileLine("msgHandler: " +
 			"SchinfMakeMessage failed, sender: %s, recver: %s, eno: %d",
 			sch.SchinfGetMessageSender(&msg),
 			sch.SchinfGetMessageRecver(&msg),
@@ -545,7 +554,7 @@ func (rd udpReaderTask) msgHandler(buf []byte, len int, from *net.UDPAddr) sch.S
 
 	schEno = sch.SchinfSendMsg2Task(&msg)
 	if schEno != sch.SchEnoNone {
-		yclog.LogCallerFileLine("start: " +
+		yclog.LogCallerFileLine("msgHandler: " +
 			"SchinfSendMsg2Task failed, sender: %s, recver: %s, eno: %d",
 			sch.SchinfGetMessageSender(&msg),
 			sch.SchinfGetMessageRecver(&msg),
@@ -555,3 +564,27 @@ func (rd udpReaderTask) msgHandler(buf []byte, len int, from *net.UDPAddr) sch.S
 
 	return sch.SchEnoNone
 }
+
+//
+// Send message: we might need a singal task to handle the sending later.
+//
+func sendUdpMsg(buf []byte, toAddr *net.UDPAddr) sch.SchErrno {
+
+	if UdpConn == nil {
+		yclog.LogCallerFileLine("SendUdpMsg: invalid UDP connection")
+		return sch.SchEnoInternal
+	}
+
+	if len(buf) == 0 || toAddr == nil {
+		yclog.LogCallerFileLine("")
+		return sch.SchEnoParameter
+	}
+
+	if _, err := udpReader.conn.WriteToUDP(buf, toAddr); err != nil {
+		yclog.LogCallerFileLine("SendUdpMsg: err: %s", err.Error())
+		return sch.SchEnoUserTask
+	}
+
+	return sch.SchEnoNone
+}
+

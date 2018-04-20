@@ -31,7 +31,6 @@ import (
 //
 type schMessage SchMessage
 
-
 //
 // User task entry point
 //
@@ -124,6 +123,7 @@ type schTask struct {
 	dog			schWatchDog						// wathch dog
 	dieCb		func(interface{}) SchErrno		// callbacked when going to die
 	goStatus	int								// in going or suspended
+	userData	interface{}					// data area pointer of user task
 }
 
 //
@@ -181,3 +181,16 @@ type scheduler struct {
 //
 type schCommonTaskEp func(ptn *schTaskNode) SchErrno
 
+
+//
+// static tasks name
+//
+const (
+	DcvMgrName			= "DcvMgr"			// disccover manager
+	TabMgrName			= "TabMgr"			// table
+	NgbLsnName			= "NgbLsn"			// udp neighbor listener
+	NgbMgrName			= "NgbMgr"			// udp neighbor manager
+	NgbReaderName		= "UdpReader"		// udp reader
+	PeerLsnMgrName		= "PeerLsnMgr"		// tcp peer listener
+	PeerMgrName		= "PeerMgr"		// tcp peer manager
+)

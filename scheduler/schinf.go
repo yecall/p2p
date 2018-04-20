@@ -139,6 +139,7 @@ type SchTaskDescription struct {
 	Wd		SchWatchDog					// watchdog
 	Flag	int							// flag: start at once or to be suspended
 	DieCb	func(interface{}) SchErrno	// callbacked when going to die
+	UserDa	interface{}				// user data area pointer
 }
 
 //
@@ -371,4 +372,18 @@ func SchinfGetMessageRecver(msg *SchMessage) string {
 		return ""
 	}
 	return msg.recver.task.name
+}
+
+//
+// Get user data area pointer
+//
+func SchinfGetUserDataArea(ptn interface{}) interface{} {
+	return schimplGetUserDataArea(ptn.(*schTaskNode))
+}
+
+//
+// Get task name
+//
+func SchinfGetTaskName(ptn interface{}) string {
+	return schimplGetTaskName(ptn.(*schTaskNode))
 }

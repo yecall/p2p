@@ -29,7 +29,7 @@ import (
 //
 // Listener manager
 //
-const LsnMgrName = "PeerLsnMgr"
+const PeerLsnMgrName = sch.PeerLsnMgrName
 
 type listenerManager struct {
 	name	string				// name
@@ -37,7 +37,7 @@ type listenerManager struct {
 }
 
 var lsnMgr = listenerManager{
-	name:	LsnMgrName,
+	name:	PeerLsnMgrName,
 	tep:	LsnMgrProc,
 }
 

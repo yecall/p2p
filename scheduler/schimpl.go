@@ -493,6 +493,7 @@ func schimplCreateTask(taskDesc *schTaskDescription) (SchErrno, interface{}){
 	ptn.task.done			= make(chan SchErrno)
 	ptn.task.dog			= schWatchDog(taskDesc.Wd)
 	ptn.task.dieCb			= taskDesc.DieCb
+	ptn.task.userData		= taskDesc.UserDa
 
 	// make timer table
 	for idx, ptm := range ptn.task.tmTab {
@@ -1068,6 +1069,26 @@ func schimplTaskKilled(ptn *schTaskNode) bool {
 	}
 
 	return killed
+}
+
+//
+// Get user data area pointer
+//
+func schimplGetUserDataArea(ptn *schTaskNode) interface{} {
+	if ptn == nil {
+		return nil
+	}
+	return ptn.task.userData
+}
+
+//
+// Get task name
+//
+func schimplGetTaskName(ptn *schTaskNode) string {
+	if ptn == nil {
+		return ""
+	}
+	return ptn.task.name
 }
 
 //

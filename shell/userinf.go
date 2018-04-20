@@ -34,8 +34,9 @@ type UserInfErrno	int
 const (
 	UserInfEnoNone			UserInfErrno = 0	// none of errors
 	UserInfEnoParameter	UserInfErrno = 1	// invalid parameters
-	UserInfEnoUnknown		UserInfErrno = 2	// unknown
-	UserInfEnoMax			UserInfErrno = 3	// max, for bound checking
+	UserInfoEnoNotImpl	UserInfErrno = 2	// not implemented
+	UserInfEnoUnknown		UserInfErrno = 3	// unknown
+	UserInfEnoMax			UserInfErrno = 4	// max, for bound checking
 )
 
 //
@@ -134,5 +135,12 @@ func UserInfBlackPeer(id peer.PeerId, time time.Duration) UserInfErrno {
 // Add peer into whitelist
 //
 func UserInfWhitePeer(id peer.PeerId) UserInfErrno {
+	return UserInfEnoNone
+}
+
+//
+// Free total p2p all
+//
+func UserInfPoweroff() UserInfErrno {
 	return UserInfEnoNone
 }
