@@ -43,7 +43,6 @@ const (
 	NgbMgrEnoMismatched
 	NgbMgrEnoScheduler
 	NgbMgrEnoUnknown
-	NgbMgrEnoMax
 )
 type NgbMgrErrno int
 
@@ -85,13 +84,112 @@ type neighborInst struct {
 	msgBody	interface{}	// message body
 }
 
+//
+// Protocol handler errno
+//
+const (
+	NgbProtoEnoNone	= iota
+	NgbProtoEnoTimeout
+	NgbProtoEnoParameter
+)
+
+type NgbProtoErrno int
 
 //
 // Neighbor task entry
 //
 func NgbProtoProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
+
 	yclog.LogCallerFileLine("NgbProtoProc: scheduled, msg: %d", msg.Id)
+
+	var protoEno NgbProtoErrno
+	var inst *neighborInst
+
+	inst = sch.SchinfGetUserDataArea(ptn).(*neighborInst)
+
+	switch msg.Id {
+	case sch.EvNblFindNodeReq:
+		protoEno = inst.NgbProtoFindNodeReq()
+	case sch.EvNblPingpongReq:
+		protoEno = inst.NgbProtoPingReq()
+	case sch.EvNblFindNodeTimer:
+		protoEno = inst.NgbProtoFindNodeTimeout()
+	case sch.EvNblPingpongTimer:
+		protoEno = inst.NgbProtoPingTimeout()
+	default:
+		yclog.LogCallerFileLine("NgbProtoProc: invalid message, msg.Id: %d", msg.Id)
+		protoEno = NgbProtoEnoParameter
+	}
+
+	if protoEno != NgbProtoEnoNone {
+		return sch.SchEnoUserTask
+	}
+
 	return sch.SchEnoNone
+}
+
+//
+// FindNode request handler
+//
+func (inst *neighborInst) NgbProtoFindNodeReq() NgbProtoErrno {
+	// check FindNode request
+	if inst.msgType != um.UdpMsgTypeFindNode || inst.msgBody == nil {
+		yclog.LogCallerFileLine("NgbProtoFindNodeReq: invalid find node request")
+		return NgbProtoEnoParameter
+	}
+
+	// setup FindNode request
+
+	// encode request
+
+	// send encoded request
+
+	// start timer for response
+
+	return NgbProtoEnoNone
+}
+
+//
+// Ping request handler
+//
+func (inst *neighborInst) NgbProtoPingReq() NgbProtoErrno {
+	// check Ping request
+	if inst.msgType != um.UdpMsgTypePing || inst.msgBody == nil {
+		yclog.LogCallerFileLine("NgbProtoPingReq: invalid ping request")
+		return NgbProtoEnoParameter
+	}
+
+	// setup request
+
+	// encode request
+
+	// send encoded request
+
+	// start time for response
+
+	return NgbProtoEnoNone
+}
+
+//
+// FindNode timeout handler
+//
+func (inst *neighborInst) NgbProtoFindNodeTimeout() NgbProtoErrno {
+	// response FindNode timeout to table task
+
+	// done the neighbor task instance
+
+	return NgbProtoEnoNone
+}
+
+//
+// Ping timeout handler
+//
+func (inst *neighborInst) NgbProtoPingTimeout() NgbProtoErrno {
+	// response Ping timeout to table task
+
+	// done the neighbor task instance
+
+	return NgbProtoEnoNone
 }
 
 //

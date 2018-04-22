@@ -68,7 +68,7 @@ var dcvMgr = peerManager{
 }
 
 //
-// Table manager entry
+// Peer manager entry
 //
 func PeerMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 

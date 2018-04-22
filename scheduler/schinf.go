@@ -34,7 +34,7 @@ type SchErrno int
 
 const (
 	SchEnoNone			SchErrno = 0	// none of errors
-	SchEnoParameter		SchErrno = 1	// invalid parameters
+	SchEnoParameter	SchErrno = 1	// invalid parameters
 	SchEnoResource		SchErrno = 2	// no resources
 	SchEnoWatchDog		SchErrno = 3	// watch dog
 	SchEnoNotFound		SchErrno = 4	// not found
@@ -94,7 +94,7 @@ type SchMessage struct {
 	sender 	*schTaskNode	// sender task node pointer
 	recver	*schTaskNode	// receiver task node pointer
 	Id		int				// message identity
-	Body	interface{}		// message body
+	Body	interface{}	// message body
 }
 
 //
@@ -125,7 +125,7 @@ const (
 //
 // Descriptor for a user tack to be created
 //
-const SchMaxGroupSize = 64					// max number of group members
+const SchMaxGroupSize = 64			// max number of group members
 
 //
 // max mail box size
@@ -147,19 +147,19 @@ type SchTaskDescription struct {
 //
 type SchTaskGroupDescription struct {
 	Grp		string							// user task group name
-	MbList	[]string							// member name list
+	MbList	[]string						// member name list
 	MbSize	int								// mailbox size
 	Ep		SchUserTaskEp					// user task entry point
 	Wd		SchWatchDog						// watchdog
 	Flag	int								// flag: start at once or to be suspended
-	DieCb	func(interface{}) SchErrno	// callbacked when going to die
+	DieCb	func(interface{}) SchErrno		// callbacked when going to die
 }
 
 //
 // Timer type
 //
 const (
-	SchTmTypePeriod		= 0	// cycle timer
+	SchTmTypePeriod	= 0	// cycle timer
 	SchTmTypeAbsolute	= 1	// absolute timer
 )
 
@@ -176,18 +176,18 @@ type TimerDescription struct {
 	utid	int				// user timer identity
 	tmt		SchTimerType	// timer type, see aboved
 	dur		time.Duration	// duration: a period value or duration from now
-	extra	interface{}		// extra data return to timer owner when expired
+	extra	interface{}	// extra data return to timer owner when expired
 }
 
 //
 // Static user task description
 //
 type TaskStaticDescription struct {
-	Name	string							// task name
-	Tep		SchUserTaskEp					// task entry point
-	MbSize	int								// mailbox size
-	Wd		SchWatchDog						// watchdog
-	Flag	int								// flag: start at once or to be suspended
+	Name	string								// task name
+	Tep		SchUserTaskEp						// task entry point
+	MbSize	int									// mailbox size
+	Wd		SchWatchDog							// watchdog
+	Flag	int									// flag: start at once or to be suspended
 	DieCb	func(task interface{}) SchErrno	// callbacked when going to die
 }
 

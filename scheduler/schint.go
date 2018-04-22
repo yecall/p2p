@@ -47,7 +47,7 @@ const schMaxMbSize	 = SchMaxMbSize
 const (
 	schDeaultWatchCycle			= SchDeaultWatchCycle
 	schDefaultDogCycle			= SchDefaultDogCycle
-	schDefaultDogDieThresold	= SchDefaultDogDieThresold
+	schDefaultDogDieThresold		= SchDefaultDogDieThresold
 )
 
 type schWatchDog SchWatchDog
@@ -64,7 +64,7 @@ type schMailBox struct {
 // Timer type
 //
 const (
-	schTmTypeNull		= -1				// null
+	schTmTypeNull		= -1					// null
 	schTmTypePeriod		= SchTmTypePeriod	// cycle timer
 	schTmTypeAbsolute	= SchTmTypeAbsolute	// absolute timer
 )
@@ -87,7 +87,7 @@ type schTimerCtrlBlock struct {
 	stop		chan bool		// should be stop
 	stopped		chan bool		// had been stopped
 	taskNode	*schTaskNode	// pointer to owner task node
-	extra		interface{}		// extra data return to timer owner when expired
+	extra		interface{}	// extra data return to timer owner when expired
 }
 
 //
@@ -95,8 +95,8 @@ type schTimerCtrlBlock struct {
 //
 type schTmcbNode struct {
 	tmcb	schTimerCtrlBlock	// timer control block
-	last	*schTmcbNode			// pointer to last node
-	next	*schTmcbNode			// pointer to next node
+	last	*schTmcbNode		// pointer to last node
+	next	*schTmcbNode		// pointer to next node
 }
 
 //
@@ -109,7 +109,7 @@ var schTimerNodePool [schTimerNodePoolSize]schTmcbNode	// timer node pool
 // Task struct
 //
 const schMaxTaskTimer	= SchMaxTaskTimer				// max timers can be held by one user task
-const schInvalidTid		= SchInvalidTid					// invalid timer identity
+const schInvalidTid		= SchInvalidTid			// invalid timer identity
 
 type schTask struct {
 	lock		sync.Locker						// lock to protect task control block
@@ -138,7 +138,7 @@ type schTaskNode struct {
 //
 // Task group
 //
-const schMaxGroupSize = SchMaxGroupSize					// max number of group members
+const schMaxGroupSize = SchMaxGroupSize				// max number of group members
 type schTaskGroupName	string							// group name as string
 type schTaskGroup map[schTaskGroupName][]*schTaskNode	// group map group-name to task node array
 
@@ -167,9 +167,9 @@ type scheduler struct {
 	tkBusy		*schTaskNode					// busy task queue in scheduling
 	tkMap		map[schTaskName] *schTaskNode	// map task name to pointer of running task node
 	busySize	int								// number of nodes in busy
-	tmFree		*schTmcbNode						// free timer node queue
+	tmFree		*schTmcbNode					// free timer node queue
 	tmFreeSize	int								// free timer node queue size
-	tmBusy		*schTmcbNode						// busy timer node queue
+	tmBusy		*schTmcbNode					// busy timer node queue
 	tmMap		map[*schTmcbNode] *schTaskNode	// map busy timer node pointer to its' owner task node pointer
 	tmBusySize	int								// busy timer node queue size
 	grpMap		schTaskGroup					// group name to group member map

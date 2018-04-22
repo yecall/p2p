@@ -47,6 +47,16 @@ var dcvMgr = tableManager{
 //
 func TabMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	yclog.LogCallerFileLine("TabMgrProc: scheduled, msg: %d", msg.Id)
+
+	switch msg.Id {
+	case sch.EvSchPoweron:
+	case sch.EvSchPoweroff:
+	case sch.EvTabRefreshTimer:
+	case sch.EvTabRefreshReq:
+	case sch.EvNblFindNodeRsp:
+	case sch.EvNblPingpongRsp:
+	default:
+	}
 	return sch.SchEnoNone
 }
 

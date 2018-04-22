@@ -46,5 +46,13 @@ var dcvMgr = discoverManager{
 //
 func DcvMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	yclog.LogCallerFileLine("DcvMgrProc: scheduled, msg: %d", msg.Id)
+
+	switch msg.Id {
+	case sch.EvSchPoweron:
+	case sch.EvSchPoweroff:
+	case sch.EvTabRefreshReq:
+	case sch.EvTabRefreshRsp:
+	default:
+	}
 	return sch.SchEnoNone
 }
