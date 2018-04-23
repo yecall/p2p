@@ -37,9 +37,10 @@ import (
 const LsnMgrName = sch.NgbLsnName
 
 type listenerConfig struct {
-	IP	net.IP		// len 4 for IPv4 or 16 for IPv6
-	UDP	uint16		// port numbers
-	ID	cfg.NodeID	// the node's public key
+	IP	net.IP		// IP
+	UDP	uint16		// UDP port number
+	TCP	uint16		// TCP port number
+	ID	cfg.NodeID	// node identity: the public key
 }
 
 type listenerManager struct {

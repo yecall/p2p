@@ -59,9 +59,17 @@ const EvShellBase = 1100
 const TabRefreshTimerId = 0
 const (
 	EvTabMgrBase 		= 1200
-	EvTabRefreshTimer	= EvTimerBase	+ TabRefreshTimerId
-	EvTabRefreshReq	= EvTabMgrBase	+ 1
-	EvTabRefreshRsp	= EvTabMgrBase	+ 2
+	EvTabRefreshTimer	= EvTimerBase + TabRefreshTimerId
+	EvTabRefreshReq		= EvTabMgrBase + 1
+	EvTabRefreshRsp		= EvTabMgrBase + 2
+)
+
+//
+// NodeDb cleaner event
+//
+const NdbCleanerTimerId = 1
+const (
+	EvNdbCleanerTimer	= EvTimerBase + NdbCleanerTimerId
 )
 
 //
@@ -111,6 +119,7 @@ const (
 //
 const (
 	EvPeerLsnBase = 1700
+	EvPeerConnAcceptedInd	= EvPeerLsnBase + 1
 )
 
 //
@@ -122,11 +131,13 @@ const (
 	EvPeConnOutRsp		= EvPeerEstBase + 2
 	EvPeHandshakeReq	= EvPeerEstBase + 3
 	EvPeHandshakeRsp	= EvPeerEstBase + 4
-	EvPePingpongReq	= EvPeerEstBase + 5
-	EvPePingpongRsp	= EvPeerEstBase + 6
+	EvPePingpongReq		= EvPeerEstBase + 5
+	EvPePingpongRsp		= EvPeerEstBase + 6
 	EvPeCloseReq		= EvPeerEstBase + 7
 	EvPeCloseCfm		= EvPeerEstBase + 8
 	EvPeCloseInd		= EvPeerEstBase + 9
+	EvPeOutboundReq		= EvPeerEstBase + 10
+	EvPeEstablishedInd	= EvPeerEstBase + 11
 )
 
 //

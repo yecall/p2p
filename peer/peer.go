@@ -22,6 +22,7 @@
 package peer
 
 import (
+	"net"
 	sch 	"ycp2p/scheduler"
 	yclog	"ycp2p/logger"
 )
@@ -73,6 +74,51 @@ var dcvMgr = peerManager{
 func PeerMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 
 	yclog.LogCallerFileLine("PeerMgrProc: scheduled, msg: %d", msg.Id)
+
+	switch msg.Id {
+	case sch.EvSchPoweron:
+	case sch.EvSchPoweroff:
+	case sch.EvDcvFindNodeRsp:
+	case sch.EvPeerConnAcceptedInd:
+	case sch.EvPeOutboundReq:
+	case sch.EvPeConnOutRsp:
+	case sch.EvPeHandshakeRsp:
+	case sch.EvPePingpongRsp:
+	case sch.EvPeCloseCfm:
+	case sch.EvPeCloseInd:
+	default:
+	}
+
 	return sch.SchEnoNone
 }
 
+//
+// Dynamic peer task
+//
+type peerInstState int
+
+type peerInstance struct {
+	name	string				// name
+	tep		sch.SchUserTaskEp	// entry
+	state	peerInstState		// state
+	conn	net.Conn			// connection
+}
+
+//
+// Peer instance entry
+//
+func PeerInstProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
+
+	yclog.LogCallerFileLine("PeerInstProc: scheduled, msg: %d", msg.Id)
+
+	switch msg.Id {
+	case sch.EvPeConnOutReq:
+	case sch.EvPeHandshakeReq:
+	case sch.EvPePingpongReq:
+	case sch.EvPeCloseReq:
+	case sch.EvPeEstablishedInd:
+	default:
+	}
+
+	return sch.SchEnoNone
+}

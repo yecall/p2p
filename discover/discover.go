@@ -50,7 +50,7 @@ func DcvMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	switch msg.Id {
 	case sch.EvSchPoweron:
 	case sch.EvSchPoweroff:
-	case sch.EvTabRefreshReq:
+	case sch.EvDcvFindNodeReq:
 	case sch.EvTabRefreshRsp:
 	default:
 	}
