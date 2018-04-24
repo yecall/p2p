@@ -30,6 +30,7 @@ const (
 	EvSchNull		= 0
 	EvSchPoweron	= EvSchNull + 1
 	EvSchPoweroff	= EvSchNull + 2
+	EvSchException	= EvSchNull + 3
 )
 
 //
@@ -119,7 +120,9 @@ const (
 //
 const (
 	EvPeerLsnBase = 1700
-	EvPeerConnAcceptedInd	= EvPeerLsnBase + 1
+	EvPeLsnConnAcceptedInd	= EvPeerLsnBase + 1
+	EvPeLsnStartReq			= EvPeerLsnBase + 2
+	EvPeLsnStopReq			= EvPeerLsnBase + 3
 )
 
 //
@@ -138,6 +141,7 @@ const (
 	EvPeCloseInd		= EvPeerEstBase + 9
 	EvPeOutboundReq		= EvPeerEstBase + 10
 	EvPeEstablishedInd	= EvPeerEstBase + 11
+	EvPeMgrStartReq		= EvPeerEstBase + 12
 )
 
 //

@@ -77,16 +77,18 @@ type NodeID [NodeIDBits/8]byte
 const MaxPeers = 32
 
 //
-// Max peers in pending
+// Max concurrecny inboudn and outbound
 //
-const MaxPeersInPending	= MaxPeers/2
+const MaxInbounds	= MaxPeers/2
+const MaxOutbounds	= MaxPeers/2
+
 
 
 //
 // Node
 //
 type Node struct {
-	IP			net.IP // len 4 for IPv4 or 16 for IPv6
+	IP			net.IP // ip address
 	UDP, TCP	uint16 // port numbers
 	ID			NodeID // the node's public key
 }
@@ -98,7 +100,8 @@ type Config struct {
 	Version			string				// p2p version
 	PrivateKey		*ecdsa.PrivateKey	// node private key
 	MaxPeers		int					// max peers can be
-	MaxPendingPeers int					// max peers in establishing can be
+	MaxInbounds		int					// max peers for inbound concurrency establishing can be
+	MaxOutbounds	int					// max peers for outbound concurrency establishing can be
 	Name			string				// node name
 	BootstrapNodes	[]*NodeID			// bootstrap nodes
 	StaticNodes		[]*NodeID			// static nodes
@@ -114,9 +117,31 @@ type Config struct {
 // Configuration about neighbor listener on UDP
 //
 type Cfg4UdpListener struct {
-	IP		net.IP	// len 4 for IPv4 or 16 for IPv6
+	IP		net.IP	// ip address
 	Port	uint16	// port numbers
 	ID		NodeID	// the node's public key
+}
+
+//
+// Configuration about peer listener on TCP
+//
+type Cfg4PeerListener struct {
+	IP			net.IP	// ip address
+	Port		uint16	// port numbers
+	ID			NodeID	// the node's public key
+	MaxInBounds	int		// max concurrency inbounds
+}
+
+//
+// Configuration about peer manager
+//
+type Cfg4PeerManager struct {
+	IP				net.IP	// ip address
+	Port			uint16	// port numbers
+	ID				NodeID	// the node's public key
+	MaxPeers		int		// max peers would be
+	MaxOutbounds	int		// max concurrency outbounds
+	MaxInBounds		int		// max concurrency inbounds
 }
 
 //
@@ -134,7 +159,8 @@ var dftLocal = Node {
 var config = Config {
 	PrivateKey:			nil,
 	MaxPeers:			MaxPeers,
-	MaxPendingPeers:	MaxPeersInPending,
+	MaxInbounds:		MaxInbounds,
+	MaxOutbounds:		MaxOutbounds,
 	Name:				"yeeco.node",
 	BootstrapNodes:		nil,
 	StaticNodes:		nil,
@@ -217,3 +243,28 @@ func P2pConfig4UdpListener() *Cfg4UdpListener {
 	}
 }
 
+//
+// Get configuration of peer listener
+//
+func P2pConfig4PeerListener() *Cfg4PeerListener {
+	return &Cfg4PeerListener {
+		IP:			config.Local.IP,
+		Port:		config.Local.TCP,
+		ID:			config.Local.ID,
+		MaxInBounds:config.MaxInbounds,
+	}
+}
+
+//
+// Get configuration of peer manager
+//
+func P2pConfig4PeerManager() *Cfg4PeerManager {
+	return &Cfg4PeerManager {
+		IP:				config.Local.IP,
+		Port:			config.Local.TCP,
+		ID:				config.Local.ID,
+		MaxPeers:		config.MaxPeers,
+		MaxOutbounds:	config.MaxOutbounds,
+		MaxInBounds:	config.MaxInbounds,
+	}
+}
