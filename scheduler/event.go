@@ -18,8 +18,21 @@
  *
  */
 
+//
+// Notice： all events for those tasks scheduled by the scheduler module
+// should be defined in this file, and messages for inter-module actions
+// should be defined here also, while those messages needed just for inner
+// module actions please not defined here. This file is shred by all modules
+// based on the shceduler, see it please.
+//
 
 package scheduler
+
+import (
+	ycfg "ycp2p/config"
+)
+
+
 
 //
 // Null event: nothing;
@@ -40,7 +53,6 @@ const (
 	EvSchBase			= 10
 	EvSchTaskCreated	= EvSchBase + 1
 )
-
 
 //
 // Timer event: for an user task, it could hold most timer number as schMaxTaskTimer,
@@ -82,6 +94,17 @@ const (
 	EvDcvFindNodeRsp	= EvDcvMgrBase	+ 2
 )
 
+// EvDcvFindNodeReq
+type MsgDcvFindNodeReq struct {
+	Include	[]*ycfg.NodeID	// wanted, it can be an advice for discover
+	Exclude	[]*ycfg.NodeID	// filter out from response if any
+}
+
+// EvDcvFindNodeRsp
+type MsgDcvFindNodeRsp struct {
+	Nodes	[]*ycfg.Node	// nodes found
+}
+
 //
 // Neighbor lookup on Udp event
 //
@@ -89,8 +112,8 @@ const NblFindNodeTimerId	= 0
 const NblPingpongTimerId	= 1
 const (
 	EvNblUdpBase			= 1400
-	EvNblFindNodeTimer	= EvTimerBase	+ NblFindNodeTimerId
-	EvNblPingpongTimer	= EvTimerBase	+ NblPingpongTimerId
+	EvNblFindNodeTimer		= EvTimerBase	+ NblFindNodeTimerId
+	EvNblPingpongTimer		= EvTimerBase	+ NblPingpongTimerId
 	EvNblFindNodeReq		= EvNblUdpBase	+ 1
 	EvNblFindNodeRsp		= EvNblUdpBase	+ 2
 	EvNblPingpongReq		= EvNblUdpBase	+ 3
@@ -103,8 +126,8 @@ const (
 const (
 	EvNblListennerBase	= 1500
 	EvNblMsgInd			= EvNblListennerBase + 1
-	EvNblStop				= EvNblListennerBase + 2
-	EvNblStart				= EvNblListennerBase + 3
+	EvNblStop			= EvNblListennerBase + 2
+	EvNblStart			= EvNblListennerBase + 3
 )
 
 //
@@ -143,6 +166,14 @@ const (
 	EvPeEstablishedInd	= EvPeerEstBase + 11
 	EvPeMgrStartReq		= EvPeerEstBase + 12
 )
+
+//
+// EvPeCloseReq
+//
+type MsgPeCloseReq struct {
+	Ptn		interface{}		// pointer to peer task instance node
+	Node	ycfg.Node		// peer node
+}
 
 //
 // DHT manager event

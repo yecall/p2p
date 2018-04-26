@@ -122,7 +122,14 @@ func lsnMgrPoweron(ptn interface{}) sch.SchErrno {
 // Poweroff event handler
 //
 func lsnMgrPoweroff() sch.SchErrno {
+
 	yclog.LogCallerFileLine("lsnMgrPoweroff: poweroff, done")
+
+	// kill accepter task if needed
+	if _, ptn := sch.SchinfGetTaskNodeByName(acceptProcName); ptn != nil {
+		lsnMgrStop()
+	}
+
 	return sch.SchinfTaskDone(lsnMgr.ptn, sch.SchEnoKilled)
 }
 
@@ -175,8 +182,10 @@ func lsnMgrStop() sch.SchErrno {
 
 	acceptTCB.lockTcb.Lock()
 	defer acceptTCB.lockTcb.Unlock()
-	acceptTCB.event = sch.SchEnoKilled
 
+	// Close the listener to force the acceptor task out of the loop,
+	// see function acceptProc for details please.
+	acceptTCB.event = sch.SchEnoKilled
 	if err := lsnMgr.listener.Close(); err != nil {
 		yclog.LogCallerFileLine("lsnMgrStop: try to close listner fialed, err: %s", err.Error())
 		return sch.SchEnoOS

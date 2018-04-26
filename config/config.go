@@ -103,9 +103,9 @@ type Config struct {
 	MaxInbounds		int					// max peers for inbound concurrency establishing can be
 	MaxOutbounds	int					// max peers for outbound concurrency establishing can be
 	Name			string				// node name
-	BootstrapNodes	[]*NodeID			// bootstrap nodes
-	StaticNodes		[]*NodeID			// static nodes
-	TrustedNodes	[]*NodeID			// trusted nodes
+	BootstrapNodes	[]*Node				// bootstrap nodes
+	StaticNodes		[]*Node				// static nodes
+	TrustedNodes	[]*Node				// trusted nodes
 	NodeDataDir		string				// node data directory
 	NodeDatabase	string				// node database
 	ListenAddr		string				// address listent
@@ -142,6 +142,8 @@ type Cfg4PeerManager struct {
 	MaxPeers		int		// max peers would be
 	MaxOutbounds	int		// max concurrency outbounds
 	MaxInBounds		int		// max concurrency inbounds
+	Statics			[]*Node	// static nodes
+	Trusted			[]*Node	// trusted nodes
 }
 
 //
@@ -266,5 +268,7 @@ func P2pConfig4PeerManager() *Cfg4PeerManager {
 		MaxPeers:		config.MaxPeers,
 		MaxOutbounds:	config.MaxOutbounds,
 		MaxInBounds:	config.MaxInbounds,
+		Statics:		config.StaticNodes,
+		Trusted:		config.TrustedNodes,
 	}
 }
