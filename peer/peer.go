@@ -23,10 +23,10 @@ package peer
 
 import (
 	"net"
+	"time"
 	ycfg	"ycp2p/config"
 	sch 	"ycp2p/scheduler"
 	yclog	"ycp2p/logger"
-	"time"
 )
 
 //
@@ -38,6 +38,9 @@ const (
 	PeMgrEnoScheduler
 	PeMgrEnoConfig
 	PeMgrEnoResource
+	PeMgrEnoOs
+	PeMgrEnoMessage
+	PeMgrEnoUnsup
 	PeMgrEnoInternal
 )
 
@@ -46,7 +49,7 @@ type PeMgrErrno int
 //
 // Peer identity as string
 //
-type PeerId string
+type PeerId ycfg.NodeID
 
 //
 // Peer name as string
@@ -72,6 +75,18 @@ type PeerInfo struct {
 //
 // Peer manager configuration
 //
+const defaultConnectTimeout = 15 * time.Second	// default dial outbound timeout value, currently
+												// it's a fixed value here than can be configurated
+												// by other module.
+
+const defaultHandshakeTimeout = 5 * time.Second	// default handshake timeout value, currently
+												// it's a fixed value here than can be configurated
+												// by other module.
+
+const maxTcpmsgSize = 1024*1024*4				// max size of a tcpmsg package could be, currently
+												// it's a fixed value here than can be configurated
+												// by other module.
+
 type peMgrConfig struct {
 	maxPeers		int				// max peers would be
 	maxOutbounds	int				// max concurrency outbounds
@@ -80,7 +95,13 @@ type peMgrConfig struct {
 	port			uint16			// port numbers
 	nodeId			ycfg.NodeID		// the node's public key
 	statics			[]*ycfg.Node	// statics nodes
-	trusted			[]*ycfg.Node	// trusted nodes
+	noDial			bool			// do not dial outbound
+	bootstrapNode	bool			// local is a bootstrap node
+	defaultCto		time.Duration	// default connect outbound timeout
+	defaultHto		time.Duration	// default handshake timeout
+	maxMsgSize		int				// max tcpmsg package size
+	protoNum		uint32			// local protocol number
+	protocols		[]Protocol		// local protocol table
 }
 
 //
@@ -231,7 +252,7 @@ func peMgrPoweron(ptn interface{}) PeMgrErrno {
 		yclog.LogCallerFileLine("peMgrPoweron: P2pConfig4PeerManager failed")
 		return PeMgrEnoConfig
 	}
-	peMgr.cfg = peMgrConfig{
+	peMgr.cfg = peMgrConfig {
 		maxPeers:		cfg.MaxPeers,
 		maxOutbounds:	cfg.MaxOutbounds,
 		maxInBounds:	cfg.MaxInBounds,
@@ -239,7 +260,11 @@ func peMgrPoweron(ptn interface{}) PeMgrErrno {
 		port:			cfg.Port,
 		nodeId:			cfg.ID,
 		statics:		cfg.Statics,
-		trusted:		cfg.Trusted,
+		noDial:			cfg.NoDial,
+		bootstrapNode:	cfg.BootstrapNode,
+		defaultCto:		defaultConnectTimeout,
+		defaultHto:		defaultHandshakeTimeout,
+		maxMsgSize:		maxTcpmsgSize,
 	}
 
 	return PeMgrEnoNone
@@ -360,13 +385,6 @@ func peMgrDcvFindNodeRsp(msg interface{}) PeMgrErrno {
 			}
 		}
 
-		// Check if duplicated trusted nodes
-		for _, t := range peMgr.cfg.trusted {
-			if t.ID == n.ID {
-				continue
-			}
-		}
-
 		// backup node, max to the number of most peers can be
 		peMgr.randoms = append(peMgr.randoms, n)
 		if appended++; len(peMgr.randoms) >= peMgr.cfg.maxPeers {
@@ -426,13 +444,17 @@ func peMgrLsnConnAcceptedInd(msg interface{}) PeMgrErrno {
 	//
 	var ibInd = msg.(*msgConnAcceptedInd)
 	var peInst = new(peerInstance)
-	*peInst			= peerInstDefault
-	peInst.ptnMgr	= peMgr.ptnMe
-	peInst.state	= peInstStateAccepted
-	peInst.conn		= ibInd.conn
-	peInst.laddr	= ibInd.localAddr
-	peInst.raddr	= ibInd.remoteAddr
-	peInst.dir		= PeInstDirInbound
+	*peInst				= peerInstDefault
+	peInst.ptnMgr		= peMgr.ptnMe
+	peInst.state		= peInstStateAccepted
+	peInst.cto			= peMgr.cfg.defaultCto
+	peInst.hto			= peMgr.cfg.defaultHto
+	peInst.maxPkgSize	= peMgr.cfg.maxMsgSize
+	peInst.dialer		= nil
+	peInst.conn			= ibInd.conn
+	peInst.laddr		= ibInd.localAddr
+	peInst.raddr		= ibInd.remoteAddr
+	peInst.dir			= PeInstDirInbound
 
 	//
 	// Create peer instance task
@@ -548,14 +570,7 @@ func peMgrOutboundReq(msg interface{}) PeMgrErrno {
 		}
 	}
 
-	for _, n := range peMgr.cfg.trusted {
-		if _, ok := peMgr.nodes[n.ID]; !ok {
-			candidates[count] = n
-			count++
-		}
-	}
-
-	var rdCnt = 0;
+	var rdCnt = 0
 	for _, n := range peMgr.randoms {
 		if _, ok := peMgr.nodes[n.ID]; !ok {
 			candidates[count] = n
@@ -784,6 +799,7 @@ func peMgrConnCloseCfm(msg interface{}) PeMgrErrno {
 	// had been closed.
 	//
 
+	var eno PeMgrErrno
 	var cfm = msg.(*MsgCloseCfm)
 
 	// Do not care the result, kill always
@@ -793,11 +809,34 @@ func peMgrConnCloseCfm(msg interface{}) PeMgrErrno {
 			cfm.result, ycfg.P2pNodeId2HexString(cfm.peNode.ID)	)
 	}
 
-	if eno := peMgrKillInst(cfm.ptn, cfm.peNode); eno != PeMgrEnoNone {
+	if eno = peMgrKillInst(cfm.ptn, cfm.peNode); eno != PeMgrEnoNone {
 		yclog.LogCallerFileLine("peMgrConnCloseCfm: " +
 			"kill instance failed, inst: %s, node: %s",
 			sch.SchinfGetTaskName(cfm.ptn),
 			ycfg.P2pNodeId2HexString(cfm.peNode.ID)	)
+		return PeMgrEnoScheduler
+	}
+
+	//
+	// since we had lost a peer, we need to drive ourself to startup outbound
+	//
+
+	var schEno sch.SchErrno
+	var schMsg = sch.SchMessage{}
+
+	schEno = sch.SchinfMakeMessage(&schMsg, peMgr.ptnMe, peMgr.ptnMe, sch.EvPeOutboundReq, nil)
+	if schEno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("peMgrConnCloseCfm: " +
+			"SchinfMakeMessage for EvPeOutboundReq failed, eno: %d",
+			schEno)
+		return PeMgrEnoScheduler
+	}
+
+	schEno = sch.SchinfSendMsg2Task(&schMsg)
+	if schEno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("peMgrConnCloseCfm: " +
+			"SchinfSendMsg2Task for EvPeOutboundReq failed, target: %s",
+			sch.SchinfGetTaskName(peMgr.ptnMe))
 		return PeMgrEnoScheduler
 	}
 
@@ -830,6 +869,29 @@ func peMgrConnCloseInd(msg interface{}) PeMgrErrno {
 		return PeMgrEnoScheduler
 	}
 
+	//
+	// since we had lost a peer, we need to drive ourself to startup outbound
+	//
+
+	var schEno sch.SchErrno
+	var schMsg = sch.SchMessage{}
+
+	schEno = sch.SchinfMakeMessage(&schMsg, peMgr.ptnMe, peMgr.ptnMe, sch.EvPeOutboundReq, nil)
+	if schEno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("peMgrConnCloseInd: " +
+			"SchinfMakeMessage for EvPeOutboundReq failed, eno: %d",
+			schEno)
+		return PeMgrEnoScheduler
+	}
+
+	schEno = sch.SchinfSendMsg2Task(&schMsg)
+	if schEno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("peMgrConnCloseInd: " +
+			"SchinfSendMsg2Task for EvPeOutboundReq failed, target: %s",
+			sch.SchinfGetTaskName(peMgr.ptnMe))
+		return PeMgrEnoScheduler
+	}
+
 	return PeMgrEnoNone
 }
 
@@ -846,14 +908,18 @@ func peMgrCreateOutboundInst(node *ycfg.Node) PeMgrErrno {
 	// Init peer instance control block
 	//
 	var peInst = new(peerInstance)
-	*peInst			= peerInstDefault
-	peInst.ptnMgr	= peMgr.ptnMe
-	peInst.state	= peInstStateConnOut
-	peInst.conn		= nil
-	peInst.laddr	= nil
-	peInst.raddr	= nil
-	peInst.dir		= PeInstDirOutbound
-	peInst.node		= *node
+	*peInst				= peerInstDefault
+	peInst.ptnMgr		= peMgr.ptnMe
+	peInst.state		= peInstStateConnOut
+	peInst.cto			= peMgr.cfg.defaultCto
+	peInst.hto			= peMgr.cfg.defaultHto
+	peInst.maxPkgSize	= peMgr.cfg.maxMsgSize
+	peInst.dialer		= &net.Dialer{Timeout: peMgr.cfg.defaultCto}
+	peInst.conn			= nil
+	peInst.laddr		= nil
+	peInst.raddr		= nil
+	peInst.dir			= PeInstDirOutbound
+	peInst.node			= *node
 
 	//
 	// Create peer instance task
@@ -1035,16 +1101,23 @@ const PeInstDirInbound	= -1	// inbound connection
 const PeInstMailboxSize = 32	// mailbox size
 
 type peerInstance struct {
-	name	string				// name
-	tep		sch.SchUserTaskEp	// entry
-	ptnMe	interface{}			// the instance task node pointer
-	ptnMgr	interface{}			// the peer manager task node pointer
-	state	peerInstState		// state
-	conn	net.Conn			// connection
-	laddr	*net.IPAddr			// local ip address
-	raddr	*net.IPAddr			// remote ip address
-	dir		int					// direction: outbound(+1) or inbound(-1)
-	node	ycfg.Node			// peer "node" information
+	name		string				// name
+	tep			sch.SchUserTaskEp	// entry
+	ptnMe		interface{}			// the instance task node pointer
+	ptnMgr		interface{}			// the peer manager task node pointer
+	state		peerInstState		// state
+	cto			time.Duration		// connect timeout value
+	hto			time.Duration		// handshake timeout value
+	dialer		*net.Dialer			// dialer to make outbound connection
+	conn		net.Conn			// connection
+	laddr		*net.TCPAddr		// local ip address
+	raddr		*net.TCPAddr		// remote ip address
+	dir			int					// direction: outbound(+1) or inbound(-1)
+	node		ycfg.Node			// peer "node" information
+	maxPkgSize	int					// max size of tcpmsg package
+	protoNum	uint32				// peer protocol number
+	protocols	[]Protocol			// peer protocol table
+
 }
 
 var peerInstDefault = peerInstance {
@@ -1053,6 +1126,8 @@ var peerInstDefault = peerInstance {
 	ptnMe:	nil,
 	ptnMgr:	nil,
 	state:	peInstStateNull,
+	cto:	0,
+	dialer:	nil,
 	conn:	nil,
 	laddr:	nil,
 	raddr:	nil,
@@ -1114,17 +1189,24 @@ func PeerInstProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 
 	var eno PeMgrErrno
 
+
+	inst := sch.SchinfGetUserDataArea(ptn).(*peerInstance)
+
 	switch msg.Id {
 	case sch.EvPeConnOutReq:
-		eno = piConnOutReq(msg.Body)
+		eno = piConnOutReq(inst, msg.Body)
 	case sch.EvPeHandshakeReq:
-		eno = piHandshakeReq(msg.Body)
+		eno = piHandshakeReq(inst, msg.Body)
 	case sch.EvPePingpongReq:
-		eno = piPingpongReq(msg.Body)
+		eno = piPingpongReq(inst, msg.Body)
 	case sch.EvPeCloseReq:
-		eno = piCloseReq(msg.Body)
+		eno = piCloseReq(inst, msg.Body)
 	case sch.EvPeEstablishedInd:
-		eno = piEstablishedInd(msg.Body)
+		eno = piEstablishedInd(inst, msg.Body)
+	case sch.EvPePingpongTimer:
+		eno = piPingpongTimerHandler(inst)
+	case sch.EvPeDataReq:
+		eno = piDataReq(inst, msg.Body)
 	default:
 		yclog.LogCallerFileLine("PeerInstProc: invalid message: %d", msg.Id)
 		eno = PeMgrEnoParameter
@@ -1141,34 +1223,285 @@ func PeerInstProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 //
 // Outbound connect to peer request handler
 //
-func piConnOutReq(msg interface{}) PeMgrErrno {
+func piConnOutReq(inst *peerInstance, msg interface{}) PeMgrErrno {
+
+	_ = msg
+
+	//
+	// Check instance
+	//
+
+	if inst == nil {
+		yclog.LogCallerFileLine("piConnOutReq: invalid instance")
+		return PeMgrEnoParameter
+	}
+
+	if inst.dialer == nil ||
+		inst.dir != PeInstDirOutbound  ||
+		inst.state != peInstStateConnOut {
+		yclog.LogCallerFileLine("piConnOutReq: instance mismatched")
+		return PeMgrEnoInternal
+	}
+
+	//
+	// Dial to peer node
+	//
+
+	var addr = &net.TCPAddr{IP: inst.node.IP, Port: int(inst.node.TCP)}
+	var conn net.Conn = nil
+	var err error
+	var eno PeMgrErrno = PeMgrEnoNone
+
+	if conn, err = inst.dialer.Dial("tcp", addr.String()); err != nil {
+		yclog.LogCallerFileLine("piConnOutReq: " +
+			"dial failed, to: %s, err: %s",
+			addr.String(), err.Error())
+		eno = PeMgrEnoOs
+	} else {
+		// Backup connection and update instance state
+		yclog.LogCallerFileLine("piConnOutReq: " +
+			"dial ok, to: %s, err: %s",
+			addr.String(), err.Error())
+		inst.conn = conn
+		inst.laddr = conn.LocalAddr().(*net.TCPAddr)
+		inst.raddr = conn.RemoteAddr().(*net.TCPAddr)
+		inst.state = peInstStateConnected
+	}
+
+	//
+	// Response to peer manager task
+	//
+
+	var schEno sch.SchErrno
+	var schMsg = sch.SchMessage{}
+	var rsp = msgConnOutRsp {
+		result:eno,
+		peNode:&inst.node,
+		ptn: inst.ptnMe,
+	}
+
+	schEno = sch.SchinfMakeMessage(&schMsg, inst.ptnMe, inst.ptnMgr, sch.EvPeConnOutRsp, &rsp)
+	if schEno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("piConnOutReq: " +
+			"SchinfMakeMessage failed, eno: %d",
+			eno)
+		return PeMgrEnoScheduler
+	}
+
+	if schEno = sch.SchinfSendMsg2Task(&schMsg); schEno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("piConnOutReq: " +
+			"SchinfSendMsg2Task EvPeConnOutRsp failed, eno: %d, target: %s",
+			schEno, sch.SchinfGetTaskName(inst.ptnMgr))
+		return PeMgrEnoScheduler
+	}
+
 	return PeMgrEnoNone
 }
 
 //
 // Handshake request handler
 //
-func piHandshakeReq(msg interface{}) PeMgrErrno {
+func piHandshakeReq(inst *peerInstance, msg interface{}) PeMgrErrno {
+
+	_ = msg
+
+	//
+	// Check instance
+	//
+
+	if inst == nil {
+		yclog.LogCallerFileLine("piHandshakeReq: invalid instance")
+		return PeMgrEnoParameter
+	}
+
+	if inst.state != peInstStateConnected && inst.state != peInstStateAccepted {
+		yclog.LogCallerFileLine("piHandshakeReq: instance mismatched")
+		return PeMgrEnoInternal
+	}
+
+	if inst.conn == nil {
+		yclog.LogCallerFileLine("piHandshakeReq: invalid instance")
+		return PeMgrEnoInternal
+	}
+
+	//
+	// Carry out action according to the direction of current peer instance
+	// connection.
+	//
+
+	var eno PeMgrErrno
+
+	if inst.dir == PeInstDirInbound {
+		eno = piHandshakeInbound(inst)
+	} else if inst.dir == PeInstDirOutbound {
+		eno = piHandshakeOutbound(inst)
+	} else {
+		yclog.LogCallerFileLine("piHandshakeReq: " +
+			"invalid instance direction: %d",
+			inst.dir)
+		eno = PeMgrEnoInternal
+	}
+
+	if eno != PeMgrEnoNone {
+		yclog.LogCallerFileLine("piHandshakeReq: " +
+			"handshake fialed, dir: %d, eno: %d",
+			inst.dir, eno)
+	}
+
+	//
+	// response to peer manager
+	//
+
+	var schEno sch.SchErrno
+	var schMsg = sch.SchMessage{}
+	var rsp = msgHandshakeRsp {
+		result:eno,
+		peNode:&inst.node,
+		ptn: inst.ptnMe,
+	}
+
+	schEno = sch.SchinfMakeMessage(&schMsg, inst.ptnMe, inst.ptnMgr, sch.EvPeHandshakeRsp, &rsp)
+	if schEno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("piHandshakeReq: " +
+			"SchinfMakeMessage failed, eno: %d",
+			eno)
+		return PeMgrEnoScheduler
+	}
+
+	if schEno = sch.SchinfSendMsg2Task(&schMsg); schEno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("piHandshakeReq: " +
+			"SchinfSendMsg2Task EvPeConnOutRsp failed, eno: %d, target: %s",
+			schEno, sch.SchinfGetTaskName(inst.ptnMgr))
+		return PeMgrEnoScheduler
+	}
+
+	return eno
+}
+
+//
+// Ping-Request handler
+//
+func piPingpongReq(inst *peerInstance, msg interface{}) PeMgrErrno {
+
+	//
+	// The ping procedure is inted by a timer internal the peer task
+	// instance, and seems no need to init this kind of procedure outside
+	// the peer instance.
+	//
+
+	yclog.LogCallerFileLine("piPingpongReq: not supported")
+	return PeMgrEnoUnsup
+}
+
+//
+// Close-Request handler
+//
+func piCloseReq(inst *peerInstance, msg interface{}) PeMgrErrno {
 	return PeMgrEnoNone
 }
 
 //
-// Ping request handler
+// Peer-Established indication handler
 //
-func piPingpongReq(msg interface{}) PeMgrErrno {
+func piEstablishedInd(inst *peerInstance, msg interface{}) PeMgrErrno {
 	return PeMgrEnoNone
 }
 
 //
-// Close request handler
+// Pingpong timer handler
 //
-func piCloseReq(msg interface{}) PeMgrErrno {
+func piPingpongTimerHandler(inst *peerInstance) PeMgrErrno {
 	return PeMgrEnoNone
 }
 
 //
-// Peer established indication handler
+// Data-Request(send data) handler
 //
-func piEstablishedInd(msg interface{}) PeMgrErrno {
+func piDataReq(inst *peerInstance, msg interface{}) PeMgrErrno {
+	return PeMgrEnoNone
+}
+
+//
+// Handshake for inbound
+//
+func piHandshakeInbound(inst *peerInstance) PeMgrErrno {
+
+	var eno PeMgrErrno = PeMgrEnoNone
+	var pkg = new(TcpmsgPackage)
+	var hs *TcpmsgHandshake
+
+	// read inbound handshake from remote peer
+	if hs, eno = pkg.getHandshakeInbound(inst); hs == nil || eno != PeMgrEnoNone {
+		yclog.LogCallerFileLine("piHandshakeInbound: " +
+			"read inbound Handshake message failed, eno: %d",
+			eno)
+		return eno
+	}
+
+	// backup info about protocols supported by peer
+	inst.protoNum = hs.ProtoNum
+	inst.protocols = hs.Protocols
+	inst.node.ID = hs.NodeId
+
+	// write outbound handshake to remote peer
+	hs.NodeId = peMgr.cfg.nodeId
+	hs.ProtoNum = peMgr.cfg.protoNum
+	hs.Protocols = peMgr.cfg.protocols
+
+	if eno = pkg.putHandshakeOutbound(inst, hs); eno != PeMgrEnoNone {
+		yclog.LogCallerFileLine("piHandshakeInbound: " +
+			"write outbound Handshake message failed, eno: %d",
+			eno)
+		return eno
+	}
+
+	// update instance state
+	inst.state = peInstStateHandshook
+
+	return PeMgrEnoNone
+}
+
+//
+// Handshake for outbound
+//
+func piHandshakeOutbound(inst *peerInstance) PeMgrErrno {
+
+	var eno PeMgrErrno = PeMgrEnoNone
+	var pkg = new(TcpmsgPackage)
+	var hs = new(TcpmsgHandshake)
+
+	// write outbound handshake to remote peer
+	hs.NodeId = peMgr.cfg.nodeId
+	hs.ProtoNum = peMgr.cfg.protoNum
+	hs.Protocols = peMgr.cfg.protocols
+
+	if eno = pkg.putHandshakeOutbound(inst, hs); eno != PeMgrEnoNone {
+		yclog.LogCallerFileLine("piHandshakeOutbound: " +
+			"write outbound Handshake message failed, eno: %d",
+			eno)
+		return eno
+	}
+
+	// read inbound handshake from remote peer
+	if hs, eno = pkg.getHandshakeInbound(inst); hs == nil || eno != PeMgrEnoNone {
+		yclog.LogCallerFileLine("piHandshakeOutbound: " +
+			"read inbound Handshake message failed, eno: %d",
+			eno)
+		return eno
+	}
+
+	// since it's an outbound peer, the peer node id is known before this
+	// handshake procedure carried out, we can check against these twos.
+	if hs.NodeId != inst.node.ID {
+		yclog.LogCallerFileLine("piHandshakeOutbound: node identity mismathced")
+		return PeMgrEnoMessage
+	}
+
+	// backup info about protocols supported by peer;
+	// update instance state;
+	inst.protoNum = hs.ProtoNum
+	inst.protocols = hs.Protocols
+	inst.state = peInstStateHandshook
+
 	return PeMgrEnoNone
 }

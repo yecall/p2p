@@ -1,0 +1,65 @@
+/*
+ *  Copyright (C) 2017 gyee authors
+ *
+ *  This file is part of the gyee library.
+ *
+ *  the gyee library is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  the gyee library is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with the gyee library.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+
+//
+// The description about ycp2p Peer To Peer Protocol messages in protobuf
+// specification.
+//
+
+syntax = "proto2";
+package tcpmsg.pb;
+
+
+//
+// Protocol identities
+//
+
+enum ProtocolId {
+    PROTO_HANDSHAKE = 0;        // handshake
+    PROTO_EXTERNAL = 0xff;      // external
+}
+
+//
+// The package for all messages
+//
+
+message TcpmsgPackage {
+    required ProtocolId Pid = 1;    // protocol identity
+    required uint32 PlLen = 2;      // payload length
+    optional bytes Payload = 3;     // payload
+}
+
+//
+// Handlshake message
+//
+
+message TcpmsgHandshake {
+
+    message Protocol {
+        required ProtocolId Pid = 1;// protocol identity
+        required bytes Ver = 2;     // protocol version: M.m0.m1.m2
+    }
+
+    required bytes NodeId = 1;      // node identity
+    required uint32 ProtoNum = 2;   // number of protocols
+    repeated Protocol Protocols = 3;// protocol table
+}
+

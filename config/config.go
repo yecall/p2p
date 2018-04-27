@@ -64,12 +64,18 @@ var MainnetBootnodes = []string{
 //
 // Node ID length in bits
 //
-const NodeIDBits = 512
+const NodeIDBits	= 512
+const NodeIDBytes	= NodeIDBits/8
 
 //
 // Node identity
 //
-type NodeID [NodeIDBits/8]byte
+type NodeID [NodeIDBytes]byte
+
+//
+// Max protocols
+//
+const MaxProtocols = 32
 
 //
 // Max peers
@@ -143,7 +149,8 @@ type Cfg4PeerManager struct {
 	MaxOutbounds	int		// max concurrency outbounds
 	MaxInBounds		int		// max concurrency inbounds
 	Statics			[]*Node	// static nodes
-	Trusted			[]*Node	// trusted nodes
+	NoDial			bool	// do not dial outbound
+	BootstrapNode	bool	// local is a bootstrap node
 }
 
 //
@@ -269,6 +276,6 @@ func P2pConfig4PeerManager() *Cfg4PeerManager {
 		MaxOutbounds:	config.MaxOutbounds,
 		MaxInBounds:	config.MaxInbounds,
 		Statics:		config.StaticNodes,
-		Trusted:		config.TrustedNodes,
+		NoDial:			config.NoDial,
 	}
 }

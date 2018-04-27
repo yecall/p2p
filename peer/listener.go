@@ -224,8 +224,8 @@ var acceptTCB = acceptTskCtrlBlock {
 //
 type msgConnAcceptedInd struct {
 	conn		net.Conn
-	localAddr	*net.IPAddr
-	remoteAddr	*net.IPAddr
+	localAddr	*net.TCPAddr
+	remoteAddr	*net.TCPAddr
 }
 
 //
@@ -274,9 +274,10 @@ acceptLoop:
 			break acceptLoop
 		}
 
-		// Get lock to accept
+		// Get lock to accept: unlock it at once since we just want to know if we
+		// are allowed to accept.
 		acceptTCB.lockAccept.Lock()
-		defer acceptTCB.lockAccept.Unlock()
+		acceptTCB.lockAccept.Unlock()
 
 		// Try to accept: can we be blocked in Accpet()?
 		// provide it would, so the listen manager might have to close the
@@ -308,8 +309,8 @@ acceptLoop:
 		var msg = sch.SchMessage{}
 		var msgBody = msgConnAcceptedInd {
 			conn: 		conn,
-			localAddr:	conn.LocalAddr().(*net.IPAddr),
-			remoteAddr:	conn.RemoteAddr().(*net.IPAddr),
+			localAddr:	conn.LocalAddr().(*net.TCPAddr),
+			remoteAddr:	conn.RemoteAddr().(*net.TCPAddr),
 		}
 
 		eno := sch.SchinfMakeMessage(&msg, ptn, acceptTCB.ptnPeMgr, sch.EvPeLsnConnAcceptedInd, &msgBody)

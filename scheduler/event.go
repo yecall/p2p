@@ -151,8 +151,10 @@ const (
 //
 // Peer connection establishment event
 //
+const PePingpongTimerId	= 0
 const (
 	EvPeerEstBase		= 1800
+	EvPePingpongTimer	= EvTimerBase	+ PePingpongTimerId
 	EvPeConnOutReq		= EvPeerEstBase + 1
 	EvPeConnOutRsp		= EvPeerEstBase + 2
 	EvPeHandshakeReq	= EvPeerEstBase + 3
@@ -165,6 +167,7 @@ const (
 	EvPeOutboundReq		= EvPeerEstBase + 10
 	EvPeEstablishedInd	= EvPeerEstBase + 11
 	EvPeMgrStartReq		= EvPeerEstBase + 12
+	EvPeDataReq			= EvPeerEstBase + 13
 )
 
 //
