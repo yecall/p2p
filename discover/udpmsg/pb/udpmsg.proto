@@ -35,12 +35,6 @@ message UdpMessage {
         NEIGHBORS   = 3;
     }
 
-    message Endpoint {
-        required bytes IP  = 1;
-        required uint32 UDP = 2;
-        required uint32 TCP = 3;
-    }
-
     message Node {
         required bytes IP  = 1;
         required uint32 UDP = 2;
@@ -49,30 +43,30 @@ message UdpMessage {
     }
 
     message Ping {
-        required Endpoint From = 1;
-        required Endpoint To = 2;
+        required Node From = 1;
+        required Node To = 2;
         optional uint64 Expiration = 3;
         optional bytes Extra = 4;
     }
 
     message Pong {
-        required Endpoint From = 1;
-        required Endpoint To = 2;
+        required Node From = 1;
+        required Node To = 2;
         optional uint64 Expiration = 3;
         optional bytes Extra = 4;
     }
 
     message FindNode {
-        required Endpoint From = 1;
-        required Endpoint To = 2;
-        required Endpoint Target = 3;
+        required Node From = 1;
+        required Node To = 2;
+        required Node Target = 3;
         optional uint64 Expiration = 4;
         optional bytes Extra = 5;
     }
 
     message Neighbors {
-        required Endpoint From = 1;
-        required Endpoint To = 2;
+        required Node From = 1;
+        required Node To = 2;
         repeated Node Nodes = 3;
         optional uint64 Expiration = 4;
         optional bytes Extra = 5;

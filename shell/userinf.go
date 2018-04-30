@@ -23,7 +23,6 @@ package shell
 
 import (
 	"fmt"
-	"time"
 	"ycp2p/peer"
 )
 
@@ -32,11 +31,11 @@ import (
 //
 type UserInfErrno	int
 const (
-	UserInfEnoNone			UserInfErrno = 0	// none of errors
+	UserInfEnoNone		UserInfErrno = 0	// none of errors
 	UserInfEnoParameter	UserInfErrno = 1	// invalid parameters
 	UserInfoEnoNotImpl	UserInfErrno = 2	// not implemented
-	UserInfEnoUnknown		UserInfErrno = 3	// unknown
-	UserInfEnoMax			UserInfErrno = 4	// max, for bound checking
+	UserInfEnoUnknown	UserInfErrno = 3	// unknown
+	UserInfEnoMax		UserInfErrno = 4	// max, for bound checking
 )
 
 //
@@ -81,7 +80,7 @@ type UserCallbackMessageId	int			// message identity as integer
 type UserCallbackMessage struct {
 	MsgId		UserCallbackMessageId	// message identity
 	PeerInfo	*peer.PeerInfo			// peer information
-	MsgBody		interface{}			// message body
+	MsgBody		interface{}				// message body
 }
 
 //
@@ -119,22 +118,6 @@ func UserInfSendMessage(msg UserMessage2Peer) UserInfErrno {
 // Disconnect peer
 //
 func UserInfDisconnectPeer(id peer.PeerId) UserInfErrno {
-	return UserInfEnoNone
-}
-
-//
-// Add peer into blacklist: notice, there is no business for node-database here,
-// it just the runtime behaviour, which discard all messages from the peer whom
-// is blacked.
-//
-func UserInfBlackPeer(id peer.PeerId, time time.Duration) UserInfErrno {
-	return UserInfEnoNone
-}
-
-//
-// Add peer into whitelist
-//
-func UserInfWhitePeer(id peer.PeerId) UserInfErrno {
 	return UserInfEnoNone
 }
 

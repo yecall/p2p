@@ -164,7 +164,7 @@ func PeerMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 
 	yclog.LogCallerFileLine("PeerMgrProc: scheduled, msg: %d", msg.Id)
 
-	var schEno sch.SchErrno = sch.SchEnoNone
+	var schEno = sch.SchEnoNone
 	var eno PeMgrErrno = PeMgrEnoNone
 
 	switch msg.Id {
@@ -523,7 +523,7 @@ func peMgrLsnConnAcceptedInd(msg interface{}) PeMgrErrno {
 		peMgr.acceptPaused = PauseAccept()
 
 		yclog.LogCallerFileLine("peMgrLsnConnAcceptedInd: " +
-			"pause result: %d", peMgr.acceptPaused);
+			"pause result: %d", peMgr.acceptPaused)
 	}
 
 	return PeMgrEnoNone
@@ -713,7 +713,7 @@ func peMgrHandshakeRsp(msg interface{}) PeMgrErrno {
 
 	// Map the instance, notice that, only in this moment we can know the node
 	// identity for a inbound connection.
-	var inst *peerInstance = peMgr.peers[rsp.ptn]
+	var inst = peMgr.peers[rsp.ptn]
 	peMgr.workers[rsp.peNode.ID] = inst
 	peMgr.wrkNum++
 	if inst.dir == PeInstDirInbound {
@@ -1089,7 +1089,6 @@ const (
 	peInstStateConnected		// outbound connected, need handshake
 	peInstStateHandshook		// handshook
 	peInstStateActivated		// actived in working
-	peInstStateClosed			// closed
 )
 
 type peerInstState int	// instance state type
@@ -1117,22 +1116,28 @@ type peerInstance struct {
 	maxPkgSize	int					// max size of tcpmsg package
 	protoNum	uint32				// peer protocol number
 	protocols	[]Protocol			// peer protocol table
+	ppTid		int					// pingpong timer identity
 
 }
 
 var peerInstDefault = peerInstance {
-	name:	peInstTaskName,
-	tep:	PeerInstProc,
-	ptnMe:	nil,
-	ptnMgr:	nil,
-	state:	peInstStateNull,
-	cto:	0,
-	dialer:	nil,
-	conn:	nil,
-	laddr:	nil,
-	raddr:	nil,
-	dir:	PeInstDirNull,
-	node:	ycfg.Node{},
+	name:		peInstTaskName,
+	tep:		PeerInstProc,
+	ptnMe:		nil,
+	ptnMgr:		nil,
+	state:		peInstStateNull,
+	cto:		0,
+	hto:		0,
+	dialer:		nil,
+	conn:		nil,
+	laddr:		nil,
+	raddr:		nil,
+	dir:		PeInstDirNull,
+	node:		ycfg.Node{},
+	maxPkgSize:	maxTcpmsgSize,
+	protoNum:	0,
+	protocols:	[]Protocol{{}},
+	ppTid:		sch.SchInvalidTid,
 }
 
 //
@@ -1188,7 +1193,6 @@ func PeerInstProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	yclog.LogCallerFileLine("PeerInstProc: scheduled, msg: %d", msg.Id)
 
 	var eno PeMgrErrno
-
 
 	inst := sch.SchinfGetUserDataArea(ptn).(*peerInstance)
 
@@ -1388,7 +1392,8 @@ func piPingpongReq(inst *peerInstance, msg interface{}) PeMgrErrno {
 	// instance, and seems no need to init this kind of procedure outside
 	// the peer instance.
 	//
-
+	_ = inst
+	_ = msg
 	yclog.LogCallerFileLine("piPingpongReq: not supported")
 	return PeMgrEnoUnsup
 }
@@ -1397,13 +1402,87 @@ func piPingpongReq(inst *peerInstance, msg interface{}) PeMgrErrno {
 // Close-Request handler
 //
 func piCloseReq(inst *peerInstance, msg interface{}) PeMgrErrno {
-	return PeMgrEnoNone
+
+	_ = msg
+	var eno = sch.SchEnoNone
+
+	// stop timer
+	if inst.ppTid != sch.SchInvalidTid {
+		if eno = sch.SchinfKillTimer(inst.ptnMe, inst.ppTid); eno != sch.SchEnoNone {
+			yclog.LogCallerFileLine("piCloseReq: " +
+				"kill timer failed, task: %s, tid: %d, eno: %d",
+				sch.SchinfGetTaskName(inst.ptnMe), inst.ppTid, eno)
+		}
+	}
+
+	// close connection
+	if inst.conn != nil {
+		if err := inst.conn.Close(); err != nil {
+			yclog.LogCallerFileLine("piCloseReq: " +
+				"close connection failed, err: %s",
+				err.Error())
+			eno = sch.SchEnoOS
+		}
+	}
+
+	// stop task instance
+	if eno = sch.SchinfTaskDone(inst.ptnMe, eno); eno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("piCloseReq: " +
+			"done task failed, task: %s, eno: %d",
+			sch.SchinfGetTaskName(inst.ptnMe), eno)
+	}
+
+	if eno == sch.SchEnoNone {
+		return PeMgrEnoNone
+	}
+
+	return PeMgrEnoScheduler
 }
 
 //
 // Peer-Established indication handler
 //
 func piEstablishedInd(inst *peerInstance, msg interface{}) PeMgrErrno {
+
+	//
+	// When sch.EvPeEstablishedInd received, an peer instance should go into serving,
+	// means data sending and receiving. In this case, an instance should first the
+	// pingpong timer, and then update the instance state, and make anything ready to
+	// serve for peers interaction. Currently, no response event is defined for peer
+	// manager, says that the manager always believe that a peer instance must be in
+	// service after it sending the sch.EvPeEstablishedInd, and would not wait any
+	// response about this event sent.
+	//
+
+	var schEno sch.SchErrno
+	_ = msg
+
+	// setup pingpong timer
+	var tid int
+	var tmDesc = sch.TimerDescription {
+		Name:	"",
+		Utid:	sch.PePingpongTimerId,
+		Tmt:	sch.SchTmTypePeriod,
+		Dur:	time.Second * 10,
+		Extra:	nil,
+	}
+
+	if schEno, tid = sch.SchInfSetTimer(inst.ptnMe, &tmDesc);
+	schEno != sch.SchEnoNone || tid == sch.SchInvalidTid {
+		yclog.LogCallerFileLine("piEstablishedInd: set timer failed, eno: %d", schEno)
+		return PeMgrEnoScheduler
+	}
+
+	inst.ppTid = tid
+
+	// modify deadline of peer connection for we had set specific value while
+	// handshake procedure. we set deadline to value 0, so action on connection
+	// would be blocked until it's completed.
+	inst.conn.SetDeadline(time.Time{0,0,nil})
+
+	// update peer instance state
+	inst.state = peInstStateActivated
+
 	return PeMgrEnoNone
 }
 
@@ -1411,6 +1490,8 @@ func piEstablishedInd(inst *peerInstance, msg interface{}) PeMgrErrno {
 // Pingpong timer handler
 //
 func piPingpongTimerHandler(inst *peerInstance) PeMgrErrno {
+	yclog.LogCallerFileLine("piPingpongTimerHandler: pingpong timer expired")
+	_ = inst
 	return PeMgrEnoNone
 }
 
@@ -1418,6 +1499,8 @@ func piPingpongTimerHandler(inst *peerInstance) PeMgrErrno {
 // Data-Request(send data) handler
 //
 func piDataReq(inst *peerInstance, msg interface{}) PeMgrErrno {
+	_ = inst
+	_ = msg
 	return PeMgrEnoNone
 }
 

@@ -962,17 +962,17 @@ func schimplSetTimer(ptn *schTaskNode, tdc *timerDescription) (SchErrno, int) {
 
 	// setup timer control block
 	tcb 			:= &ptm.tmcb
-	tcb.name		= tdc.name
-	tcb.utid		= tdc.utid
-	tcb.tmt			= schTimerType(tdc.tmt)
-	tcb.dur			= tdc.dur
+	tcb.name		= tdc.Name
+	tcb.utid		= tdc.Utid
+	tcb.tmt			= schTimerType(tdc.Tmt)
+	tcb.dur			= tdc.Dur
 	tcb.taskNode	= ptn
-	tcb.extra		= tdc.extra
+	tcb.extra		= tdc.Extra
 
 	// go timer common task for timer
 	go schimplTimerCommonTask(ptm)
 
-	yclog.LogCallerFileLine("schimplSetTimer: timer started, name: %s", tdc.name)
+	yclog.LogCallerFileLine("schimplSetTimer: timer started, name: %s", tdc.Name)
 	return SchEnoNone, tid
 }
 

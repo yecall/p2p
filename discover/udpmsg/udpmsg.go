@@ -41,12 +41,11 @@ const (
 type UdpMsgType int
 
 type (
-
-	// Endpoint: a network end point
+	// Endpoint
 	Endpoint struct {
 		IP			net.IP
 		UDP			uint16
-		TCP 		uint16
+		TCP			uint16
 	}
 
 	// Node: endpoint with node identity
@@ -86,7 +85,7 @@ type (
 	Neighbors struct {
 		From		Node
 		To			Node
-		Nodes		Node
+		Nodes		[]*Node
 		Expiration	uint64
 		Extra		[]byte
 	}
@@ -123,6 +122,7 @@ const (
 	UdpMsgEnoParameter
 	UdpMsgEnoEncodeFailed
 	UdpMsgEnoDecodeFailed
+	UdpMsgEnoMessage
 	UdpMsgEnoUnknown
 )
 
@@ -199,7 +199,7 @@ func (pum *UdpMsg) GetDecodedMsgType() UdpMsgType {
 		pb.UdpMessage_PING:			UdpMsgTypePing,
 		pb.UdpMessage_PONG:			UdpMsgTypePong,
 		pb.UdpMessage_FINDNODE:		UdpMsgTypePong,
-		pb.UdpMessage_NEIGHBORS:		UdpMsgTypePing,
+		pb.UdpMessage_NEIGHBORS:	UdpMsgTypePing,
 	}
 
 	var key pb.UdpMessage_MessageType
@@ -210,6 +210,7 @@ func (pum *UdpMsg) GetDecodedMsgType() UdpMsgType {
 		yclog.LogCallerFileLine("GetDecodedMsgType: invalid message type")
 		return UdpMsgTypeUnknown
 	}
+
 	return val
 }
 
@@ -217,32 +218,122 @@ func (pum *UdpMsg) GetDecodedMsgType() UdpMsgType {
 // Get decoded Ping
 //
 func (pum *UdpMsg) GetPing() *Ping {
-	return nil
+	pbPing := pum.Msg.Ping
+	ping := new(Ping)
+
+	var inf interface{}
+	ping.From.IP = pbPing.From.IP
+	ping.From.TCP = uint16(*pbPing.From.TCP)
+	ping.From.UDP = uint16(*pbPing.From.UDP)
+	inf = pbPing.From.NodeId
+	ping.From.NodeId = *inf.(*ycfg.NodeID)
+
+	ping.To.IP = pbPing.To.IP
+	ping.To.TCP = uint16(*pbPing.To.TCP)
+	ping.To.UDP = uint16(*pbPing.To.UDP)
+	inf = pbPing.To.NodeId
+	ping.To.NodeId = *inf.(*ycfg.NodeID)
+
+	ping.Expiration = *pbPing.Expiration
+	ping.Extra = pbPing.Extra
+
+	return ping
 }
 
 //
 // Get decoded Pong
 //
 func (pum *UdpMsg) GetPong() *Pong {
-	return nil
+	pbPong := pum.Msg.Pong
+	pong := new(Pong)
+
+	var inf interface{}
+	pong.From.IP = pbPong.From.IP
+	pong.From.TCP = uint16(*pbPong.From.TCP)
+	pong.From.UDP = uint16(*pbPong.From.UDP)
+	inf = pbPong.From.NodeId
+	pong.From.NodeId = *inf.(*ycfg.NodeID)
+
+	pong.To.IP = pbPong.To.IP
+	pong.To.TCP = uint16(*pbPong.To.TCP)
+	pong.To.UDP = uint16(*pbPong.To.UDP)
+	inf = pbPong.To.NodeId
+	pong.To.NodeId = *inf.(*ycfg.NodeID)
+
+	pong.Expiration = *pbPong.Expiration
+	pong.Extra = pbPong.Extra
+
+	return pong
 }
 
 //
 // Get decoded FindNode
 //
 func (pum *UdpMsg) GetFindNode() *FindNode {
-	return nil
+	pbFN := pum.Msg.FindNode
+	fn := new(FindNode)
+
+	var inf interface{}
+	fn.From.IP = pbFN.From.IP
+	fn.From.TCP = uint16(*pbFN.From.TCP)
+	fn.From.UDP = uint16(*pbFN.From.UDP)
+	inf = pbFN.From.NodeId
+	fn.From.NodeId = *inf.(*ycfg.NodeID)
+
+	fn.To.IP = pbFN.To.IP
+	fn.To.TCP = uint16(*pbFN.To.TCP)
+	fn.To.UDP = uint16(*pbFN.To.UDP)
+	inf = pbFN.To.NodeId
+	fn.To.NodeId = *inf.(*ycfg.NodeID)
+
+	fn.Target.IP = pbFN.Target.IP
+	fn.Target.TCP = uint16(*pbFN.Target.TCP)
+	fn.Target.UDP = uint16(*pbFN.Target.UDP)
+	inf = pbFN.Target.NodeId
+	fn.Target.NodeId = *inf.(*ycfg.NodeID)
+
+	fn.Expiration = *pbFN.Expiration
+	fn.Extra = pbFN.Extra
+
+	return fn
 }
 
 //
 // Get decoded Neighbors
 //
 func (pum *UdpMsg) GetNeighbors() *Neighbors {
-	return nil
+	pbNgb := pum.Msg.Neighbors
+	ngb := new(Neighbors)
+
+	var inf interface{}
+	ngb.From.IP = pbNgb.From.IP
+	ngb.From.TCP = uint16(*pbNgb.From.TCP)
+	ngb.From.UDP = uint16(*pbNgb.From.UDP)
+	inf = pbNgb.From.NodeId
+	ngb.From.NodeId = *inf.(*ycfg.NodeID)
+
+	ngb.To.IP = pbNgb.To.IP
+	ngb.To.TCP = uint16(*pbNgb.To.TCP)
+	ngb.To.UDP = uint16(*pbNgb.To.UDP)
+	inf = pbNgb.To.NodeId
+	ngb.To.NodeId = *inf.(*ycfg.NodeID)
+
+	ngb.Expiration = *pbNgb.Expiration
+	ngb.Extra = pbNgb.Extra
+
+	for idx, n := range pbNgb.Nodes {
+		ngb.Nodes[idx].IP = n.IP
+		ngb.Nodes[idx].TCP = uint16(*n.TCP)
+		ngb.Nodes[idx].UDP = uint16(*n.UDP)
+		inf = n.NodeId
+		ngb.Nodes[idx].NodeId = *inf.(*ycfg.NodeID)
+	}
+
+	return ngb
 }
 
 //
-// Check decoded message from peer with endpoint where the message received
+// Check decoded message with endpoint where the message from
 //
 func (pum *UdpMsg) CheckUdpMsgFromPeer(from *net.UDPAddr) bool {
 
@@ -322,6 +413,39 @@ func (pum *UdpMsg) Encode(t int, msg interface{}) UdpMsgErrno {
 // Encode Ping
 //
 func (pum *UdpMsg) EncodePing(ping *Ping) UdpMsgErrno {
+	var pbm = &pum.Msg
+	var pbPing *pb.UdpMessage_Ping
+
+	pbm.MsgType = new(pb.UdpMessage_MessageType)
+	*pbm.MsgType = pb.UdpMessage_PING
+	pbPing = new(pb.UdpMessage_Ping)
+
+	var inf interface{}
+	pbPing.From.IP = ping.From.IP
+	*pbPing.From.TCP = uint32(ping.From.TCP)
+	*pbPing.From.UDP = uint32(ping.From.UDP)
+	inf = ping.From.NodeId
+	pbPing.From.NodeId = inf.([]byte)
+
+	pbPing.To.IP = ping.To.IP
+	*pbPing.To.TCP = uint32(ping.To.TCP)
+	*pbPing.To.UDP = uint32(ping.To.UDP)
+	inf = ping.To.NodeId
+	pbPing.To.NodeId = inf.([]byte)
+
+	*pbPing.Expiration = ping.Expiration
+	pbPing.Extra = ping.Extra
+
+	var err error
+	var buf []byte
+	if buf, err = pbPing.Marshal(); err != nil {
+		yclog.LogCallerFileLine("EncodePing: fialed, err: %s", err.Error())
+		return UdpMsgEnoEncodeFailed
+	}
+	pum.Buf = buf
+	pum.Len = len(buf)
+	pum.Msg.Ping = pbPing
+
 	return UdpMsgEnoNone
 }
 
@@ -329,6 +453,39 @@ func (pum *UdpMsg) EncodePing(ping *Ping) UdpMsgErrno {
 // Encode Pong
 //
 func (pum *UdpMsg) EncodePong(pong *Pong) UdpMsgErrno {
+	var pbm = &pum.Msg
+	var pbPong *pb.UdpMessage_Pong
+
+	pbm.MsgType = new(pb.UdpMessage_MessageType)
+	*pbm.MsgType = pb.UdpMessage_PONG
+	pbPong = new(pb.UdpMessage_Pong)
+
+	var inf interface{}
+	pbPong.From.IP = pong.From.IP
+	*pbPong.From.TCP = uint32(pong.From.TCP)
+	*pbPong.From.UDP = uint32(pong.From.UDP)
+	inf = pong.From.NodeId
+	pbPong.From.NodeId = inf.([]byte)
+
+	pbPong.To.IP = pong.To.IP
+	*pbPong.To.TCP = uint32(pong.To.TCP)
+	*pbPong.To.UDP = uint32(pong.To.UDP)
+	inf = pong.To.NodeId
+	pbPong.To.NodeId = inf.([]byte)
+
+	*pbPong.Expiration = pong.Expiration
+	pbPong.Extra = pong.Extra
+
+	var err error
+	var buf []byte
+	if buf, err = pbPong.Marshal(); err != nil {
+		yclog.LogCallerFileLine("EncodePong: fialed, err: %s", err.Error())
+		return UdpMsgEnoEncodeFailed
+	}
+	pum.Buf = buf
+	pum.Len = len(buf)
+	pum.Msg.Pong = pbPong
+
 	return UdpMsgEnoNone
 }
 
@@ -336,16 +493,102 @@ func (pum *UdpMsg) EncodePong(pong *Pong) UdpMsgErrno {
 // Encode FindNode
 //
 func (pum *UdpMsg) EncodeFindNode(fn *FindNode) UdpMsgErrno {
+	var pbm = &pum.Msg
+	var pbFN *pb.UdpMessage_FindNode
+
+	pbm.MsgType = new(pb.UdpMessage_MessageType)
+	*pbm.MsgType = pb.UdpMessage_PONG
+	pbFN = new(pb.UdpMessage_FindNode)
+
+	var inf interface{}
+	pbFN.From.IP = fn.From.IP
+	*pbFN.From.TCP = uint32(fn.From.TCP)
+	*pbFN.From.UDP = uint32(fn.From.UDP)
+	inf = fn.From.NodeId
+	pbFN.From.NodeId = inf.([]byte)
+
+	pbFN.To.IP = fn.To.IP
+	*pbFN.To.TCP = uint32(fn.To.TCP)
+	*pbFN.To.UDP = uint32(fn.To.UDP)
+	inf = fn.To.NodeId
+	pbFN.To.NodeId = inf.([]byte)
+
+	pbFN.Target.IP = fn.Target.IP
+	*pbFN.Target.TCP = uint32(fn.Target.TCP)
+	*pbFN.Target.UDP = uint32(fn.Target.UDP)
+	inf = fn.Target.NodeId
+	pbFN.Target.NodeId = inf.([]byte)
+
+	*pbFN.Expiration = fn.Expiration
+	pbFN.Extra = fn.Extra
+
+	var err error
+	var buf []byte
+	if buf, err = pbFN.Marshal(); err != nil {
+		yclog.LogCallerFileLine("EncodeFindNode: fialed, err: %s", err.Error())
+		return UdpMsgEnoEncodeFailed
+	}
+	pum.Buf = buf
+	pum.Len = len(buf)
+	pum.Msg.FindNode = pbFN
+
 	return UdpMsgEnoNone
 }
 
 //
 // Encode Neighbors
 //
-func (pum *UdpMsg) EncodeNeighbors(nb *Neighbors) UdpMsgErrno {
+func (pum *UdpMsg) EncodeNeighbors(ngb *Neighbors) UdpMsgErrno {
+	var pbm = &pum.Msg
+	var pbNgb *pb.UdpMessage_Neighbors
+
+	pbm.MsgType = new(pb.UdpMessage_MessageType)
+	*pbm.MsgType = pb.UdpMessage_NEIGHBORS
+	pbNgb = new(pb.UdpMessage_Neighbors)
+
+	var inf interface{}
+	pbNgb.From.IP = ngb.From.IP
+	*pbNgb.From.TCP = uint32(ngb.From.TCP)
+	*pbNgb.From.UDP = uint32(ngb.From.UDP)
+	inf = ngb.From.NodeId
+	pbNgb.From.NodeId = inf.([]byte)
+
+	pbNgb.To.IP = ngb.To.IP
+	*pbNgb.To.TCP = uint32(ngb.To.TCP)
+	*pbNgb.To.UDP = uint32(ngb.To.UDP)
+	inf = ngb.To.NodeId
+	pbNgb.To.NodeId = inf.([]byte)
+
+	*pbNgb.Expiration = ngb.Expiration
+	pbNgb.Extra = ngb.Extra
+
+	for idx, n := range ngb.Nodes {
+		pbNgb.Nodes[idx].IP = n.IP
+		*pbNgb.Nodes[idx].TCP = uint32(n.TCP)
+		*pbNgb.Nodes[idx].UDP = uint32(n.UDP)
+		inf = n.NodeId
+		pbNgb.Nodes[idx].NodeId = inf.([]byte)
+	}
+
+	var err error
+	var buf []byte
+	if buf, err = pbNgb.Marshal(); err != nil {
+		yclog.LogCallerFileLine("EncodeNeighbors: fialed, err: %s", err.Error())
+		return UdpMsgEnoEncodeFailed
+	}
+	pum.Buf = buf
+	pum.Len = len(buf)
+	pum.Msg.Neighbors = pbNgb
+
 	return UdpMsgEnoNone
 }
 
-
-
-
+//
+// Get buffer and length of bytes for message encoded
+//
+func (pum *UdpMsg) GetRawMessage() (buf []byte, len int) {
+	if pum.Eno != UdpMsgEnoNone {
+		return nil, 0
+	}
+	return pum.Buf, pum.Len
+}

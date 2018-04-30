@@ -74,7 +74,12 @@ type TcpmsgPackage struct {
 //
 func (tp *TcpmsgPackage)getHandshakeInbound(inst *peerInstance) (*TcpmsgHandshake, PeMgrErrno) {
 
-	inst.conn.SetDeadline(time.Now().Add(inst.hto))
+	if inst.hto != 0 {
+		inst.conn.SetDeadline(time.Now().Add(inst.hto))
+	} else {
+		inst.conn.SetDeadline(time.Time{0,0,nil})
+	}
+
 	r := inst.conn.(io.Reader)
 	gr := ggio.NewDelimitedReader(r, inst.maxPkgSize)
 
@@ -121,7 +126,7 @@ func (tp *TcpmsgPackage)getHandshakeInbound(inst *peerInstance) (*TcpmsgHandshak
 		return nil, PeMgrEnoMessage
 	}
 
-	var ptrMsg *TcpmsgHandshake = new(TcpmsgHandshake)
+	var ptrMsg = new(TcpmsgHandshake)
 	for i, b := range pbHS.NodeId {
 		ptrMsg.NodeId[i] = b
 	}
@@ -205,7 +210,7 @@ func (tp *TcpmsgPackage)putHandshakeOutbound(inst *peerInstance, hs *TcpmsgHands
 	}
 
 	if len(sendBuf) <= 0 {
-		yclog.LogCallerFileLine("putHandshakeOutbound: invalid send buffer");
+		yclog.LogCallerFileLine("putHandshakeOutbound: invalid send buffer")
 		return PeMgrEnoMessage
 	}
 
@@ -213,7 +218,11 @@ func (tp *TcpmsgPackage)putHandshakeOutbound(inst *peerInstance, hs *TcpmsgHands
 	// send encoded package to peer
 	//
 
-	inst.conn.SetDeadline(time.Now().Add(inst.hto))
+	if inst.hto != 0 {
+		inst.conn.SetDeadline(time.Now().Add(inst.hto))
+	} else {
+		inst.conn.SetDeadline(time.Time{0,0,nil})
+	}
 	w := inst.conn.(io.Writer)
 	if n, _ := w.Write(sendBuf); n != len(sendBuf) {
 		yclog.LogCallerFileLine("putHandshakeOutbound: Write failed, err: %s", err.Error())

@@ -30,6 +30,17 @@ import (
 )
 
 
+//
+// errno
+//
+const (
+	TabMgrEnoNone		= iota
+	TabMgrEnoParameter
+	TabMgrEnoScheduler
+	TabMgrEnoDatabase
+)
+
+type TabMgrErrno int
 
 //
 // Hash type
@@ -104,19 +115,85 @@ var dcvMgr = tableManager{
 // Table manager entry
 //
 func TabMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
+
 	yclog.LogCallerFileLine("TabMgrProc: scheduled, msg: %d", msg.Id)
+
+	var eno TabMgrErrno = TabMgrEnoNone
 
 	switch msg.Id {
 	case sch.EvSchPoweron:
+		eno = TabMgrPoweron()
 	case sch.EvSchPoweroff:
+		eno = TabMgrPoweroff(ptn)
 	case sch.EvTabRefreshTimer:
+		eno = TabMgrRefreshTimerHandler()
 	case sch.EvTabRefreshReq:
+		eno = TabMgrRefreshReq(msg.Body.(*sch.MsgTabRefreshReq))
 	case sch.EvNblFindNodeRsp:
+		eno = TabMgrFindNodeRsp(msg.Body.(*sch.NblFindNodeRsp))
 	case sch.EvNblPingpongRsp:
+		eno = TabMgrPingpongRsp(msg.Body.(*sch.NblPingRsp))
 	default:
+		yclog.LogCallerFileLine("TabMgrProc: invalid message: %d", msg.Id)
+		return sch.SchEnoUserTask
 	}
+
+	if eno != TabMgrEnoNone {
+		yclog.LogCallerFileLine("TabMgrProc: errors, eno: %d", eno)
+		return sch.SchEnoUserTask
+	}
+
 	return sch.SchEnoNone
 }
+
+//
+// Poweron handler
+//
+func TabMgrPoweron()TabMgrErrno {
+	return TabMgrEnoNone
+}
+
+//
+// Poweroff handler
+//
+func TabMgrPoweroff(ptn interface{})TabMgrErrno {
+	return TabMgrEnoNone
+}
+
+//
+// Auto-Refresh timer handler
+//
+func TabMgrRefreshTimerHandler()TabMgrErrno {
+	return TabMgrEnoNone
+}
+
+//
+// Refresh request handler
+//
+func TabMgrRefreshReq(msg *sch.MsgTabRefreshReq)TabMgrErrno {
+	return TabMgrEnoNone
+}
+
+//
+// FindNode response handler
+//
+func TabMgrFindNodeRsp(msg *sch.NblFindNodeRsp)TabMgrErrno {
+	return TabMgrEnoNone
+}
+
+//
+// Pingpong respone handler
+//
+func TabMgrPingpongRsp(msg *sch.NblPingRsp)TabMgrErrno {
+	return TabMgrEnoNone
+}
+
+
+
+
+
+
+
 
 //
 // Static task to clean the node database
@@ -140,16 +217,45 @@ func NdbcProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 
 	yclog.LogCallerFileLine("NdbcProc: scheduled, msg id: %d", msg.Id)
 
-	var eno sch.SchErrno
+	var eno TabMgrErrno
 
 	switch msg.Id {
 	case sch.EvSchPoweron:
+		eno = NdbcPoweron()
 	case sch.EvSchPoweroff:
+		eno = NdbcPoweroff(ptn)
 	case sch.EvNdbCleanerTimer:
+		eno = NdbcAutoCleanTimerHandler()
 	default:
 		yclog.LogCallerFileLine("NdbcProc: invalid message: %d", msg.Id)
 		return sch.SchEnoInternal
 	}
 
-	return eno
+	if eno != TabMgrEnoNone {
+		yclog.LogCallerFileLine("NdbcProc: errors, eno: %d", eno)
+		return sch.SchEnoUserTask
+	}
+
+	return sch.SchEnoNone
+}
+
+//
+// Pwoeron handler
+//
+func NdbcPoweron() TabMgrErrno {
+	return TabMgrEnoNone
+}
+
+//
+// Poweroff handler
+//
+func NdbcPoweroff(ptn interface{}) TabMgrErrno {
+	return TabMgrEnoNone
+}
+
+//
+// Auto clean timer handler
+//
+func NdbcAutoCleanTimerHandler() TabMgrErrno {
+	return TabMgrEnoNone
 }

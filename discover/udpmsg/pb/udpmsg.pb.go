@@ -120,39 +120,6 @@ func (m *UdpMessage) GetNeighbors() *UdpMessage_Neighbors {
 	return nil
 }
 
-type UdpMessage_Endpoint struct {
-	IP               []byte  `protobuf:"bytes,1,req,name=IP" json:"IP,omitempty"`
-	UDP              *uint32 `protobuf:"varint,2,req,name=UDP" json:"UDP,omitempty"`
-	TCP              *uint32 `protobuf:"varint,3,req,name=TCP" json:"TCP,omitempty"`
-	XXX_unrecognized []byte  `json:"-"`
-}
-
-func (m *UdpMessage_Endpoint) Reset()                    { *m = UdpMessage_Endpoint{} }
-func (m *UdpMessage_Endpoint) String() string            { return proto.CompactTextString(m) }
-func (*UdpMessage_Endpoint) ProtoMessage()               {}
-func (*UdpMessage_Endpoint) Descriptor() ([]byte, []int) { return fileDescriptorUdpmsg, []int{0, 0} }
-
-func (m *UdpMessage_Endpoint) GetIP() []byte {
-	if m != nil {
-		return m.IP
-	}
-	return nil
-}
-
-func (m *UdpMessage_Endpoint) GetUDP() uint32 {
-	if m != nil && m.UDP != nil {
-		return *m.UDP
-	}
-	return 0
-}
-
-func (m *UdpMessage_Endpoint) GetTCP() uint32 {
-	if m != nil && m.TCP != nil {
-		return *m.TCP
-	}
-	return 0
-}
-
 type UdpMessage_Node struct {
 	IP               []byte  `protobuf:"bytes,1,req,name=IP" json:"IP,omitempty"`
 	UDP              *uint32 `protobuf:"varint,2,req,name=UDP" json:"UDP,omitempty"`
@@ -164,7 +131,7 @@ type UdpMessage_Node struct {
 func (m *UdpMessage_Node) Reset()                    { *m = UdpMessage_Node{} }
 func (m *UdpMessage_Node) String() string            { return proto.CompactTextString(m) }
 func (*UdpMessage_Node) ProtoMessage()               {}
-func (*UdpMessage_Node) Descriptor() ([]byte, []int) { return fileDescriptorUdpmsg, []int{0, 1} }
+func (*UdpMessage_Node) Descriptor() ([]byte, []int) { return fileDescriptorUdpmsg, []int{0, 0} }
 
 func (m *UdpMessage_Node) GetIP() []byte {
 	if m != nil {
@@ -195,26 +162,26 @@ func (m *UdpMessage_Node) GetNodeId() []byte {
 }
 
 type UdpMessage_Ping struct {
-	From             *UdpMessage_Endpoint `protobuf:"bytes,1,req,name=From" json:"From,omitempty"`
-	To               *UdpMessage_Endpoint `protobuf:"bytes,2,req,name=To" json:"To,omitempty"`
-	Expiration       *uint64              `protobuf:"varint,3,opt,name=Expiration" json:"Expiration,omitempty"`
-	Extra            []byte               `protobuf:"bytes,4,opt,name=Extra" json:"Extra,omitempty"`
-	XXX_unrecognized []byte               `json:"-"`
+	From             *UdpMessage_Node `protobuf:"bytes,1,req,name=From" json:"From,omitempty"`
+	To               *UdpMessage_Node `protobuf:"bytes,2,req,name=To" json:"To,omitempty"`
+	Expiration       *uint64          `protobuf:"varint,3,opt,name=Expiration" json:"Expiration,omitempty"`
+	Extra            []byte           `protobuf:"bytes,4,opt,name=Extra" json:"Extra,omitempty"`
+	XXX_unrecognized []byte           `json:"-"`
 }
 
 func (m *UdpMessage_Ping) Reset()                    { *m = UdpMessage_Ping{} }
 func (m *UdpMessage_Ping) String() string            { return proto.CompactTextString(m) }
 func (*UdpMessage_Ping) ProtoMessage()               {}
-func (*UdpMessage_Ping) Descriptor() ([]byte, []int) { return fileDescriptorUdpmsg, []int{0, 2} }
+func (*UdpMessage_Ping) Descriptor() ([]byte, []int) { return fileDescriptorUdpmsg, []int{0, 1} }
 
-func (m *UdpMessage_Ping) GetFrom() *UdpMessage_Endpoint {
+func (m *UdpMessage_Ping) GetFrom() *UdpMessage_Node {
 	if m != nil {
 		return m.From
 	}
 	return nil
 }
 
-func (m *UdpMessage_Ping) GetTo() *UdpMessage_Endpoint {
+func (m *UdpMessage_Ping) GetTo() *UdpMessage_Node {
 	if m != nil {
 		return m.To
 	}
@@ -236,26 +203,26 @@ func (m *UdpMessage_Ping) GetExtra() []byte {
 }
 
 type UdpMessage_Pong struct {
-	From             *UdpMessage_Endpoint `protobuf:"bytes,1,req,name=From" json:"From,omitempty"`
-	To               *UdpMessage_Endpoint `protobuf:"bytes,2,req,name=To" json:"To,omitempty"`
-	Expiration       *uint64              `protobuf:"varint,3,opt,name=Expiration" json:"Expiration,omitempty"`
-	Extra            []byte               `protobuf:"bytes,4,opt,name=Extra" json:"Extra,omitempty"`
-	XXX_unrecognized []byte               `json:"-"`
+	From             *UdpMessage_Node `protobuf:"bytes,1,req,name=From" json:"From,omitempty"`
+	To               *UdpMessage_Node `protobuf:"bytes,2,req,name=To" json:"To,omitempty"`
+	Expiration       *uint64          `protobuf:"varint,3,opt,name=Expiration" json:"Expiration,omitempty"`
+	Extra            []byte           `protobuf:"bytes,4,opt,name=Extra" json:"Extra,omitempty"`
+	XXX_unrecognized []byte           `json:"-"`
 }
 
 func (m *UdpMessage_Pong) Reset()                    { *m = UdpMessage_Pong{} }
 func (m *UdpMessage_Pong) String() string            { return proto.CompactTextString(m) }
 func (*UdpMessage_Pong) ProtoMessage()               {}
-func (*UdpMessage_Pong) Descriptor() ([]byte, []int) { return fileDescriptorUdpmsg, []int{0, 3} }
+func (*UdpMessage_Pong) Descriptor() ([]byte, []int) { return fileDescriptorUdpmsg, []int{0, 2} }
 
-func (m *UdpMessage_Pong) GetFrom() *UdpMessage_Endpoint {
+func (m *UdpMessage_Pong) GetFrom() *UdpMessage_Node {
 	if m != nil {
 		return m.From
 	}
 	return nil
 }
 
-func (m *UdpMessage_Pong) GetTo() *UdpMessage_Endpoint {
+func (m *UdpMessage_Pong) GetTo() *UdpMessage_Node {
 	if m != nil {
 		return m.To
 	}
@@ -277,34 +244,34 @@ func (m *UdpMessage_Pong) GetExtra() []byte {
 }
 
 type UdpMessage_FindNode struct {
-	From             *UdpMessage_Endpoint `protobuf:"bytes,1,req,name=From" json:"From,omitempty"`
-	To               *UdpMessage_Endpoint `protobuf:"bytes,2,req,name=To" json:"To,omitempty"`
-	Target           *UdpMessage_Endpoint `protobuf:"bytes,3,req,name=Target" json:"Target,omitempty"`
-	Expiration       *uint64              `protobuf:"varint,4,opt,name=Expiration" json:"Expiration,omitempty"`
-	Extra            []byte               `protobuf:"bytes,5,opt,name=Extra" json:"Extra,omitempty"`
-	XXX_unrecognized []byte               `json:"-"`
+	From             *UdpMessage_Node `protobuf:"bytes,1,req,name=From" json:"From,omitempty"`
+	To               *UdpMessage_Node `protobuf:"bytes,2,req,name=To" json:"To,omitempty"`
+	Target           *UdpMessage_Node `protobuf:"bytes,3,req,name=Target" json:"Target,omitempty"`
+	Expiration       *uint64          `protobuf:"varint,4,opt,name=Expiration" json:"Expiration,omitempty"`
+	Extra            []byte           `protobuf:"bytes,5,opt,name=Extra" json:"Extra,omitempty"`
+	XXX_unrecognized []byte           `json:"-"`
 }
 
 func (m *UdpMessage_FindNode) Reset()                    { *m = UdpMessage_FindNode{} }
 func (m *UdpMessage_FindNode) String() string            { return proto.CompactTextString(m) }
 func (*UdpMessage_FindNode) ProtoMessage()               {}
-func (*UdpMessage_FindNode) Descriptor() ([]byte, []int) { return fileDescriptorUdpmsg, []int{0, 4} }
+func (*UdpMessage_FindNode) Descriptor() ([]byte, []int) { return fileDescriptorUdpmsg, []int{0, 3} }
 
-func (m *UdpMessage_FindNode) GetFrom() *UdpMessage_Endpoint {
+func (m *UdpMessage_FindNode) GetFrom() *UdpMessage_Node {
 	if m != nil {
 		return m.From
 	}
 	return nil
 }
 
-func (m *UdpMessage_FindNode) GetTo() *UdpMessage_Endpoint {
+func (m *UdpMessage_FindNode) GetTo() *UdpMessage_Node {
 	if m != nil {
 		return m.To
 	}
 	return nil
 }
 
-func (m *UdpMessage_FindNode) GetTarget() *UdpMessage_Endpoint {
+func (m *UdpMessage_FindNode) GetTarget() *UdpMessage_Node {
 	if m != nil {
 		return m.Target
 	}
@@ -326,27 +293,27 @@ func (m *UdpMessage_FindNode) GetExtra() []byte {
 }
 
 type UdpMessage_Neighbors struct {
-	From             *UdpMessage_Endpoint `protobuf:"bytes,1,req,name=From" json:"From,omitempty"`
-	To               *UdpMessage_Endpoint `protobuf:"bytes,2,req,name=To" json:"To,omitempty"`
-	Nodes            []*UdpMessage_Node   `protobuf:"bytes,3,rep,name=Nodes" json:"Nodes,omitempty"`
-	Expiration       *uint64              `protobuf:"varint,4,opt,name=Expiration" json:"Expiration,omitempty"`
-	Extra            []byte               `protobuf:"bytes,5,opt,name=Extra" json:"Extra,omitempty"`
-	XXX_unrecognized []byte               `json:"-"`
+	From             *UdpMessage_Node   `protobuf:"bytes,1,req,name=From" json:"From,omitempty"`
+	To               *UdpMessage_Node   `protobuf:"bytes,2,req,name=To" json:"To,omitempty"`
+	Nodes            []*UdpMessage_Node `protobuf:"bytes,3,rep,name=Nodes" json:"Nodes,omitempty"`
+	Expiration       *uint64            `protobuf:"varint,4,opt,name=Expiration" json:"Expiration,omitempty"`
+	Extra            []byte             `protobuf:"bytes,5,opt,name=Extra" json:"Extra,omitempty"`
+	XXX_unrecognized []byte             `json:"-"`
 }
 
 func (m *UdpMessage_Neighbors) Reset()                    { *m = UdpMessage_Neighbors{} }
 func (m *UdpMessage_Neighbors) String() string            { return proto.CompactTextString(m) }
 func (*UdpMessage_Neighbors) ProtoMessage()               {}
-func (*UdpMessage_Neighbors) Descriptor() ([]byte, []int) { return fileDescriptorUdpmsg, []int{0, 5} }
+func (*UdpMessage_Neighbors) Descriptor() ([]byte, []int) { return fileDescriptorUdpmsg, []int{0, 4} }
 
-func (m *UdpMessage_Neighbors) GetFrom() *UdpMessage_Endpoint {
+func (m *UdpMessage_Neighbors) GetFrom() *UdpMessage_Node {
 	if m != nil {
 		return m.From
 	}
 	return nil
 }
 
-func (m *UdpMessage_Neighbors) GetTo() *UdpMessage_Endpoint {
+func (m *UdpMessage_Neighbors) GetTo() *UdpMessage_Node {
 	if m != nil {
 		return m.To
 	}
@@ -376,7 +343,6 @@ func (m *UdpMessage_Neighbors) GetExtra() []byte {
 
 func init() {
 	proto.RegisterType((*UdpMessage)(nil), "udpmsg.pb.UdpMessage")
-	proto.RegisterType((*UdpMessage_Endpoint)(nil), "udpmsg.pb.UdpMessage.Endpoint")
 	proto.RegisterType((*UdpMessage_Node)(nil), "udpmsg.pb.UdpMessage.Node")
 	proto.RegisterType((*UdpMessage_Ping)(nil), "udpmsg.pb.UdpMessage.Ping")
 	proto.RegisterType((*UdpMessage_Pong)(nil), "udpmsg.pb.UdpMessage.Pong")
@@ -445,49 +411,6 @@ func (m *UdpMessage) MarshalTo(dAtA []byte) (int, error) {
 			return 0, err
 		}
 		i += n4
-	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	return i, nil
-}
-
-func (m *UdpMessage_Endpoint) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *UdpMessage_Endpoint) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if m.IP == nil {
-		return 0, new(proto.RequiredNotSetError)
-	} else {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintUdpmsg(dAtA, i, uint64(len(m.IP)))
-		i += copy(dAtA[i:], m.IP)
-	}
-	if m.UDP == nil {
-		return 0, new(proto.RequiredNotSetError)
-	} else {
-		dAtA[i] = 0x10
-		i++
-		i = encodeVarintUdpmsg(dAtA, i, uint64(*m.UDP))
-	}
-	if m.TCP == nil {
-		return 0, new(proto.RequiredNotSetError)
-	} else {
-		dAtA[i] = 0x18
-		i++
-		i = encodeVarintUdpmsg(dAtA, i, uint64(*m.TCP))
 	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
@@ -824,25 +747,6 @@ func (m *UdpMessage) Size() (n int) {
 	if m.Neighbors != nil {
 		l = m.Neighbors.Size()
 		n += 1 + l + sovUdpmsg(uint64(l))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func (m *UdpMessage_Endpoint) Size() (n int) {
-	var l int
-	_ = l
-	if m.IP != nil {
-		l = len(m.IP)
-		n += 1 + l + sovUdpmsg(uint64(l))
-	}
-	if m.UDP != nil {
-		n += 1 + sovUdpmsg(uint64(*m.UDP))
-	}
-	if m.TCP != nil {
-		n += 1 + sovUdpmsg(uint64(*m.TCP))
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -1200,141 +1104,6 @@ func (m *UdpMessage) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *UdpMessage_Endpoint) Unmarshal(dAtA []byte) error {
-	var hasFields [1]uint64
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowUdpmsg
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: Endpoint: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: Endpoint: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field IP", wireType)
-			}
-			var byteLen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowUdpmsg
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				byteLen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if byteLen < 0 {
-				return ErrInvalidLengthUdpmsg
-			}
-			postIndex := iNdEx + byteLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.IP = append(m.IP[:0], dAtA[iNdEx:postIndex]...)
-			if m.IP == nil {
-				m.IP = []byte{}
-			}
-			iNdEx = postIndex
-			hasFields[0] |= uint64(0x00000001)
-		case 2:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field UDP", wireType)
-			}
-			var v uint32
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowUdpmsg
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				v |= (uint32(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			m.UDP = &v
-			hasFields[0] |= uint64(0x00000002)
-		case 3:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field TCP", wireType)
-			}
-			var v uint32
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowUdpmsg
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				v |= (uint32(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			m.TCP = &v
-			hasFields[0] |= uint64(0x00000004)
-		default:
-			iNdEx = preIndex
-			skippy, err := skipUdpmsg(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthUdpmsg
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-	if hasFields[0]&uint64(0x00000001) == 0 {
-		return new(proto.RequiredNotSetError)
-	}
-	if hasFields[0]&uint64(0x00000002) == 0 {
-		return new(proto.RequiredNotSetError)
-	}
-	if hasFields[0]&uint64(0x00000004) == 0 {
-		return new(proto.RequiredNotSetError)
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
 func (m *UdpMessage_Node) Unmarshal(dAtA []byte) error {
 	var hasFields [1]uint64
 	l := len(dAtA)
@@ -1562,7 +1331,7 @@ func (m *UdpMessage_Ping) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.From == nil {
-				m.From = &UdpMessage_Endpoint{}
+				m.From = &UdpMessage_Node{}
 			}
 			if err := m.From.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
@@ -1596,7 +1365,7 @@ func (m *UdpMessage_Ping) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.To == nil {
-				m.To = &UdpMessage_Endpoint{}
+				m.To = &UdpMessage_Node{}
 			}
 			if err := m.To.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
@@ -1739,7 +1508,7 @@ func (m *UdpMessage_Pong) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.From == nil {
-				m.From = &UdpMessage_Endpoint{}
+				m.From = &UdpMessage_Node{}
 			}
 			if err := m.From.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
@@ -1773,7 +1542,7 @@ func (m *UdpMessage_Pong) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.To == nil {
-				m.To = &UdpMessage_Endpoint{}
+				m.To = &UdpMessage_Node{}
 			}
 			if err := m.To.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
@@ -1916,7 +1685,7 @@ func (m *UdpMessage_FindNode) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.From == nil {
-				m.From = &UdpMessage_Endpoint{}
+				m.From = &UdpMessage_Node{}
 			}
 			if err := m.From.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
@@ -1950,7 +1719,7 @@ func (m *UdpMessage_FindNode) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.To == nil {
-				m.To = &UdpMessage_Endpoint{}
+				m.To = &UdpMessage_Node{}
 			}
 			if err := m.To.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
@@ -1984,7 +1753,7 @@ func (m *UdpMessage_FindNode) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.Target == nil {
-				m.Target = &UdpMessage_Endpoint{}
+				m.Target = &UdpMessage_Node{}
 			}
 			if err := m.Target.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
@@ -2130,7 +1899,7 @@ func (m *UdpMessage_Neighbors) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.From == nil {
-				m.From = &UdpMessage_Endpoint{}
+				m.From = &UdpMessage_Node{}
 			}
 			if err := m.From.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
@@ -2164,7 +1933,7 @@ func (m *UdpMessage_Neighbors) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.To == nil {
-				m.To = &UdpMessage_Endpoint{}
+				m.To = &UdpMessage_Node{}
 			}
 			if err := m.To.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
@@ -2389,34 +2158,33 @@ var (
 func init() { proto.RegisterFile("udpmsg.proto", fileDescriptorUdpmsg) }
 
 var fileDescriptorUdpmsg = []byte{
-	// 454 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xcc, 0x94, 0xbf, 0x6e, 0xd3, 0x40,
-	0x18, 0xc0, 0x7b, 0xe7, 0x4b, 0xb1, 0xbf, 0xa6, 0x95, 0x75, 0x42, 0xe8, 0x94, 0xc1, 0x84, 0x4e,
-	0x99, 0x2c, 0x94, 0x81, 0x01, 0x44, 0x87, 0x36, 0x4e, 0xf0, 0x80, 0x63, 0x1d, 0xee, 0x03, 0xa4,
-	0xb2, 0x39, 0x3c, 0xe4, 0xce, 0xb2, 0x8d, 0x54, 0xde, 0x84, 0x91, 0xc7, 0x61, 0x64, 0x63, 0x61,
-	0x40, 0xe1, 0x21, 0x58, 0x91, 0xbf, 0xd8, 0x69, 0x84, 0x12, 0x2a, 0x75, 0x88, 0x98, 0x7c, 0xf7,
-	0xe9, 0xf7, 0xb3, 0xbf, 0x3f, 0x77, 0x86, 0xfe, 0xc7, 0xb4, 0x58, 0x56, 0xca, 0x2f, 0x4a, 0x53,
-	0x1b, 0xee, 0x74, 0xbb, 0x9b, 0xf3, 0xdf, 0x0e, 0xc0, 0x75, 0x5a, 0xbc, 0xcd, 0xaa, 0x6a, 0xa1,
-	0x32, 0xfe, 0x0a, 0x1e, 0x2d, 0x2b, 0x95, 0x7c, 0x2a, 0x32, 0x41, 0x86, 0x74, 0x74, 0x36, 0x7e,
-	0xe6, 0x6f, 0x58, 0xff, 0x8e, 0xf3, 0xdb, 0x67, 0x03, 0xca, 0xce, 0xe0, 0x3e, 0xb0, 0x22, 0xd7,
-	0x4a, 0xd0, 0x21, 0x19, 0x9d, 0x8c, 0x07, 0xbb, 0xcd, 0x38, 0xd7, 0x4a, 0x22, 0x87, 0xbc, 0xd1,
-	0x4a, 0x58, 0xff, 0xe4, 0x0d, 0xf2, 0x46, 0x2b, 0xfe, 0x12, 0xec, 0xf7, 0xb9, 0x4e, 0x23, 0x93,
-	0x66, 0x82, 0xa1, 0xe3, 0xed, 0x76, 0xa6, 0x2d, 0x25, 0x37, 0x3c, 0x7f, 0x0d, 0x8e, 0xce, 0x72,
-	0xf5, 0xe1, 0xc6, 0x94, 0x95, 0xe8, 0xa1, 0xfc, 0x74, 0xb7, 0x1c, 0x75, 0x98, 0xbc, 0x33, 0x06,
-	0x17, 0x60, 0x07, 0x3a, 0x2d, 0x4c, 0xae, 0x6b, 0x7e, 0x06, 0x34, 0x8c, 0xb1, 0x3d, 0x7d, 0x49,
-	0xc3, 0x98, 0xbb, 0x60, 0x5d, 0x4f, 0x62, 0x41, 0x87, 0x74, 0x74, 0x2a, 0x9b, 0x65, 0x13, 0x49,
-	0xae, 0x62, 0x61, 0xad, 0x23, 0xc9, 0x55, 0x3c, 0x90, 0xc0, 0x30, 0x8d, 0x07, 0xb8, 0xfc, 0x09,
-	0x1c, 0x37, 0x6e, 0x98, 0x0a, 0x86, 0x5e, 0xbb, 0x1b, 0x7c, 0x21, 0xc0, 0x9a, 0x6e, 0xf2, 0x31,
-	0xb0, 0x69, 0x69, 0x96, 0xf8, 0xda, 0xbd, 0x3d, 0xe9, 0xd2, 0x97, 0xc8, 0x72, 0x1f, 0x68, 0x62,
-	0xf0, 0xbb, 0xf7, 0x1b, 0x34, 0x31, 0xdc, 0x03, 0x08, 0x6e, 0x8b, 0xbc, 0x5c, 0xd4, 0xb9, 0xd1,
-	0x38, 0x31, 0x26, 0xb7, 0x22, 0xfc, 0x31, 0xf4, 0x82, 0xdb, 0xba, 0x5c, 0xe0, 0x60, 0xfa, 0x72,
-	0xbd, 0x59, 0xa7, 0x68, 0xfe, 0xeb, 0x14, 0x7f, 0x10, 0xb0, 0xbb, 0xf3, 0x72, 0x90, 0x34, 0x5f,
-	0xc0, 0x71, 0xb2, 0x28, 0x55, 0x56, 0xe3, 0x8c, 0xef, 0x77, 0x5a, 0xfa, 0xaf, 0xf2, 0xd8, 0xfe,
-	0xf2, 0x7a, 0xdb, 0xe5, 0x7d, 0x27, 0xe0, 0x6c, 0x4e, 0xf4, 0x41, 0xea, 0x7b, 0x0e, 0xbd, 0xa6,
-	0x97, 0x95, 0xb0, 0x86, 0xd6, 0xfe, 0x6b, 0x8d, 0xd7, 0x73, 0x0d, 0x3e, 0xac, 0xb2, 0xf3, 0x0b,
-	0x38, 0xd9, 0xfa, 0x0b, 0x71, 0x1b, 0x58, 0x1c, 0x46, 0x33, 0xf7, 0x08, 0x57, 0xf3, 0x68, 0xe6,
-	0x12, 0xde, 0x07, 0x7b, 0x1a, 0x46, 0x93, 0x68, 0x3e, 0x09, 0x5c, 0xca, 0x4f, 0xc1, 0x89, 0x82,
-	0x70, 0xf6, 0xe6, 0x72, 0x2e, 0xdf, 0xb9, 0xd6, 0xa5, 0xfb, 0x75, 0xe5, 0x91, 0x6f, 0x2b, 0x8f,
-	0xfc, 0x5c, 0x79, 0xe4, 0xf3, 0x2f, 0xef, 0xe8, 0x4f, 0x00, 0x00, 0x00, 0xff, 0xff, 0x69, 0xf2,
-	0x01, 0xff, 0x25, 0x05, 0x00, 0x00,
+	// 433 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xcc, 0x94, 0xc1, 0x6e, 0xd3, 0x40,
+	0x10, 0x86, 0xbb, 0xeb, 0x4d, 0x89, 0xa7, 0x69, 0x65, 0xad, 0x10, 0x5a, 0xe5, 0x60, 0x42, 0x4f,
+	0x11, 0x07, 0x0b, 0xe5, 0x08, 0x82, 0x43, 0x1b, 0x27, 0xf8, 0x80, 0xb3, 0x5a, 0xdc, 0x07, 0x70,
+	0x65, 0xb3, 0xf8, 0x10, 0xaf, 0x65, 0x1b, 0xa9, 0x3c, 0x07, 0x97, 0x3e, 0x12, 0x37, 0xfa, 0x08,
+	0x28, 0xbc, 0x08, 0xf2, 0xd8, 0x4e, 0x23, 0x94, 0x06, 0x09, 0xa9, 0x12, 0x27, 0xcf, 0x8c, 0xbe,
+	0x7f, 0x3d, 0xff, 0xbf, 0x96, 0x61, 0xf4, 0x25, 0x29, 0xd6, 0x95, 0xf6, 0x8a, 0xd2, 0xd4, 0x86,
+	0xdb, 0x7d, 0x77, 0x7d, 0xfe, 0xcd, 0x06, 0xb8, 0x4a, 0x8a, 0x0f, 0x69, 0x55, 0xc5, 0x3a, 0xe5,
+	0x6f, 0xe0, 0xc9, 0xba, 0xd2, 0xd1, 0xd7, 0x22, 0x15, 0x64, 0x42, 0xa7, 0x67, 0xb3, 0x17, 0xde,
+	0x96, 0xf5, 0xee, 0x39, 0xaf, 0x7b, 0x36, 0xa0, 0xea, 0x15, 0xdc, 0x03, 0x56, 0x64, 0xb9, 0x16,
+	0x74, 0x42, 0xa6, 0x27, 0xb3, 0xf1, 0x7e, 0xa5, 0xcc, 0x72, 0xad, 0x90, 0x43, 0xde, 0xe4, 0x5a,
+	0x58, 0x07, 0x79, 0x83, 0xbc, 0xc9, 0x35, 0x7f, 0x0d, 0xc3, 0x4f, 0x59, 0x9e, 0x84, 0x26, 0x49,
+	0x05, 0x43, 0x8d, 0xbb, 0x5f, 0xb3, 0xe8, 0x28, 0xb5, 0xe5, 0xf9, 0x5b, 0xb0, 0xf3, 0x34, 0xd3,
+	0x9f, 0xaf, 0x4d, 0x59, 0x89, 0x01, 0x8a, 0x9f, 0xef, 0x17, 0x87, 0x3d, 0xa6, 0xee, 0x15, 0x63,
+	0x05, 0x0c, 0x8f, 0x39, 0x03, 0x1a, 0x48, 0x8c, 0x66, 0xa4, 0x68, 0x20, 0xb9, 0x03, 0xd6, 0xd5,
+	0x5c, 0x0a, 0x3a, 0xa1, 0xd3, 0x53, 0xd5, 0x94, 0xcd, 0x24, 0xba, 0x94, 0xc2, 0x6a, 0x27, 0xd1,
+	0xa5, 0xe4, 0xcf, 0xe0, 0xb8, 0xd1, 0x06, 0x89, 0x60, 0xa8, 0xeb, 0xba, 0xf1, 0x2d, 0x01, 0x26,
+	0xbb, 0x1c, 0x16, 0xa5, 0x59, 0xe3, 0xb1, 0x0f, 0xe6, 0x80, 0x7e, 0x90, 0xe3, 0x2f, 0x81, 0x46,
+	0x06, 0xdf, 0x79, 0x98, 0xa6, 0x91, 0xe1, 0x2e, 0x80, 0x7f, 0x53, 0x64, 0x65, 0x5c, 0x67, 0x26,
+	0xc7, 0xa4, 0x99, 0xda, 0x99, 0xf0, 0xa7, 0x30, 0xf0, 0x6f, 0xea, 0x32, 0xc6, 0x40, 0x47, 0xaa,
+	0x6d, 0xda, 0xd5, 0xcc, 0x7f, 0xb9, 0xda, 0x1d, 0x81, 0x61, 0x7f, 0xbf, 0x8f, 0xba, 0xde, 0x0c,
+	0x8e, 0xa3, 0xb8, 0xd4, 0x69, 0x8d, 0x77, 0x79, 0x98, 0xef, 0xc8, 0x3f, 0x2c, 0xb1, 0x87, 0x2d,
+	0x0d, 0x76, 0x2d, 0xfd, 0x20, 0x60, 0x6f, 0xbf, 0xba, 0x47, 0xf5, 0xf4, 0x0a, 0x06, 0x4d, 0x5d,
+	0x09, 0x6b, 0x62, 0xfd, 0x05, 0x6f, 0xc1, 0x7f, 0x73, 0x74, 0xfe, 0x0e, 0x4e, 0x76, 0xfe, 0x10,
+	0x7c, 0x08, 0x4c, 0x06, 0xe1, 0xd2, 0x39, 0xc2, 0x6a, 0x15, 0x2e, 0x1d, 0xc2, 0x47, 0x30, 0x5c,
+	0x04, 0xe1, 0x3c, 0x5c, 0xcd, 0x7d, 0x87, 0xf2, 0x53, 0xb0, 0x43, 0x3f, 0x58, 0xbe, 0xbf, 0x58,
+	0xa9, 0x8f, 0x8e, 0x75, 0xe1, 0x7c, 0xdf, 0xb8, 0xe4, 0x6e, 0xe3, 0x92, 0x9f, 0x1b, 0x97, 0xdc,
+	0xfe, 0x72, 0x8f, 0x7e, 0x07, 0x00, 0x00, 0xff, 0xff, 0xb7, 0x1d, 0x66, 0x97, 0xc1, 0x04, 0x00,
+	0x00,
 }

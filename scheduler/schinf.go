@@ -34,7 +34,7 @@ type SchErrno int
 
 const (
 	SchEnoNone			SchErrno = 0	// none of errors
-	SchEnoParameter	SchErrno = 1	// invalid parameters
+	SchEnoParameter		SchErrno = 1	// invalid parameters
 	SchEnoResource		SchErrno = 2	// no resources
 	SchEnoWatchDog		SchErrno = 3	// watch dog
 	SchEnoNotFound		SchErrno = 4	// not found
@@ -172,11 +172,11 @@ const SchMaxTaskTimer 	= 128	// max timers can be held by one user task
 const SchInvalidTid		= -1	// invalid timer identity
 
 type TimerDescription struct {
-	name	string			// timer name
-	utid	int				// user timer identity
-	tmt		SchTimerType	// timer type, see aboved
-	dur		time.Duration	// duration: a period value or duration from now
-	extra	interface{}	// extra data return to timer owner when expired
+	Name	string			// timer name
+	Utid	int				// user timer identity
+	Tmt		SchTimerType	// timer type, see aboved
+	Dur		time.Duration	// duration: a period value or duration from now
+	Extra	interface{}		// extra data return to timer owner when expired
 }
 
 //
@@ -329,15 +329,15 @@ func SchinfSendMsg2TaskGroup(grp string, msg *SchMessage) (eno SchErrno, failedC
 //
 // Set a timer
 //
-func SchInfSetTimer(ptn *schTaskNode, tdc *TimerDescription) (eno SchErrno, tid int) {
-	return schimplSetTimer(ptn, (*timerDescription)(tdc))
+func SchInfSetTimer(ptn interface{}, tdc *TimerDescription) (eno SchErrno, tid int) {
+	return schimplSetTimer(ptn.(*schTaskNode), (*timerDescription)(tdc))
 }
 
 //
 // Kill a timer
 //
-func SchinfKillTimer(ptn *schTaskNode, tid int) SchErrno {
-	return schimplKillTimer(ptn, tid)
+func SchinfKillTimer(ptn interface{}, tid int) SchErrno {
+	return schimplKillTimer(ptn.(*schTaskNode), tid)
 }
 
 //

@@ -26,6 +26,19 @@ import (
 	yclog	"ycp2p/logger"
 )
 
+
+
+//
+// errno
+//
+const (
+	DcvMgrEnoNone		= iota
+	DcvMgrEnoParameter
+	DcvMgrEnoScheduler
+)
+
+type DcvMgrErrno int
+
 //
 // Discover manager
 //
@@ -45,14 +58,81 @@ var dcvMgr = discoverManager{
 // Discover manager entry
 //
 func DcvMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
+
 	yclog.LogCallerFileLine("DcvMgrProc: scheduled, msg: %d", msg.Id)
+
+	var eno DcvMgrErrno = DcvMgrEnoNone
 
 	switch msg.Id {
 	case sch.EvSchPoweron:
+		eno = DcvMgrPoweron()
 	case sch.EvSchPoweroff:
+		eno = DcvMgrPoweroff(ptn)
 	case sch.EvDcvFindNodeReq:
+		eno = DcvMgrFindNodeReq(msg.Body.(*sch.MsgDcvFindNodeReq))
 	case sch.EvTabRefreshRsp:
+		eno = DcvMgrTabRefreshRsp(msg.Body.(*sch.MsgTabRefreshRsp))
 	default:
+		yclog.LogCallerFileLine("DcvMgrProc: invalid message: %d", msg.Id)
+		return sch.SchEnoUserTask
 	}
+
+	if eno != DcvMgrEnoNone {
+		yclog.LogCallerFileLine("DcvMgrProc: errors, eno: %d", eno)
+		return sch.SchEnoUserTask
+	}
+
 	return sch.SchEnoNone
 }
+
+//
+// Poweron handler
+//
+func DcvMgrPoweron() DcvMgrErrno {
+	return DcvMgrEnoNone
+}
+
+
+//
+// Poweroff handler
+//
+func DcvMgrPoweroff(ptn interface{}) DcvMgrErrno {
+	return DcvMgrEnoNone
+}
+
+//
+// FindNode request handler
+//
+func DcvMgrFindNodeReq(req *sch.MsgDcvFindNodeReq) DcvMgrErrno {
+
+	//
+	// When peer manager task considers that more peers needed, it then send FindNode
+	// request to here the discover task to ask for more, see function peMgrAsk4More
+	// for details about please.
+	//
+	// When EvDcvFindNodeReq received, we should requtst the table manager task to
+	// refresh itself to get more by sending sch.EvTabRefreshReq to it, and we would
+	// responsed by sch.EvTabRefreshRsp, with message type as sch.MsgTabRefreshRsp.
+	// And then, we can response the peer manager task with sch.EvDcvFindNodeRsp event
+	// with sch.MsgDcvFindNodeRsp message.
+	//
+
+	return DcvMgrEnoNone
+}
+
+//
+// Table refreshed response handler
+//
+func DcvMgrTabRefreshRsp(rsp *sch.MsgTabRefreshRsp) DcvMgrErrno {
+
+	//
+	// We receive the response about event sch.EvTabRefreshReq we hand sent to table
+	// manager task. For more, see comments aboved in function DcvMgrFindNodeReq pls.
+	//
+
+	return DcvMgrEnoNone
+}
+
+
+
+

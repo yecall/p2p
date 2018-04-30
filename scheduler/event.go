@@ -29,7 +29,8 @@
 package scheduler
 
 import (
-	ycfg "ycp2p/config"
+	ycfg	"ycp2p/config"
+	um		"ycp2p/discover/udpmsg"
 )
 
 
@@ -78,6 +79,22 @@ const (
 )
 
 //
+// EvTabRefreshReq
+//
+type MsgTabRefreshReq struct {
+	Include	[]*ycfg.NodeID	// wanted, it can be an advice for discover
+	Exclude	[]*ycfg.NodeID	// filter out from response if any
+}
+
+//
+// EvTabRefreshRsp
+//
+type MsgTabRefreshRsp struct {
+	Nodes	[]*ycfg.Node	// nodes found
+}
+
+
+//
 // NodeDb cleaner event
 //
 const NdbCleanerTimerId = 1
@@ -119,6 +136,22 @@ const (
 	EvNblPingpongReq		= EvNblUdpBase	+ 3
 	EvNblPingpongRsp		= EvNblUdpBase	+ 4
 )
+
+//
+// EvNblFindNodeRsp message
+//
+type NblFindNodeRsp struct {
+	Result		int				// result, 0: ok, others: errno
+	FindNode	*um.FindNode	// FindNode message from table task
+}
+
+//
+// EvNblPingpongrRsp message
+//
+type NblPingRsp struct {
+	Result		int			// result, 0: ok, others: errno
+	Ping		*um.Ping	// Ping message from table task
+}
 
 //
 // Neighbor listenner event
