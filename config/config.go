@@ -29,6 +29,8 @@ import (
 	"os/user"
 	"runtime"
 	"fmt"
+	"path"
+	yclog "ycp2p/logger"
 )
 
 
@@ -39,8 +41,13 @@ type P2pCfgErrno int
 
 const (
 	PcfgEnoNone		= iota
+	PcfgEnoParameter
+	PcfgEnoPrivateKye
+	PcfgEnoDataDir
+	PcfgEnoDatabase
+	PcfgEnoDataListenAddr
+	PcfgEnoIpAddr
 	PcfgEnoUnknown
-	PcfgEnoMax
 )
 
 //
@@ -143,7 +150,7 @@ type Cfg4PeerListener struct {
 //
 type Cfg4PeerManager struct {
 	IP				net.IP	// ip address
-	Port			uint16	// port numbers
+	Port			uint16	// port number
 	ID				NodeID	// the node's public key
 	MaxPeers		int		// max peers would be
 	MaxOutbounds	int		// max concurrency outbounds
@@ -151,6 +158,18 @@ type Cfg4PeerManager struct {
 	Statics			[]*Node	// static nodes
 	NoDial			bool	// do not dial outbound
 	BootstrapNode	bool	// local is a bootstrap node
+}
+
+//
+// Configuration about table manager
+//
+type Cfg4TabManager struct {
+	IP				net.IP	// ip address
+	UdpPort			uint16	// udp port number
+	TcpPort			uint16	// tcp port number
+	ID				NodeID	// the node's public key
+	DataDir			string	// data directory
+	NodeDB			string	// node database
 }
 
 //
@@ -173,7 +192,6 @@ var config = Config {
 	Name:				"yeeco.node",
 	BootstrapNodes:		nil,
 	StaticNodes:		nil,
-	TrustedNodes:		nil,
 	NodeDataDir:		P2pDefaultDataDir(),
 	NodeDatabase:		"node.db",
 	ListenAddr:			"*:0",
@@ -191,6 +209,68 @@ func p2pSetupLocalNodeId() P2pCfgErrno {
 // P2pConfig
 //
 func P2pConfig(cfg *Config) P2pCfgErrno {
+
+	//
+	// update
+	//
+
+	if cfg == nil {
+		yclog.LogCallerFileLine("P2pConfig: invalid configuration")
+		return PcfgEnoParameter
+	}
+	config = *cfg
+
+	//
+	// check configuration
+	//
+
+	if config.PrivateKey == nil {
+		yclog.LogCallerFileLine("P2pConfig: invalid private key")
+		return PcfgEnoPrivateKye
+	}
+
+	if config.MaxPeers == 0 ||
+		config.MaxOutbounds == 0 ||
+		config.MaxInbounds == 0	||
+		config.MaxPeers < config.MaxInbounds + config.MaxOutbounds {
+		yclog.LogCallerFileLine("P2pConfig: " +
+			"invalid peer number constraint, MaxPeers: %d, MaxOutbounds: %d, MaxInbounds: %d",
+			config.MaxPeers, config.MaxOutbounds, config.MaxInbounds)
+		return PcfgEnoParameter
+	}
+
+	if len(config.Name) == 0 {
+		yclog.LogCallerFileLine("P2pConfig: node name is empty")
+	}
+
+	if cap(config.BootstrapNodes) == 0 {
+		yclog.LogCallerFileLine("P2pConfig: BootstrapNodes is empty")
+	}
+
+	if cap(config.StaticNodes) == 0 {
+		yclog.LogCallerFileLine("P2pConfig: StaticNodes is empty")
+	}
+
+	if len(config.NodeDataDir) == 0 || path.IsAbs(config.NodeDataDir) == false {
+		yclog.LogCallerFileLine("P2pConfig: invaid data directory")
+		return PcfgEnoDataDir
+	}
+
+	if len(config.NodeDatabase) == 0 {
+		yclog.LogCallerFileLine("P2pConfig: invalid database name")
+		return PcfgEnoDatabase
+	}
+
+	if len(config.ListenAddr) == 0 {
+		yclog.LogCallerFileLine("P2pConfig: invalid listen address")
+		return PcfgEnoDataListenAddr
+	}
+
+	if config.Local.IP == nil {
+		yclog.LogCallerFileLine("P2pConfig: invalid ip address")
+		return PcfgEnoIpAddr
+	}
+
 	return PcfgEnoNone
 }
 
@@ -279,3 +359,18 @@ func P2pConfig4PeerManager() *Cfg4PeerManager {
 		NoDial:			config.NoDial,
 	}
 }
+
+//
+// Get configuration op table manager
+//
+func P2pConfig4TabManager() *Cfg4TabManager {
+	return &Cfg4TabManager {
+		IP:				config.Local.IP,
+		UdpPort:		config.Local.UDP,
+		TcpPort:		config.Local.TCP,
+		ID:				config.Local.ID,
+		DataDir:		config.NodeDataDir,
+		NodeDB:			config.NodeDatabase,
+	}
+}
+

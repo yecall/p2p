@@ -27,6 +27,7 @@ import (
 	sch		"ycp2p/scheduler"
 	ycfg	"ycp2p/config"
 	yclog	"ycp2p/logger"
+	"math/rand"
 )
 
 
@@ -35,6 +36,7 @@ import (
 //
 const (
 	TabMgrEnoNone		= iota
+	TabMgrEnoConfig
 	TabMgrEnoParameter
 	TabMgrEnoScheduler
 	TabMgrEnoDatabase
@@ -68,12 +70,14 @@ const (
 //
 // Bucket entry
 //
+type NodeID	ycfg.NodeID
+
 type bucketEntry struct {
-	ip		net.IP		// ip address
-	udp		uint16		// UDP port number
-	tcp		uint16		// TCP port number
-	id		ycfg.NodeID // node identity: the public key
-	sha		Hash		// hash of id
+	ip		net.IP	// ip address
+	udp		uint16	// UDP port number
+	tcp		uint16	// TCP port number
+	id		NodeID	// node identity: the public key
+	sha		Hash	// hash of id
 }
 
 //
@@ -87,10 +91,28 @@ type bucket struct {
 // Table task configuration
 //
 type tabConfig struct {
-	ip		net.IP		// ip address
-	udp		uint16		// UDP port number
-	tcp		uint16		// TCP port number
-	id		ycfg.NodeID // node identity: the public key
+	ip		net.IP	// ip address
+	udp		uint16	// UDP port number
+	tcp		uint16	// TCP port number
+	id		NodeID	// node identity: the public key
+	dataDir	string	// data directory
+	nodeDb	string	// node database
+}
+
+//
+// Instance control block
+//
+const (
+	TabInstStateNull	= iota	// null instance state
+	TabInstStateQuering			// FindNode sent but had not been responsed yet
+	TabInstStateBonding			// Ping sent but hand not been responsed yet
+)
+
+type instCtrlBlock struct {
+	state	int				// instance state, see aboved consts about state pls
+	req		interface{}		// request message pointer which inited this instance
+	rsp		interface{}		// pointer to response message received
+	tid		int				// identity of timer for response
 }
 
 //
@@ -99,14 +121,19 @@ type tabConfig struct {
 const TabMgrName = sch.TabMgrName
 
 type tableManager struct {
-	name		string				// name
-	tep			sch.SchUserTaskEp	// entry
-	cfg			tabConfig			// configuration
-	shaLocal	Hash				// hash of local node identity
-	buckets		[nBuckets]*bucket	// buckets
+	name			string				// name
+	tep				sch.SchUserTaskEp	// entry
+	cfg				tabConfig			// configuration
+	ptnMe			interface{}			// pointer to task node of myself
+	ptnNgbMgr		interface{}			// pointer to neighbor manager task node
+	ptnDcvMgr		interface{}			// pointer to discover manager task node
+	shaLocal		Hash				// hash of local node identity
+	buckets			[nBuckets]*bucket	// buckets
+	instTab			[]*instCtrlBlock	// instance table
+	dlkTab			[]int				// log2 distance lookup table for a byte
 }
 
-var dcvMgr = tableManager{
+var tabMgr = tableManager{
 	name:	TabMgrName,
 	tep:	TabMgrProc,
 }
@@ -149,7 +176,68 @@ func TabMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 //
 // Poweron handler
 //
-func TabMgrPoweron()TabMgrErrno {
+func TabMgrPoweron() TabMgrErrno {
+
+	var eno TabMgrErrno = TabMgrEnoNone
+
+	//
+	// fetch configurations
+	//
+
+	if eno = tabGetConfig(&tabMgr.cfg); eno != TabMgrEnoNone {
+		yclog.LogCallerFileLine("NdbcPoweron: tabGetConfig failed, eno: %d", eno)
+		return eno
+	}
+
+	//
+	// prepare node database
+	//
+
+	if eno = tabNodeDbPrepare(); eno != TabMgrEnoNone {
+		yclog.LogCallerFileLine("NdbcPoweron: tabNodeDbPrepare failed, eno: %d", eno)
+		return eno
+	}
+
+	//
+	// build local node identity hash for neighbors finding
+	//
+
+	if eno = tabSetupLocalHashId(); eno != TabMgrEnoNone {
+		yclog.LogCallerFileLine("NdbcPoweron: tabSetupLocalHash failed, eno: %d", eno)
+		return eno
+	}
+
+	//
+	// preapare related task ponters
+	//
+
+	if eno = tabRelatedTaskPrepare(); eno != TabMgrEnoNone {
+		yclog.LogCallerFileLine("NdbcPoweron: tabRelatedTaskPrepare failed, eno: %d", eno)
+		return eno
+	}
+
+	//
+	// setup the lookup table
+	//
+
+	if eno = tabSetupLog2DistanceLookupTable(tabMgr.dlkTab); eno != TabMgrEnoNone {
+		yclog.LogCallerFileLine("NdbcPoweron: tabSetupLog2DistanceLookupTable failed, eno: %d", eno)
+		return eno
+	}
+
+	//
+	// Since the system is just powered on at this moment, we start table
+	// refreshing at once. Before dong this, we update the random seed for
+	// the underlying.
+	//
+
+	rand.Seed(time.Now().UnixNano())
+
+	if eno = tabGoRefresh(); eno != TabMgrEnoNone {
+		yclog.LogCallerFileLine("NdbcPoweron: tabGoRefresh failed, eno: %d", eno)
+		return eno
+	}
+
 	return TabMgrEnoNone
 }
 
@@ -187,13 +275,6 @@ func TabMgrFindNodeRsp(msg *sch.NblFindNodeRsp)TabMgrErrno {
 func TabMgrPingpongRsp(msg *sch.NblPingRsp)TabMgrErrno {
 	return TabMgrEnoNone
 }
-
-
-
-
-
-
-
 
 //
 // Static task to clean the node database
@@ -257,5 +338,66 @@ func NdbcPoweroff(ptn interface{}) TabMgrErrno {
 // Auto clean timer handler
 //
 func NdbcAutoCleanTimerHandler() TabMgrErrno {
+	return TabMgrEnoNone
+}
+
+//
+// Fetch configuration
+//
+func tabGetConfig(tabCfg *tabConfig) TabMgrErrno {
+
+	if tabCfg == nil {
+		yclog.LogCallerFileLine("tabGetConfig: invalid parameter(s)")
+		return TabMgrEnoParameter
+	}
+
+	cfg := ycfg.P2pConfig4TabManager()
+	if cfg == nil {
+		yclog.LogCallerFileLine("tabGetConfig: P2pConfig4TabManager failed")
+		return TabMgrEnoConfig
+	}
+
+	tabCfg.ip		= cfg.IP
+	tabCfg.udp		= cfg.UdpPort
+	tabCfg.tcp		= cfg.TcpPort
+	tabCfg.id		= NodeID(cfg.ID)
+	tabCfg.dataDir	= cfg.DataDir
+	tabCfg.nodeDb	= cfg.NodeDB
+
+	return TabMgrEnoNone
+}
+
+//
+// Prepare node database when poweron
+//
+func tabNodeDbPrepare() TabMgrErrno {
+	return TabMgrEnoNone
+}
+
+//
+// Setup local node id hash
+//
+func tabSetupLocalHashId() TabMgrErrno {
+	return TabMgrEnoNone
+}
+
+//
+// Prepare pointers to related tasks
+//
+func tabRelatedTaskPrepare() TabMgrErrno {
+	return TabMgrEnoNone
+}
+
+//
+// Setup lookup table for bytes
+//
+func tabSetupLog2DistanceLookupTable(lkt []int) TabMgrErrno {
+	return TabMgrEnoNone
+}
+
+//
+// Init a refreshing procedure
+//
+func tabGoRefresh() TabMgrErrno {
 	return TabMgrEnoNone
 }

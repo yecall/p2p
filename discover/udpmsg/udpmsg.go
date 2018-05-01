@@ -592,3 +592,27 @@ func (pum *UdpMsg) GetRawMessage() (buf []byte, len int) {
 	}
 	return pum.Buf, pum.Len
 }
+
+//
+// Compare two nodes
+//
+const (
+	CmpNodeEqu		= iota
+	CmpNodeNotEquId
+	CmpNodeNotEquIp
+	CmpNodeNotEquUdpPort
+	CmpNodeNotEquTcpPort
+)
+
+func (n1 *Node) CompareWith(n2 *Node) int {
+	if n1.NodeId != n2.NodeId {
+		return CmpNodeNotEquId
+	} else if n1.IP.Equal(n2.IP) != true {
+		return CmpNodeNotEquIp
+	} else if n1.UDP != n2.UDP {
+		return CmpNodeNotEquUdpPort
+	} else if n1.TCP != n2.TCP {
+		return CmpNodeNotEquTcpPort
+	}
+	return CmpNodeEqu
+}
