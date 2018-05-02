@@ -61,6 +61,7 @@ type (
 		From		Node
 		To			Node
 		Expiration	uint64
+		Id			uint64
 		Extra		[]byte
 	}
 
@@ -68,6 +69,7 @@ type (
 	Pong struct {
 		From		Node
 		To			Node
+		Id			uint64
 		Expiration	uint64
 		Extra		[]byte
 	}
@@ -77,6 +79,7 @@ type (
 		From		Node
 		To			Node
 		Target		Node
+		Id			uint64
 		Expiration	uint64
 		Extra		[]byte
 	}
@@ -85,6 +88,7 @@ type (
 	Neighbors struct {
 		From		Node
 		To			Node
+		Id			uint64
 		Nodes		[]*Node
 		Expiration	uint64
 		Extra		[]byte

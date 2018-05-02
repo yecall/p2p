@@ -45,8 +45,11 @@ type DcvMgrErrno int
 const DcvMgrName = sch.DcvMgrName
 
 type discoverManager struct {
-	name	string				// name
-	tep		sch.SchUserTaskEp	// entry
+	name		string				// name
+	tep			sch.SchUserTaskEp	// entry
+	ptnMe		interface{}			// task node pointer to myself
+	ptnTab		interface{}			// task node pointer to table manager task
+	ptnPeMgr	interface{}			// task node pointer to peer manager task
 }
 
 var dcvMgr = discoverManager{
@@ -65,7 +68,7 @@ func DcvMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 
 	switch msg.Id {
 	case sch.EvSchPoweron:
-		eno = DcvMgrPoweron()
+		eno = DcvMgrPoweron(ptn)
 	case sch.EvSchPoweroff:
 		eno = DcvMgrPoweroff(ptn)
 	case sch.EvDcvFindNodeReq:
@@ -88,7 +91,27 @@ func DcvMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 //
 // Poweron handler
 //
-func DcvMgrPoweron() DcvMgrErrno {
+func DcvMgrPoweron(ptn interface{}) DcvMgrErrno {
+
+	var eno sch.SchErrno
+
+	dcvMgr.ptnMe = ptn
+
+	if eno, dcvMgr.ptnTab = sch.SchinfGetTaskNodeByName(sch.TabMgrName); eno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("DcvMgrPoweron: get task node failed, task: %s", sch.TabMgrName)
+		return DcvMgrEnoScheduler
+	}
+
+	if eno, dcvMgr.ptnPeMgr = sch.SchinfGetTaskNodeByName(sch.PeerMgrName); eno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("DcvMgrPoweron: get task node failed, task: %s", sch.PeerMgrName)
+		return DcvMgrEnoScheduler
+	}
+
+	if dcvMgr.ptnMe == nil || dcvMgr.ptnTab == nil || dcvMgr.ptnPeMgr == nil {
+		yclog.LogCallerFileLine("DcvMgrPoweron: internal errors, invalid task node pointers")
+		return DcvMgrEnoScheduler
+	}
+
 	return DcvMgrEnoNone
 }
 
@@ -97,6 +120,11 @@ func DcvMgrPoweron() DcvMgrErrno {
 // Poweroff handler
 //
 func DcvMgrPoweroff(ptn interface{}) DcvMgrErrno {
+	if eno := sch.SchinfTaskDone(ptn, sch.SchEnoKilled); eno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("DcvMgrPoweroff: done task failed, eno: %d", eno)
+		return DcvMgrEnoScheduler
+	}
+	yclog.LogCallerFileLine("DcvMgrPoweroff: task done")
 	return DcvMgrEnoNone
 }
 
@@ -117,6 +145,21 @@ func DcvMgrFindNodeReq(req *sch.MsgDcvFindNodeReq) DcvMgrErrno {
 	// with sch.MsgDcvFindNodeRsp message.
 	//
 
+	var schMsg = sch.SchMessage{}
+
+	if eno := sch.SchinfMakeMessage(&schMsg, dcvMgr.ptnMe, dcvMgr.ptnTab, sch.EvNblFindNodeReq, &req);
+		eno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("DcvMgrFindNodeReq: SchinfMakeMessage failed, eno: %d", eno)
+		return DcvMgrEnoScheduler
+	}
+
+	if eno := sch.SchinfSendMsg2Task(&schMsg); eno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("DcvMgrFindNodeReq: " +
+			"SchinfSendMsg2Task failed, eno: %d, target: %s",
+			eno, sch.SchinfGetTaskName(dcvMgr.ptnTab))
+		return DcvMgrEnoScheduler
+	}
+
 	return DcvMgrEnoNone
 }
 
@@ -129,6 +172,24 @@ func DcvMgrTabRefreshRsp(rsp *sch.MsgTabRefreshRsp) DcvMgrErrno {
 	// We receive the response about event sch.EvTabRefreshReq we hand sent to table
 	// manager task. For more, see comments aboved in function DcvMgrFindNodeReq pls.
 	//
+
+	var r = sch.MsgDcvFindNodeRsp{}
+	r.Nodes = rsp.Nodes
+
+	var schMsg = sch.SchMessage{}
+
+	if eno := sch.SchinfMakeMessage(&schMsg, dcvMgr.ptnMe, dcvMgr.ptnPeMgr, sch.EvDcvFindNodeRsp, &r);
+		eno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("DcvMgrTabRefreshRsp: SchinfMakeMessage failed, eno: %d", eno)
+		return DcvMgrEnoScheduler
+	}
+
+	if eno := sch.SchinfSendMsg2Task(&schMsg); eno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("DcvMgrTabRefreshRsp: " +
+			"SchinfSendMsg2Task failed, eno: %d, target: %s",
+			eno, sch.SchinfGetTaskName(dcvMgr.ptnTab))
+		return DcvMgrEnoScheduler
+	}
 
 	return DcvMgrEnoNone
 }

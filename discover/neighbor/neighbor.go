@@ -288,8 +288,11 @@ func (inst *neighborInst) NgbProtoPingRsp(msg *um.Pong) NgbProtoErrno {
 	// send response to table task
 	var rsp = sch.NblPingRsp{}
 	var schMsg  = sch.SchMessage{}
+
 	rsp.Result = NgbProtoEnoNone
 	rsp.Ping = inst.msgBody.(*um.Ping)
+	rsp.Pong = msg
+
 	if eno := sch.SchinfMakeMessage(&schMsg, inst.ptn, ngbMgr.ptnTab,
 		sch.EvNblPingpongRsp, &rsp); eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("NgbProtoPingRsp: SchinfMakeMessage failed, eno: %d", eno)
@@ -363,6 +366,7 @@ func (inst *neighborInst) NgbProtoFindNodeRsp(msg *um.Neighbors) NgbProtoErrno {
 
 	rsp.Result = NgbProtoEnoNone
 	rsp.FindNode = inst.msgBody.(*um.FindNode)
+	rsp.Neighbors = msg
 
 	if eno := sch.SchinfMakeMessage(&schMsg, inst.ptn, ngbMgr.ptnTab,
 		sch.EvNblFindNodeRsp, &rsp); eno != sch.SchEnoNone {

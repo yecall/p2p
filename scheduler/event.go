@@ -70,10 +70,17 @@ const EvShellBase = 1100
 //
 // Table manager event
 //
-const TabRefreshTimerId = 0
+const (
+	TabRefreshTimerId	= 0
+	TabPingpongTimerId	= 1
+	TabFindNodeTimerId	= 2
+)
+
 const (
 	EvTabMgrBase 		= 1200
 	EvTabRefreshTimer	= EvTimerBase + TabRefreshTimerId
+	EvTabPingpongTimer	= EvTimerBase + TabPingpongTimerId
+	EvTabFindNodeTimer	= EvTimerBase + TabFindNodeTimerId
 	EvTabRefreshReq		= EvTabMgrBase + 1
 	EvTabRefreshRsp		= EvTabMgrBase + 2
 )
@@ -143,6 +150,7 @@ const (
 type NblFindNodeRsp struct {
 	Result		int				// result, 0: ok, others: errno
 	FindNode	*um.FindNode	// FindNode message from table task
+	Neighbors	*um.Neighbors	// Neighbors message from peer node
 }
 
 //
@@ -151,6 +159,7 @@ type NblFindNodeRsp struct {
 type NblPingRsp struct {
 	Result		int			// result, 0: ok, others: errno
 	Ping		*um.Ping	// Ping message from table task
+	Pong		*um.Pong	// Pong message from peer
 }
 
 //

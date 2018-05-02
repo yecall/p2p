@@ -168,6 +168,7 @@ type Cfg4TabManager struct {
 	UdpPort			uint16	// udp port number
 	TcpPort			uint16	// tcp port number
 	ID				NodeID	// the node's public key
+	BootstrapNodes	[]*Node	// bootstrap nodes
 	DataDir			string	// data directory
 	NodeDB			string	// node database
 }
@@ -369,6 +370,7 @@ func P2pConfig4TabManager() *Cfg4TabManager {
 		UdpPort:		config.Local.UDP,
 		TcpPort:		config.Local.TCP,
 		ID:				config.Local.ID,
+		BootstrapNodes:	config.BootstrapNodes,
 		DataDir:		config.NodeDataDir,
 		NodeDB:			config.NodeDatabase,
 	}
