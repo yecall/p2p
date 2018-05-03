@@ -170,28 +170,40 @@ func PeerMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	switch msg.Id {
 	case sch.EvSchPoweron:
 		eno = peMgrPoweron(ptn)
+
 	case sch.EvSchPoweroff:
-		eno = peMgrPoweroff()
+		eno = peMgrPoweroff(ptn)
+
 	case sch.EvPeMgrStartReq:
 		eno = peMgrStartReq(msg.Body)
+
 	case sch.EvDcvFindNodeRsp:
 		eno = peMgrDcvFindNodeRsp(msg.Body)
+
 	case sch.EvPeLsnConnAcceptedInd:
 		eno = peMgrLsnConnAcceptedInd(msg.Body)
+
 	case sch.EvPeOutboundReq:
 		eno = peMgrOutboundReq(msg.Body)
+
 	case sch.EvPeConnOutRsp:
 		eno = peMgrConnOutRsp(msg.Body)
+
 	case sch.EvPeHandshakeRsp:
 		eno = peMgrHandshakeRsp(msg.Body)
+
 	case sch.EvPePingpongRsp:
 		eno = peMgrPingpongRsp(msg.Body)
+
 	case sch.EvPeCloseReq:
 		eno = peMgrCloseReq(msg.Body)
+
 	case sch.EvPeCloseCfm:
 		eno = peMgrConnCloseCfm(msg.Body)
+
 	case sch.EvPeCloseInd:
 		eno = peMgrConnCloseInd(msg.Body)
+
 	default:
 		yclog.LogCallerFileLine("PeerMgrProc: invalid message: %d", msg.Id)
 		eno = PeMgrEnoParameter
@@ -273,11 +285,11 @@ func peMgrPoweron(ptn interface{}) PeMgrErrno {
 //
 // Poweroff event handler
 //
-func peMgrPoweroff() PeMgrErrno {
+func peMgrPoweroff(ptn interface{}) PeMgrErrno {
 
 	yclog.LogCallerFileLine("peMgrPoweroff: pwoeroff received, done the task")
 
-	if eno := sch.SchinfTaskDone(peMgr.ptnMe, sch.SchEnoKilled); eno != sch.SchEnoNone {
+	if eno := sch.SchinfTaskDone(ptn, sch.SchEnoKilled); eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("peMgrPoweroff: SchinfTaskDone failed, eno: %d", eno)
 		return PeMgrEnoScheduler
 	}
@@ -1197,20 +1209,28 @@ func PeerInstProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	inst := sch.SchinfGetUserDataArea(ptn).(*peerInstance)
 
 	switch msg.Id {
+
 	case sch.EvPeConnOutReq:
 		eno = piConnOutReq(inst, msg.Body)
+
 	case sch.EvPeHandshakeReq:
 		eno = piHandshakeReq(inst, msg.Body)
+
 	case sch.EvPePingpongReq:
 		eno = piPingpongReq(inst, msg.Body)
+
 	case sch.EvPeCloseReq:
 		eno = piCloseReq(inst, msg.Body)
+
 	case sch.EvPeEstablishedInd:
 		eno = piEstablishedInd(inst, msg.Body)
+
 	case sch.EvPePingpongTimer:
 		eno = piPingpongTimerHandler(inst)
+
 	case sch.EvPeDataReq:
 		eno = piDataReq(inst, msg.Body)
+
 	default:
 		yclog.LogCallerFileLine("PeerInstProc: invalid message: %d", msg.Id)
 		eno = PeMgrEnoParameter

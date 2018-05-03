@@ -30,6 +30,7 @@ import (
 	"runtime"
 	"fmt"
 	"path"
+	"github.com/prometheus/prometheus/util/flock"
 	yclog "ycp2p/logger"
 )
 
@@ -47,7 +48,6 @@ const (
 	PcfgEnoDatabase
 	PcfgEnoDataListenAddr
 	PcfgEnoIpAddr
-	PcfgEnoUnknown
 )
 
 //
@@ -101,9 +101,9 @@ const MaxOutbounds	= MaxPeers/2
 // Node
 //
 type Node struct {
-	IP			net.IP // ip address
-	UDP, TCP	uint16 // port numbers
-	ID			NodeID // the node's public key
+	IP			net.IP		// ip address
+	UDP, TCP	uint16		// port numbers
+	ID			NodeID		// the node's public key
 }
 
 //
@@ -118,11 +118,11 @@ type Config struct {
 	Name			string				// node name
 	BootstrapNodes	[]*Node				// bootstrap nodes
 	StaticNodes		[]*Node				// static nodes
-	TrustedNodes	[]*Node				// trusted nodes
 	NodeDataDir		string				// node data directory
 	NodeDatabase	string				// node database
 	ListenAddr		string				// address listent
 	NoDial			bool				// outboundless flag
+	BootstrapNode	bool				// bootstrap node flag
 	Local			Node				// myself
 }
 
@@ -171,7 +171,13 @@ type Cfg4TabManager struct {
 	BootstrapNodes	[]*Node	// bootstrap nodes
 	DataDir			string	// data directory
 	NodeDB			string	// node database
+	BootstrapNode	bool	// bootstrap node flag
 }
+
+//
+// Default version string, formated as "M.m0.m1.m2"
+//
+const dftVersion = "0.1.0.0"
 
 //
 // Default configuration(notice that it's not a validated configuration and
@@ -186,6 +192,7 @@ var dftLocal = Node {
 }
 
 var config = Config {
+	Version:			dftVersion,
 	PrivateKey:			nil,
 	MaxPeers:			MaxPeers,
 	MaxInbounds:		MaxInbounds,
@@ -195,6 +202,8 @@ var config = Config {
 	StaticNodes:		nil,
 	NodeDataDir:		P2pDefaultDataDir(),
 	NodeDatabase:		"node.db",
+	NoDial:				false,
+	BootstrapNode:		false,
 	ListenAddr:			"*:0",
 	Local:				dftLocal,
 }
@@ -317,6 +326,29 @@ func P2pGetUserHomeDir() string {
 }
 
 //
+// Open data directory
+//
+func P2pOpenDataDir() error {
+	if config.NodeDataDir == "" {
+		return nil
+	}
+
+	instdir := filepath.Join(config.NodeDataDir, config.Name)
+	if err := os.MkdirAll(instdir, 0700); err != nil {
+		return err
+	}
+	// Lock the instance directory to prevent concurrent use by another instance as well as
+	// accidental use of the instance directory as a database.
+	release, _, err := flock.New(filepath.Join(instdir, "LOCK"))
+	if err != nil {
+		return convertFileLockError(err)
+	}
+	n.instanceDirLock = release
+	return nil
+}
+
+
+//
 // Get configuration of neighbor discovering listener
 //
 func P2pConfig4UdpListener() *Cfg4UdpListener {
@@ -373,6 +405,7 @@ func P2pConfig4TabManager() *Cfg4TabManager {
 		BootstrapNodes:	config.BootstrapNodes,
 		DataDir:		config.NodeDataDir,
 		NodeDB:			config.NodeDatabase,
+		BootstrapNode:	config.BootstrapNode,
 	}
 }
 

@@ -89,22 +89,18 @@ func LsnMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	// poweron, init lsnmgr to work
 	case sch.EvSchPoweron:
 		eno = lsnMgr.procPoweron()
-		break
 
 	// poweroff
 	case sch.EvSchPoweroff:
 		eno = lsnMgr.procPoweroff()
-		break
 
 	// start udp reading
 	case sch.EvNblStart:
 		eno = lsnMgr.procStart()
-		break
 
 	// stop udp reading
 	case sch.EvNblStop:
 		eno = lsnMgr.procStop()
-		break
 
 	// unknown message identity
 	default:

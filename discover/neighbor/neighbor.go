@@ -109,18 +109,25 @@ func NgbProtoProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	inst = sch.SchinfGetUserDataArea(ptn).(*neighborInst)
 
 	switch msg.Id {
+
 	case sch.EvNblFindNodeReq:
 		protoEno = inst.NgbProtoFindNodeReq(ptn, msg.Body.(*um.FindNode))
+
 	case sch.EvNblPingpongReq:
 		protoEno = inst.NgbProtoPingReq(ptn, msg.Body.(*um.Ping))
+
 	case sch.EvNblPingpongRsp:
 		protoEno = inst.NgbProtoPingRsp(msg.Body.(*um.Pong))
+
 	case sch.EvNblFindNodeRsp:
 		protoEno = inst.NgbProtoFindNodeRsp(msg.Body.(*um.Neighbors))
+
 	case sch.EvNblFindNodeTimer:
 		protoEno = inst.NgbProtoFindNodeTimeout()
+
 	case sch.EvNblPingpongTimer:
 		protoEno = inst.NgbProtoPingTimeout()
+
 	default:
 		yclog.LogCallerFileLine("NgbProtoProc: invalid message, msg.Id: %d", msg.Id)
 		protoEno = NgbProtoEnoParameter
@@ -760,7 +767,9 @@ func (ngbMgr *neighborManager)PingHandler(ping *um.Ping) NgbMgrErrno {
 	}
 
 	// check if neighbor task instance exist for the sender node, if none,
-	// we then start a neighbor instance Ping to it
+	// we then start a neighbor instance Ping to it, and if we recived Pong
+	// from the peer node indeed later, we send the Pong response to table
+	// manager task.
 	strPeerNodeId := ycfg.P2pNodeId2HexString(ping.From.NodeId)
 	if ngbMgr.checkMap(strPeerNodeId) == true {
 		yclog.LogCallerFileLine("PingHandler: neighbor instance exist: %s", strPeerNodeId)
@@ -802,6 +811,10 @@ func (ngbMgr *neighborManager)PongHandler(pong *um.Pong) NgbMgrErrno {
 		return NgbMgrEnoTimeout
 	}
 
+	// check if neighbor task instance exist for the sender node, if none,
+	// we then start a neighbor instance Ping to it, and if we recived Pong
+	// from the peer node indeed later, we send the Pong response to table
+	// manager task.
 	strPeerNodeId := ycfg.P2pNodeId2HexString(pong.From.NodeId)
 	if ngbMgr.checkMap(strPeerNodeId) == false {
 		yclog.LogCallerFileLine("PongHandler: neighbor instance not exist: %s", strPeerNodeId)

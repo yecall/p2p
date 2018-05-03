@@ -69,12 +69,16 @@ func DcvMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	switch msg.Id {
 	case sch.EvSchPoweron:
 		eno = DcvMgrPoweron(ptn)
+
 	case sch.EvSchPoweroff:
 		eno = DcvMgrPoweroff(ptn)
+
 	case sch.EvDcvFindNodeReq:
 		eno = DcvMgrFindNodeReq(msg.Body.(*sch.MsgDcvFindNodeReq))
+
 	case sch.EvTabRefreshRsp:
 		eno = DcvMgrTabRefreshRsp(msg.Body.(*sch.MsgTabRefreshRsp))
+
 	default:
 		yclog.LogCallerFileLine("DcvMgrProc: invalid message: %d", msg.Id)
 		return sch.SchEnoUserTask

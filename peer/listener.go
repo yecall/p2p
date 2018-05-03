@@ -62,12 +62,16 @@ func LsnMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	switch msg.Id {
 	case sch.EvSchPoweron:
 		eno = lsnMgrPoweron(ptn)
+
 	case sch.EvSchPoweroff:
 		eno = lsnMgrPoweroff()
+
 	case sch.EvPeLsnStartReq:
 		eno = lsnMgrStart()
+
 	case sch.EvPeLsnStopReq:
 		eno = lsnMgrStop()
+
 	default:
 		yclog.LogCallerFileLine("LsnMgrProc: invalid message: %d", msg.Id)
 		eno = sch.SchEnoParameter
