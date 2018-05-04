@@ -30,7 +30,6 @@ import (
 	"runtime"
 	"fmt"
 	"path"
-	"github.com/prometheus/prometheus/util/flock"
 	yclog "ycp2p/logger"
 )
 
@@ -54,7 +53,7 @@ const (
 // Some paths
 //
 const (
-	datadirPrivateKey      = "nodekey"            // Path within the datadir to the node's private key
+	PcfgEnoIpAddrivateKey      = "nodekey"            // Path within the datadir to the node's private key
 	datadirDefaultKeyStore = "keystore"           // Path within the datadir to the keystore
 	datadirStaticNodes     = "static-nodes.json"  // Path within the datadir to the static node list
 	datadirTrustedNodes    = "trusted-nodes.json" // Path within the datadir to the trusted node list
@@ -164,10 +163,7 @@ type Cfg4PeerManager struct {
 // Configuration about table manager
 //
 type Cfg4TabManager struct {
-	IP				net.IP	// ip address
-	UdpPort			uint16	// udp port number
-	TcpPort			uint16	// tcp port number
-	ID				NodeID	// the node's public key
+	Local			Node	// local node
 	BootstrapNodes	[]*Node	// bootstrap nodes
 	DataDir			string	// data directory
 	NodeDB			string	// node database
@@ -329,6 +325,14 @@ func P2pGetUserHomeDir() string {
 // Open data directory
 //
 func P2pOpenDataDir() error {
+	/*
+	 * The flock package can not be gitted from following URL, we empty this function
+	 * now, We would solve this issue later.
+	 *
+	 * import "github.com/prometheus/prometheus/util/flock"
+	 *
+	 *
+
 	if config.NodeDataDir == "" {
 		return nil
 	}
@@ -344,6 +348,8 @@ func P2pOpenDataDir() error {
 		return convertFileLockError(err)
 	}
 	n.instanceDirLock = release
+	return nil*/
+
 	return nil
 }
 
@@ -398,10 +404,7 @@ func P2pConfig4PeerManager() *Cfg4PeerManager {
 //
 func P2pConfig4TabManager() *Cfg4TabManager {
 	return &Cfg4TabManager {
-		IP:				config.Local.IP,
-		UdpPort:		config.Local.UDP,
-		TcpPort:		config.Local.TCP,
-		ID:				config.Local.ID,
+		Local:			config.Local,
 		BootstrapNodes:	config.BootstrapNodes,
 		DataDir:		config.NodeDataDir,
 		NodeDB:			config.NodeDatabase,

@@ -78,7 +78,7 @@ type (
 	FindNode struct {
 		From		Node
 		To			Node
-		Target		Node
+		Target		ycfg.NodeID
 		Id			uint64
 		Expiration	uint64
 		Extra		[]byte
@@ -290,12 +290,7 @@ func (pum *UdpMsg) GetFindNode() *FindNode {
 	inf = pbFN.To.NodeId
 	fn.To.NodeId = *inf.(*ycfg.NodeID)
 
-	fn.Target.IP = pbFN.Target.IP
-	fn.Target.TCP = uint16(*pbFN.Target.TCP)
-	fn.Target.UDP = uint16(*pbFN.Target.UDP)
-	inf = pbFN.Target.NodeId
-	fn.Target.NodeId = *inf.(*ycfg.NodeID)
-
+	fn.Target[:] = pbFN.Target[:]
 	fn.Expiration = *pbFN.Expiration
 	fn.Extra = pbFN.Extra
 
@@ -517,12 +512,7 @@ func (pum *UdpMsg) EncodeFindNode(fn *FindNode) UdpMsgErrno {
 	inf = fn.To.NodeId
 	pbFN.To.NodeId = inf.([]byte)
 
-	pbFN.Target.IP = fn.Target.IP
-	*pbFN.Target.TCP = uint32(fn.Target.TCP)
-	*pbFN.Target.UDP = uint32(fn.Target.UDP)
-	inf = fn.Target.NodeId
-	pbFN.Target.NodeId = inf.([]byte)
-
+	pbFN.Target[:] = fn.Target[:]
 	*pbFN.Expiration = fn.Expiration
 	pbFN.Extra = fn.Extra
 

@@ -33,7 +33,7 @@ import 	"crypto/sha256"
 // metadata about them for QoS purposes.
 
 //
-// We had modify some source codes (mainly to pass the compiler).
+// We had modified some source codes (mainly to pass the compiler).
 //
 
 
@@ -215,7 +215,7 @@ func (db *nodeDB) node(id NodeID) *Node {
 	//
 	// node.sha = crypto.Keccak256Hash(node.ID[:])
 	//
-	node.sha = sha256.Sum256(tabMgr.cfg.id[:])
+	node.sha = sha256.Sum256(id[:])
 
 	return node
 }

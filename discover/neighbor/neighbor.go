@@ -165,8 +165,8 @@ func (inst *neighborInst) NgbProtoFindNodeReq(ptn interface{}, fn *um.FindNode) 
 
 	// send encoded request
 	var dst *net.UDPAddr
-	dst.IP = fn.Target.IP
-	dst.Port = int(fn.Target.UDP)
+	dst.IP = fn.To.IP
+	dst.Port = int(fn.To.UDP)
 
 	lsnMgr.conn.SetDeadline(time.Now().Add(NgbProtoWriteTimeout))
 	 n, _, err := lsnMgr.conn.WriteMsgUDP(buf, nil, dst)
