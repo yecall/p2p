@@ -159,7 +159,7 @@ type SchTaskGroupDescription struct {
 // Timer type
 //
 const (
-	SchTmTypePeriod	= 0	// cycle timer
+	SchTmTypePeriod	= 0		// cycle timer
 	SchTmTypeAbsolute	= 1	// absolute timer
 )
 
