@@ -595,7 +595,14 @@ type neighborManager struct {
 //
 var ngbMgr = &neighborManager {
 	name:	NgbMgrName,
-	tep:	NgbMgrProc,
+	tep:	nil,
+}
+
+//
+// To ecape the compiler "initialization loop" error
+//
+func init() {
+	ngbMgr.tep = NgbMgrProc
 }
 
 //
@@ -1004,7 +1011,7 @@ func (ngbMgr *neighborManager)FindNodeReq(findNode *um.FindNode) NgbMgrErrno {
 		Name:	strPeerNodeId,
 		MbSize:	ngbProcMailboxSize,
 		Ep:		NgbProtoProc,
-		Wd:		noDog,
+		Wd:		&noDog,
 		Flag:	sch.SchCreatedGo,
 		DieCb:	ngbInst.NgbProtoDieCb,
 		UserDa: &ngbInst,
@@ -1117,7 +1124,7 @@ func (ngbMgr *neighborManager)PingpongReq(ping *um.Ping) NgbMgrErrno {
 		Name:	strPeerNodeId,
 		MbSize:	ngbProcMailboxSize,
 		Ep:		NgbProtoProc,
-		Wd:		noDog,
+		Wd:		&noDog,
 		Flag:	sch.SchCreatedGo,
 		DieCb:	ngbInst.NgbProtoDieCb,
 		UserDa: &ngbInst,

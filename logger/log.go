@@ -47,7 +47,7 @@ func LogCallerFileLine(format string, args ... interface{}) {
 	if !Log_DisableFileLine {
 
 		_, file, line, _ := runtime.Caller(1)
-		golog.Printf(format, args...)
+		golog.Printf("yclog: " + format, args...)
 		golog.Printf("yclog: file: %s, line: %d", file, line)
 	}
 }

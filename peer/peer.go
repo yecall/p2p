@@ -140,7 +140,7 @@ type peerManager struct {
 
 var peMgr = peerManager{
 	name:			PeerMgrName,
-	tep:			PeerMgrProc,
+	tep:			nil,
 	cfg:			peMgrConfig{},
 	ptnMe:			nil,
 	ptnTab:			nil,
@@ -155,6 +155,14 @@ var peMgr = peerManager{
 	acceptPaused:	false,
 	randoms:		[]*ycfg.Node{},
 	stats:			map[ycfg.NodeID]peHistory{},
+}
+
+
+//
+// To ecape the compiler "initialization loop" error
+//
+func init() {
+	peMgr.tep = PeerMgrProc;
 }
 
 //
@@ -1498,7 +1506,7 @@ func piEstablishedInd(inst *peerInstance, msg interface{}) PeMgrErrno {
 	// modify deadline of peer connection for we had set specific value while
 	// handshake procedure. we set deadline to value 0, so action on connection
 	// would be blocked until it's completed.
-	inst.conn.SetDeadline(time.Time{0,0,nil})
+	inst.conn.SetDeadline(time.Time{})
 
 	// update peer instance state
 	inst.state = peInstStateActivated

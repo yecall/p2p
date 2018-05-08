@@ -77,7 +77,7 @@ func (tp *TcpmsgPackage)getHandshakeInbound(inst *peerInstance) (*TcpmsgHandshak
 	if inst.hto != 0 {
 		inst.conn.SetDeadline(time.Now().Add(inst.hto))
 	} else {
-		inst.conn.SetDeadline(time.Time{0,0,nil})
+		inst.conn.SetDeadline(time.Time{})
 	}
 
 	r := inst.conn.(io.Reader)
@@ -221,7 +221,7 @@ func (tp *TcpmsgPackage)putHandshakeOutbound(inst *peerInstance, hs *TcpmsgHands
 	if inst.hto != 0 {
 		inst.conn.SetDeadline(time.Now().Add(inst.hto))
 	} else {
-		inst.conn.SetDeadline(time.Time{0,0,nil})
+		inst.conn.SetDeadline(time.Time{})
 	}
 	w := inst.conn.(io.Writer)
 	if n, _ := w.Write(sendBuf); n != len(sendBuf) {

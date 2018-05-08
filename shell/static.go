@@ -94,9 +94,16 @@ func AppendStaticTasks(
 }
 
 //
+// Init p2p
+//
+func P2pInit() sch.SchErrno {
+	return sch.SchinfSchedulerInit()
+}
+
+//
 // Start p2p
 //
-func StartP2p() (sch.SchErrno, *map[string]interface{}) {
+func P2pStart() (sch.SchErrno, *map[string]interface{}) {
 	var eno sch.SchErrno
 	eno, taskName2TasNode = sch.SchinfSchedulerStart(TaskStaticTab)
 	return eno, taskName2TasNode
@@ -120,6 +127,9 @@ func GetTaskNode(name string) interface{} {
 	_, v := (*taskName2TasNode)[name]
 	return v
 }
+
+
+
 
 
 

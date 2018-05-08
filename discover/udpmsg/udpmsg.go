@@ -115,7 +115,7 @@ var udpMsg = UdpMsg {
 	Buf:	nil,
 	Len:	0,
 	From:	nil,
-	Msg:	nil,
+	Msg:	pb.UdpMessage{},
 	Eno:	UdpMsgEnoUnknown,
 }
 
@@ -290,7 +290,7 @@ func (pum *UdpMsg) GetFindNode() *FindNode {
 	inf = pbFN.To.NodeId
 	fn.To.NodeId = *inf.(*ycfg.NodeID)
 
-	fn.Target[:] = pbFN.Target[:]
+	*interface{}(fn.Target).(*[]byte) = pbFN.Target
 	fn.Expiration = *pbFN.Expiration
 	fn.Extra = pbFN.Extra
 
@@ -512,7 +512,7 @@ func (pum *UdpMsg) EncodeFindNode(fn *FindNode) UdpMsgErrno {
 	inf = fn.To.NodeId
 	pbFN.To.NodeId = inf.([]byte)
 
-	pbFN.Target[:] = fn.Target[:]
+	*interface{}(pbFN.Target).(*ycfg.NodeID) = fn.Target
 	*pbFN.Expiration = fn.Expiration
 	pbFN.Extra = fn.Extra
 

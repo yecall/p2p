@@ -52,9 +52,19 @@ type discoverManager struct {
 	ptnPeMgr	interface{}			// task node pointer to peer manager task
 }
 
-var dcvMgr = discoverManager{
-	name:	DcvMgrName,
-	tep:	DcvMgrProc,
+var dcvMgr = discoverManager {}
+
+//
+// Init, we put more in poweron event handler. We can't init the entry point filed
+// "tep" with dcvMgr declartion which would result in complier "initialization loop"
+// error.
+//
+func init() {
+	dcvMgr.name		= DcvMgrName
+	dcvMgr.tep		= DcvMgrProc
+	dcvMgr.ptnMe	= nil
+	dcvMgr.ptnTab	= nil
+	dcvMgr.ptnPeMgr = nil
 }
 
 //

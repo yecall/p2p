@@ -184,7 +184,7 @@ var dftLocal = Node {
 	IP:		nil,
 	UDP:	0,
 	TCP:	0,
-	ID:		nil,
+	ID:		NodeID{0},
 }
 
 var config = Config {

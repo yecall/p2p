@@ -66,11 +66,20 @@ const (
 
 var lsnMgr = listenerManager{
 	name:		LsnMgrName,
-	tep:		LsnMgrProc,
+	tep:		nil,
 	conn:		nil,
 	state:		LmsNull,
 	ptnMe:		nil,
 	ptnReader:	nil,
+}
+
+//
+// To ecape the compiler "initialization loop" error
+//
+func init() {
+	lsnMgr.tep		= LsnMgrProc
+	udpReader.tep		= udpReaderLoop
+	udpReader.desc.Ep	= udpReaderLoop
 }
 
 //
@@ -385,14 +394,14 @@ type udpReaderTask struct {
 	name		string					// name
 	tep			sch.SchUserTaskEp		// entry
 	conn		*net.UDPConn			// udp connection
-	ptnMe		interface{}			// pointer to myself task
-	ptnNgbMgr	interface{}			// pointer to neighbor manager task
+	ptnMe		interface{}				// pointer to myself task
+	ptnNgbMgr	interface{}				// pointer to neighbor manager task
 	desc		sch.SchTaskDescription	// description
 }
 
 var udpReader  = udpReaderTask {
 	name:	udpReaderName,
-	tep:	udpReaderLoop,
+	tep:	nil,
 	conn:	nil,
 
 	//
@@ -404,8 +413,8 @@ var udpReader  = udpReaderTask {
 	desc:	sch.SchTaskDescription{
 		Name:	udpReaderName,
 		MbSize: 0,
-		Ep:		udpReaderLoop,
-		Wd:		noDog,
+		Ep:		nil,
+		Wd:		&noDog,
 		Flag:	sch.SchCreatedGo,
 		DieCb:	nil,
 	},

@@ -47,8 +47,17 @@ type listenerManager struct {
 
 var lsnMgr = listenerManager{
 	name:	PeerLsnMgrName,
-	tep:	LsnMgrProc,
+	tep:	nil,
 }
+
+
+//
+// To ecape the compiler "initialization loop" error
+//
+func init() {
+	lsnMgr.tep = LsnMgrProc
+}
+
 
 //
 // Listen manager entry

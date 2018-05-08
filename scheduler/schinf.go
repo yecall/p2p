@@ -45,8 +45,9 @@ const (
 	SchEnoKilled		SchErrno = 10	// task killed
 	SchEnoNotImpl		SchErrno = 11	// not implemented
 	SchEnoUserTask		SchErrno = 12	// internal user task application
-	SchEnoUnknown		SchErrno = 12	// unknowns
-	SchEnoMax			SchErrno = 13	// just for bound checking
+	SchEnoDuplicated	SchErrno = 13	// duplicated
+	SchEnoUnknown		SchErrno = 14	// unknowns
+	SchEnoMax			SchErrno = 15	// just for bound checking
 )
 
 var SchErrnoDescription = []string {
@@ -136,7 +137,7 @@ type SchTaskDescription struct {
 	Name	string						// user task name
 	MbSize	int							// mailbox size
 	Ep		SchUserTaskEp				// user task entry point
-	Wd		SchWatchDog					// watchdog
+	Wd		*SchWatchDog				// watchdog
 	Flag	int							// flag: start at once or to be suspended
 	DieCb	func(interface{}) SchErrno	// callbacked when going to die
 	UserDa	interface{}				// user data area pointer
@@ -150,7 +151,7 @@ type SchTaskGroupDescription struct {
 	MbList	[]string						// member name list
 	MbSize	int								// mailbox size
 	Ep		SchUserTaskEp					// user task entry point
-	Wd		SchWatchDog						// watchdog
+	Wd		*SchWatchDog					// watchdog
 	Flag	int								// flag: start at once or to be suspended
 	DieCb	func(interface{}) SchErrno		// callbacked when going to die
 }

@@ -181,7 +181,15 @@ type tableManager struct {
 
 var tabMgr = tableManager{
 	name:	TabMgrName,
-	tep:	TabMgrProc,
+	tep:	nil,
+}
+
+//
+// To ecape the compiler "initialization loop" error
+//
+func init() {
+	tabMgr.tep = TabMgrProc
+	ndbCleaner.tep = NdbcProc
 }
 
 //
@@ -254,7 +262,7 @@ func TabMgrPoweron(ptn interface{}) TabMgrErrno {
 	//
 
 	if eno = tabGetConfig(&tabMgr.cfg); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("NdbcPoweron: tabGetConfig failed, eno: %d", eno)
+		yclog.LogCallerFileLine("TabMgrPoweron: tabGetConfig failed, eno: %d", eno)
 		return eno
 	}
 
@@ -263,7 +271,7 @@ func TabMgrPoweron(ptn interface{}) TabMgrErrno {
 	//
 
 	if eno = tabNodeDbPrepare(); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("NdbcPoweron: tabNodeDbPrepare failed, eno: %d", eno)
+		yclog.LogCallerFileLine("TabMgrPoweron: tabNodeDbPrepare failed, eno: %d", eno)
 		return eno
 	}
 
@@ -272,7 +280,7 @@ func TabMgrPoweron(ptn interface{}) TabMgrErrno {
 	//
 
 	if eno = tabSetupLocalHashId(); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("NdbcPoweron: tabSetupLocalHash failed, eno: %d", eno)
+		yclog.LogCallerFileLine("TabMgrPoweron: tabSetupLocalHash failed, eno: %d", eno)
 		return eno
 	}
 
@@ -281,7 +289,7 @@ func TabMgrPoweron(ptn interface{}) TabMgrErrno {
 	//
 
 	if eno = tabRelatedTaskPrepare(ptn); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("NdbcPoweron: tabRelatedTaskPrepare failed, eno: %d", eno)
+		yclog.LogCallerFileLine("TabMgrPoweron: tabRelatedTaskPrepare failed, eno: %d", eno)
 		return eno
 	}
 
@@ -290,7 +298,7 @@ func TabMgrPoweron(ptn interface{}) TabMgrErrno {
 	//
 
 	if eno = tabSetupLog2DistanceLookupTable(tabMgr.dlkTab); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("NdbcPoweron: tabSetupLog2DistanceLookupTable failed, eno: %d", eno)
+		yclog.LogCallerFileLine("TabMgrPoweron: tabSetupLog2DistanceLookupTable failed, eno: %d", eno)
 		return eno
 	}
 
@@ -299,7 +307,7 @@ func TabMgrPoweron(ptn interface{}) TabMgrErrno {
 	//
 
 	if eno = tabStartTimer(nil, sch.TabRefreshTimerId, autoRefreshCycle); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("NdbcPoweron: tabRefresh failed, eno: %d", eno)
+		yclog.LogCallerFileLine("TabMgrPoweron: tabRefresh failed, eno: %d", eno)
 		return eno
 	}
 
@@ -313,7 +321,7 @@ func TabMgrPoweron(ptn interface{}) TabMgrErrno {
 	tabMgr.refreshing = false
 
 	if eno = tabRefresh(nil); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("NdbcPoweron: tabRefresh failed, eno: %d", eno)
+		yclog.LogCallerFileLine("TabMgrPoweron: tabRefresh failed, eno: %d", eno)
 		return eno
 	}
 
@@ -671,7 +679,7 @@ type nodeDbCleaner struct {
 
 var ndbCleaner = nodeDbCleaner{
 	name:	NdbcName,
-	tep:	NdbcProc,
+	tep:	nil,
 	tid:	sch.SchInvalidTid,
 }
 
