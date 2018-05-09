@@ -52,19 +52,19 @@ var TaskStaticTab = []sch.TaskStaticDescription {
 	// scheduler, please see function schimplSchedulerStart for details pls.
 	//
 
-	{	Name:dcv.DcvMgrName,		Tep:dcv.DcvMgrProc,			DieCb: nil,		Wd:noDog,	},
-	{	Name:tab.TabMgrName,		Tep:tab.TabMgrProc,			DieCb: nil,		Wd:noDog,	},
-	{	Name:tab.NdbcName,			Tep:tab.NdbcProc,			DieCb: nil,		Wd:noDog,	},
-	{	Name:ngb.LsnMgrName,		Tep:ngb.LsnMgrProc,			DieCb: nil,		Wd:noDog,	},
-	{	Name:ngb.NgbMgrName,		Tep:ngb.NgbMgrProc,			DieCb: nil,		Wd:noDog,	},
-	{	Name:peer.PeerMgrName,		Tep:peer.PeerMgrProc,		DieCb: nil,		Wd:noDog,	},
-	{	Name:peer.PeerLsnMgrName,	Tep:peer.LsnMgrProc,		DieCb: nil,		Wd:noDog,	},
-	{	Name:dht.DhtMgrName,		Tep:dht.DhtMgrProc,			DieCb: nil,		Wd:noDog,	},
-	{	Name:dhtro.DhtroMgrName,	Tep:dhtro.DhtroMgrProc,		DieCb: nil,		Wd:noDog,	},
-	{	Name:dhtch.DhtchMgrName,	Tep:dhtch.DhtchMgrProc,		DieCb: nil,		Wd:noDog,	},
-	{	Name:dhtre.DhtreMgrName,	Tep:dhtre.DhtreMgrProc,		DieCb: nil,		Wd:noDog,	},
-	{	Name:dhtst.DhtstMgrName,	Tep:dhtst.DhtstMgrProc,		DieCb: nil,		Wd:noDog,	},
-	{	Name:dhtsy.DhtsyMgrName,	Tep:dhtsy.DhtsyMgrProc,		DieCb: nil,		Wd:noDog,	},
+	{	Name:dcv.DcvMgrName,		Tep:dcv.DcvMgrProc,			MbSize:-1,	DieCb: nil,		Wd:noDog,	Flag:sch.SchCreatedSuspend},
+	{	Name:tab.TabMgrName,		Tep:tab.TabMgrProc,			MbSize:-1,	DieCb: nil,		Wd:noDog,	Flag:sch.SchCreatedSuspend},
+	{	Name:tab.NdbcName,			Tep:tab.NdbcProc,			MbSize:-1,	DieCb: nil,		Wd:noDog,	Flag:sch.SchCreatedSuspend},
+	{	Name:ngb.LsnMgrName,		Tep:ngb.LsnMgrProc,			MbSize:-1,	DieCb: nil,		Wd:noDog,	Flag:sch.SchCreatedSuspend},
+	{	Name:ngb.NgbMgrName,		Tep:ngb.NgbMgrProc,			MbSize:-1,	DieCb: nil,		Wd:noDog,	Flag:sch.SchCreatedSuspend},
+	{	Name:peer.PeerMgrName,		Tep:peer.PeerMgrProc,		MbSize:-1,	DieCb: nil,		Wd:noDog,	Flag:sch.SchCreatedSuspend},
+	{	Name:peer.PeerLsnMgrName,	Tep:peer.LsnMgrProc,		MbSize:-1,	DieCb: nil,		Wd:noDog,	Flag:sch.SchCreatedSuspend},
+	{	Name:dht.DhtMgrName,		Tep:dht.DhtMgrProc,			MbSize:-1,	DieCb: nil,		Wd:noDog,	Flag:sch.SchCreatedSuspend},
+	{	Name:dhtro.DhtroMgrName,	Tep:dhtro.DhtroMgrProc,		MbSize:-1,	DieCb: nil,		Wd:noDog,	Flag:sch.SchCreatedSuspend},
+	{	Name:dhtch.DhtchMgrName,	Tep:dhtch.DhtchMgrProc,		MbSize:-1,	DieCb: nil,		Wd:noDog,	Flag:sch.SchCreatedSuspend},
+	{	Name:dhtre.DhtreMgrName,	Tep:dhtre.DhtreMgrProc,		MbSize:-1,	DieCb: nil,		Wd:noDog,	Flag:sch.SchCreatedSuspend},
+	{	Name:dhtst.DhtstMgrName,	Tep:dhtst.DhtstMgrProc,		MbSize:-1,	DieCb: nil,		Wd:noDog,	Flag:sch.SchCreatedSuspend},
+	{	Name:dhtsy.DhtsyMgrName,	Tep:dhtsy.DhtsyMgrProc,		MbSize:-1,	DieCb: nil,		Wd:noDog,	Flag:sch.SchCreatedSuspend},
 
 	//
 	// More static tasks outside ycp2p can be appended bellow
@@ -80,6 +80,25 @@ var TaskStaticTab = []sch.TaskStaticDescription {
 }
 
 var taskName2TasNode *map[string]interface{} = nil
+
+//
+// Poweron order of static user tasks
+//
+var TaskStaticPoweronOrder = []string {
+	dcv.DcvMgrName,
+	tab.TabMgrName,
+	tab.NdbcName,
+	ngb.LsnMgrName,
+	ngb.NgbMgrName,
+	peer.PeerMgrName,
+	peer.PeerLsnMgrName,
+	dht.DhtMgrName,
+	dhtro.DhtroMgrName,
+	dhtch.DhtchMgrName,
+	dhtre.DhtreMgrName,
+	dhtst.DhtstMgrName,
+	dhtsy.DhtsyMgrName,
+}
 
 //
 // Append a static user task to table TaskStaticTab
@@ -105,7 +124,7 @@ func P2pInit() sch.SchErrno {
 //
 func P2pStart() (sch.SchErrno, *map[string]interface{}) {
 	var eno sch.SchErrno
-	eno, taskName2TasNode = sch.SchinfSchedulerStart(TaskStaticTab)
+	eno, taskName2TasNode = sch.SchinfSchedulerStart(TaskStaticTab, TaskStaticPoweronOrder)
 	return eno, taskName2TasNode
 }
 

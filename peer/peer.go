@@ -27,6 +27,7 @@ import (
 	ycfg	"ycp2p/config"
 	sch 	"ycp2p/scheduler"
 	yclog	"ycp2p/logger"
+	"fmt"
 )
 
 //
@@ -145,7 +146,6 @@ var peMgr = peerManager{
 	ptnMe:			nil,
 	ptnTab:			nil,
 	ptnLsn:			nil,
-	ptnAcp:			nil,
 	peers:			map[interface{}]*peerInstance{},
 	nodes:			map[ycfg.NodeID]*peerInstance{},
 	workers:		map[ycfg.NodeID]*peerInstance{},
@@ -250,14 +250,6 @@ func peMgrPoweron(ptn interface{}) PeMgrErrno {
 		return PeMgrEnoScheduler
 	}
 
-	eno, peMgr.ptnAcp = sch.SchinfGetTaskNodeByName(acceptProcName)
-	if eno != sch.SchEnoNone || peMgr.ptnTab == nil {
-		yclog.LogCallerFileLine("peMgrPoweron: " +
-			"SchinfGetTaskNodeByName failed, eno: %df, target: %s",
-			eno, acceptProcName)
-		return PeMgrEnoScheduler
-	}
-
 	eno, peMgr.ptnDcv = sch.SchinfGetTaskNodeByName(sch.DcvMgrName)
 	if eno != sch.SchEnoNone || peMgr.ptnDcv == nil {
 		yclog.LogCallerFileLine("peMgrPoweron: " +
@@ -268,7 +260,7 @@ func peMgrPoweron(ptn interface{}) PeMgrErrno {
 
 	// fetch configration
 	var cfg *ycfg.Cfg4PeerManager = nil
-	if cfg := ycfg.P2pConfig4PeerManager(); cfg == nil {
+	if cfg = ycfg.P2pConfig4PeerManager(); cfg == nil {
 		yclog.LogCallerFileLine("peMgrPoweron: P2pConfig4PeerManager failed")
 		return PeMgrEnoConfig
 	}
@@ -440,6 +432,8 @@ func peMgrDcvFindNodeRsp(msg interface{}) PeMgrErrno {
 //
 // Peer connection accepted indication handler
 //
+var ibInstSeq = 0
+
 func peMgrLsnConnAcceptedInd(msg interface{}) PeMgrErrno {
 
 	//
@@ -479,8 +473,9 @@ func peMgrLsnConnAcceptedInd(msg interface{}) PeMgrErrno {
 	//
 	// Create peer instance task
 	//
+	ibInstSeq++
 	var tskDesc  = sch.SchTaskDescription {
-		Name:		acceptProcName,
+		Name:		PeerAccepterName + fmt.Sprintf("%s", ibInstSeq) + peInst.raddr.String(),
 		MbSize:		PeInstMailboxSize,
 		Ep:			PeerInstProc,
 		Wd:			nil,
@@ -918,6 +913,8 @@ func peMgrConnCloseInd(msg interface{}) PeMgrErrno {
 //
 // Create outbound instance
 //
+var obInstSeq = 0
+
 func peMgrCreateOutboundInst(node *ycfg.Node) PeMgrErrno {
 
 	// Create outbound task instance for specific node
@@ -944,8 +941,9 @@ func peMgrCreateOutboundInst(node *ycfg.Node) PeMgrErrno {
 	//
 	// Create peer instance task
 	//
+	obInstSeq++
 	var tskDesc  = sch.SchTaskDescription {
-		Name:		acceptProcName,
+		Name:		"Outbound" + fmt.Sprintf("%s", obInstSeq),
 		MbSize:		PeInstMailboxSize,
 		Ep:			PeerInstProc,
 		Wd:			nil,

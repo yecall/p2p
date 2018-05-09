@@ -25,6 +25,7 @@ import(
 	"fmt"
 	"time"
 	yclog "ycp2p/logger"
+	"sync"
 )
 
 //
@@ -108,8 +109,9 @@ const (
 )
 
 type SchWatchDog struct {
+	lock			sync.Mutex
 	HaveDog			bool				// if dog would come out
-	Feed			<-chan interface{}	// channel to feed the dog
+	Inited			bool				// watching inited
 	Cycle			time.Duration		// feed cycle expected, must be times of second
 	BiteCounter		int					// counter of user task bited by dog
 	DieThreshold	int					// threshold counter of dog-bited to die
@@ -186,10 +188,10 @@ type TimerDescription struct {
 type TaskStaticDescription struct {
 	Name	string								// task name
 	Tep		SchUserTaskEp						// task entry point
-	MbSize	int									// mailbox size
+	MbSize	int									// mailbox size, if less than zero, default value applied
 	Wd		SchWatchDog							// watchdog
+	DieCb	func(task interface{}) SchErrno		// callbacked when going to die
 	Flag	int									// flag: start at once or to be suspended
-	DieCb	func(task interface{}) SchErrno	// callbacked when going to die
 }
 
 //
@@ -202,8 +204,8 @@ func SchinfSchedulerInit() SchErrno {
 //
 // Start scheduler
 //
-func SchinfSchedulerStart(tsd []TaskStaticDescription) (SchErrno, *map[string]interface{}){
-	return schimplSchedulerStart(tsd)
+func SchinfSchedulerStart(tsd []TaskStaticDescription, tpo []string) (SchErrno, *map[string]interface{}){
+	return schimplSchedulerStart(tsd, tpo)
 }
 
 //

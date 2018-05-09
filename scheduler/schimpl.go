@@ -33,17 +33,7 @@ import (
 // export any scheduler logic to other modules in any system, so we prefert
 // a static var here than creating a shceduler objcet on demand, see it pls.
 //
-var p2pSDL = scheduler {
-	tkFree:			nil,
-	freeSize:		0,
-	tkBusy:			nil,
-	busySize:		0,
-	tmFree:			nil,
-	tmFreeSize: 	0,
-	tmBusy:			nil,
-	tmBusySize:		0,
-	grpCnt:			0,
-}
+var p2pSDL = scheduler{}
 
 //
 // Default task node for shceduler to send event
@@ -113,7 +103,6 @@ func schimplCommonTask(ptn *schTaskNode) SchErrno {
 
 	var queMsg	*chan schMessage
 	var done 	*chan SchErrno
-	var wdt		*time.Timer
 	var eno		SchErrno
 
 	// check pointer to task node
@@ -133,16 +122,6 @@ func schimplCommonTask(ptn *schTaskNode) SchErrno {
 	done = &ptn.task.done
 
 	//
-	// new watchdog timer: notice: a dog always comes out, but if flag "HaveDog"
-	// is false, the user task would never be bited to die, see bellow. since it
-	// is a slowy timer, the performance lost is not so much. the dog logic in
-	// such a case can be applied as some kinds of statistics for tasks.
-	//
-
-	wdt = time.NewTimer(schDeaultWatchCycle)
-	defer wdt.Stop()
-
-	//
 	// loop to schedule, until done(or something else happened)
 	//
 
@@ -152,29 +131,23 @@ taskLoop:
 		select {
 
 		case msg := <-*queMsg:
+
+			ptn.task.dog.lock.Lock()
+			ptn.task.dog.Inited = ptn.task.dog.HaveDog
+			ptn.task.dog.lock.Unlock()
+
 			ptn.task.utep(ptn, (*SchMessage)(&msg))
+
+			ptn.task.dog.lock.Lock()
+			ptn.task.dog.Inited = false
+			ptn.task.dog.lock.Unlock()
 
 		case eno = <-*done:
 			if eno != SchEnoNone {
-				yclog.LogCallerFileLine("schimplCommonTask: " +
+				yclog.LogCallerFileLine("schimplCommonTask: "+
 					"task done, name: %s, eno: %d", ptn.task.name, eno)
 			}
 			break taskLoop
-
-		case <-ptn.task.dog.Feed:
-			ptn.task.dog.BiteCounter = 0
-
-		case <-wdt.C:
-			ptn.task.dog.BiteCounter++
-
-			if ptn.task.dog.HaveDog {
-				// we do have a dog, and we can be bited to die, see aboved
-				// comments about dog please.
-				if ptn.task.dog.BiteCounter >= ptn.task.dog.DieThreshold {
-					eno = SchEnoWatchDog
-					break taskLoop
-				}
-			}
 		}
 	}
 
@@ -188,7 +161,7 @@ taskLoop:
 //
 func schimplTimerCommonTask(ptm *schTmcbNode) SchErrno {
 
-	var tm *time.Timer
+	var tm *time.Ticker
 
 	// check pointer to timer node
 	if ptm == nil {
@@ -203,7 +176,7 @@ func schimplTimerCommonTask(ptm *schTmcbNode) SchErrno {
 		// period, we loop for ever until killed
 		//
 
-		tm = time.NewTimer(ptm.tmcb.dur)
+		tm = time.NewTicker(ptm.tmcb.dur)
 		defer tm.Stop()
 
 timerLoop:
@@ -212,11 +185,9 @@ timerLoop:
 			select {
 			case <-tm.C:
 				schimplSendTimerEvent(ptm)
-				tm.Reset(ptm.tmcb.dur)
 
 			case stop := <-ptm.tmcb.stop:
 				if stop == true {
-					tm.Stop()
 					break timerLoop
 				}
 			}
@@ -550,7 +521,7 @@ func schimplCreateTask(taskDesc *schTaskDescription) (SchErrno, interface{}){
 
 	for idx, ptm := range ptn.task.tmTab {
 		if ptm != nil {
-			yclog.LogCallerFileLine("schimplCreateTask: nonil task timer pointer")
+			yclog.LogCallerFileLine("schimplCreateTask: not nil task timer pointer")
 			ptn.task.tmTab[idx] = nil
 		}
 	}
@@ -589,27 +560,10 @@ func schimplCreateTask(taskDesc *schTaskDescription) (SchErrno, interface{}){
 	}
 
 	//
-	// check flag to go
+	// start task to work
 	//
 
-	if taskDesc.Flag == SchCreatedGo {
-
-		yclog.LogCallerFileLine("schimplCreateTask: user task created to go, name:%s", ptn.task.name)
-
-		ptn.task.goStatus = SchCreatedGo
-		go schimplCommonTask(ptn)
-
-	} else if taskDesc.Flag == SchCreatedSuspend {
-
-		yclog.LogCallerFileLine("schimplCreateTask: user task created to suspend, name:%s", ptn.task.name)
-		ptn.task.goStatus = SchCreatedSuspend
-
-	} else {
-
-		yclog.LogCallerFileLine("schimplCreateTask: unknown flag: %d, set it suspended, name:%s",
-			taskDesc.Flag, ptn.task.name)
-		ptn.task.goStatus = SchCreatedSuspend
-	}
+	go schimplCommonTask(ptn)
 
 	return SchEnoNone, ptn
 }
@@ -974,7 +928,10 @@ func schimplDeleteTaskGroup(grp string) SchErrno {
 //
 func schimplSendMsg2Task(msg *schMessage) (eno SchErrno) {
 
+	//
 	// check the message to be sent
+	//
+
 	if msg == nil {
 		yclog.LogCallerFileLine("schimplSendMsg2Task: invalid message")
 		return SchEnoParameter
@@ -996,6 +953,11 @@ func schimplSendMsg2Task(msg *schMessage) (eno SchErrno) {
 	// busy queue; checking go status of both to see if they are matched,
 	// and so on.
 	//
+
+	if msg.recver.task.mailbox.que == nil {
+		yclog.LogCallerFileLine("schimplSendMsg2Task: mailbox of target is empty")
+		return SchEnoInternal
+	}
 
 	*msg.recver.task.mailbox.que<-*msg
 
@@ -1229,8 +1191,7 @@ func schimplGetTaskName(ptn *schTaskNode) string {
 //
 // Start scheduler
 //
-func schimplSchedulerStart(tsd []TaskStaticDescription) (eno SchErrno, name2Ptn *map[string]interface{}){
-
+func schimplSchedulerStart(tsd []TaskStaticDescription, tpo []string) (eno SchErrno, name2Ptn *map[string]interface{}){
 
 	golog.Printf("schimplSchedulerStart:")
 	golog.Printf("schimplSchedulerStart:")
@@ -1276,16 +1237,21 @@ func schimplSchedulerStart(tsd []TaskStaticDescription) (eno SchErrno, name2Ptn 
 		tkd.Name	= tsd[loop].Name
 		tkd.DieCb	= tsd[loop].DieCb
 		tkd.Ep		= tsd[loop].Tep
+		tkd.Flag	= tsd[loop].Flag
+
+		if tsd[loop].MbSize < 0 {
+			tkd.MbSize = schMaxMbSize
+		} else {
+			tkd.MbSize = tsd[loop].MbSize
+		}
 
 		//
 		// create task
 		//
 
 		if eno, ptn = schimplCreateTask(&tkd); eno != SchEnoNone {
-
 			yclog.LogCallerFileLine("schimplSchedulerStart: " +
 				"schimplCreateTask failed, task: %s", tkd.Name)
-
 			return SchEnoParameter, nil
 		}
 
@@ -1296,18 +1262,55 @@ func schimplSchedulerStart(tsd []TaskStaticDescription) (eno SchErrno, name2Ptn 
 		name2PtnMap[tkd.Name] = ptn
 
 		//
-		// send poweron
+		// send poweron event to task created aboved if it is required to be shceduled
+		// at once.
 		//
 
-		po.recver = ptn.(*schTaskNode)
-		if eno = schimplSendMsg2Task(&po); eno != SchEnoNone {
+		if tkd.Flag == SchCreatedGo {
+			po.recver = ptn.(*schTaskNode)
+			if eno = schimplSendMsg2Task(&po); eno != SchEnoNone {
+				yclog.LogCallerFileLine("schimplSchedulerStart: "+
+					"schimplSendMsg2Task failed, event: EvSchPoweron, eno: %d, task: %s",
+					eno,tkd.Name)
+				return eno, nil
+			}
+		}
+	}
 
+	//
+	// send poweron event for those taskes registed in table "tpo" passed in
+	//
+
+	for _, name := range tpo {
+		yclog.LogCallerFileLine("schimplSchedulerStart: send poweron to task: %s", name)
+		eno, tsk := schimplGetTaskNodeByName(name)
+		if eno != SchEnoNone {
 			yclog.LogCallerFileLine("schimplSchedulerStart: " +
-				"schimplSendMsg2Task failed, event: EvSchPoweron, target task: %s", tkd.Name)
-
+				"schimplGetTaskNodeByName failed, eno: %d, name: %s",
+				eno, name)
+			continue
+		}
+		if tsk == nil {
+			yclog.LogCallerFileLine("schimplSchedulerStart: " +
+				"nil task node pointer, eno: %d, name: %s",
+				eno, name)
+			continue
+		}
+		po.recver = tsk
+		if eno = schimplSendMsg2Task(&po); eno != SchEnoNone {
+			yclog.LogCallerFileLine("schimplSchedulerStart: "+
+				"schimplSendMsg2Task failed, event: EvSchPoweron, eno: %d, task: %s",
+				eno,name)
 			return eno, nil
 		}
 	}
+
+	//
+	// run the dog
+	//
+
+	yclog.LogCallerFileLine("schimplSchedulerStart: go the watchdog")
+	go wdCB.watchDogProc()
 
 	golog.Printf("schimplSchedulerStart:")
 	golog.Printf("schimplSchedulerStart:")
@@ -1318,3 +1321,90 @@ func schimplSchedulerStart(tsd []TaskStaticDescription) (eno SchErrno, name2Ptn 
 	return SchEnoNone, &name2PtnMap
 }
 
+//
+// Watchdog routine
+//
+type watchDogCtrlBlock struct {
+	scb		*scheduler		// secheduler control block
+	dogKill chan SchErrno	// dog killed signal
+}
+
+var wdCB = watchDogCtrlBlock {
+	scb:		&p2pSDL,
+	dogKill:	make(chan SchErrno),
+}
+
+func (wd watchDogCtrlBlock)watchDogProc() SchErrno {
+
+	var wdt	*time.Ticker
+	var why = SchEnoNone
+
+	wdt = time.NewTicker(schDeaultWatchCycle)
+	defer wdt.Stop()
+
+dogKilled:
+
+	for {
+		select {
+		case <-wdt.C:
+			yclog.LogCallerFileLine("watchDogProc: dog time to watch")
+			wd.dogWatch()
+
+		case why = <-wd.dogKill:
+			break dogKilled
+		}
+	}
+
+	yclog.LogCallerFileLine("watchDogProc: dog killed, why: %d", why)
+
+	return SchEnoKilled
+}
+
+//
+// Guard the user tasks going to "fly"
+//
+func (wd watchDogCtrlBlock) dogWatch() SchErrno {
+
+	if wd.scb == nil {
+		yclog.LogCallerFileLine("dogWatch: nil scheduler control block pointer")
+		return SchEnoInternal
+	}
+
+	wd.scb.lock.Lock()
+	defer wd.scb.lock.Unlock()
+
+	var ptn *schTaskNode
+	if ptn = wd.scb.tkBusy; ptn == nil {
+		yclog.LogCallerFileLine("dogWatch: none of user tasks in scheduling")
+		return SchEnoNone
+	}
+
+	//
+	// 1) Scan the actived task link. one can improve this by link those user tasks have
+	// a dog only to be scaned;
+	// 2) Do not kill, debug out only even threshold reached;
+	// 3) It's guarded per each event(message), means when an user task is shceduled to
+	// deal with an event, the dog is feeded, the bited counter is cleaned to restart.
+	//
+
+	for {
+		if ptn.task.dog.HaveDog == true && ptn.task.dog.Inited == true{
+			ptn.task.dog.lock.Lock()
+
+			if ptn.task.dog.BiteCounter++; ptn.task.dog.BiteCounter >= ptn.task.dog.DieThreshold {
+				yclog.LogCallerFileLine("dogWatch: "+
+					"in flying? task: %s, BiteCounter: %d",
+					ptn.task.name, ptn.task.dog.BiteCounter)
+			}
+			ptn.task.dog.BiteCounter = 0
+
+			ptn.task.dog.lock.Unlock()
+		}
+
+		if ptn = ptn.next; ptn == wd.scb.tkBusy {
+			break
+		}
+	}
+
+	return SchEnoNone
+}

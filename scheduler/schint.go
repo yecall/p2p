@@ -186,11 +186,12 @@ type schCommonTaskEp func(ptn *schTaskNode) SchErrno
 // static tasks name
 //
 const (
-	DcvMgrName		= "DcvMgr"			// disccover manager
-	TabMgrName		= "TabMgr"			// table
-	NgbLsnName		= "NgbLsn"			// udp neighbor listener
-	NgbMgrName		= "NgbMgr"			// udp neighbor manager
-	NgbReaderName	= "UdpReader"		// udp reader
-	PeerLsnMgrName	= "PeerLsnMgr"		// tcp peer listener
-	PeerMgrName		= "PeerMgr"		// tcp peer manager
+	DcvMgrName			= "DcvMgr"			// disccover manager
+	TabMgrName			= "TabMgr"			// table
+	NgbLsnName			= "NgbLsn"			// udp neighbor listener
+	NgbMgrName			= "NgbMgr"			// udp neighbor manager
+	NgbReaderName		= "UdpReader"		// udp reader
+	PeerLsnMgrName		= "PeerLsnMgr"		// tcp peer listener
+	PeerAccepterName	= "peerAccepter"	// tcp accepter
+	PeerMgrName			= "PeerMgr"			// tcp peer manager
 )

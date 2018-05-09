@@ -177,11 +177,27 @@ type tableManager struct {
 	refreshing		bool				// busy in refreshing now
 	dataDir			string				// data directory
 	nodeDb			*nodeDB				// node database object pointer
+	arfTid			int					// auto refresh timer identity
 }
 
 var tabMgr = tableManager{
-	name:	TabMgrName,
-	tep:	nil,
+	name:			TabMgrName,
+	tep:			nil,
+	cfg:			tabConfig{},
+	ptnMe:			nil,
+	ptnNgbMgr:		nil,
+	ptnDcvMgr:		nil,
+	shaLocal:		Hash{},
+	buckets:		[nBuckets]*bucket{},
+	queryIcb:		make([]*instCtrlBlock, TabInstQueringMax),
+	boundIcb:		make([]*instCtrlBlock, TabInstBondingMax),
+	queryPending:	make([]*queryPendingEntry, TabInstQPendingMax),
+	boundPending:	make([]*Node, TabInstBPendingMax),
+	dlkTab:			make([]int, 256),
+	refreshing:		false,
+	dataDir:		"",
+	nodeDb:			nil,
+	arfTid:			sch.SchInvalidTid,
 }
 
 //
@@ -307,7 +323,7 @@ func TabMgrPoweron(ptn interface{}) TabMgrErrno {
 	//
 
 	if eno = tabStartTimer(nil, sch.TabRefreshTimerId, autoRefreshCycle); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("TabMgrPoweron: tabRefresh failed, eno: %d", eno)
+		yclog.LogCallerFileLine("TabMgrPoweron: tabStartTimer failed, eno: %d", eno)
 		return eno
 	}
 
@@ -819,7 +835,7 @@ func tabGetConfig(tabCfg *tabConfig) TabMgrErrno {
 // Prepare node database when poweron
 //
 func tabNodeDbPrepare() TabMgrErrno {
-	if tabMgr.nodeDb == nil {
+	if tabMgr.nodeDb != nil {
 		yclog.LogCallerFileLine("tabNodeDbPrepare: node database had been opened")
 		return TabMgrEnoDatabase
 	}
@@ -907,13 +923,10 @@ func tabRefresh(tid *NodeID) TabMgrErrno {
 
 	//
 	// If we are in refreshing, return at once. When the pending table for query
-	// is empty, this flag is set to false.
+	// is empty, this flag is set to false;
 	//
-
-	if tid == nil {
-		yclog.LogCallerFileLine("tabRefresh: invalid parameters")
-		return TabMgrEnoParameter
-	}
+	// If the "tid"(target identity) passed in is nil, we get a random one;
+	//
 
 	if tabMgr.refreshing == true {
 		yclog.LogCallerFileLine("tabRefresh: already in refreshing")
@@ -1420,7 +1433,7 @@ func tabUpdateBootstarpNode(n *um.Node) TabMgrErrno {
 //
 func tabStartTimer(inst *instCtrlBlock, tmt int, dur time.Duration) TabMgrErrno {
 
-	if inst == nil {
+	if tmt != sch.TabRefreshTimerId && inst == nil {
 		yclog.LogCallerFileLine("tabStartTimer: invalid parameters")
 		return TabMgrEnoParameter
 	}
@@ -1455,7 +1468,12 @@ func tabStartTimer(inst *instCtrlBlock, tmt int, dur time.Duration) TabMgrErrno 
 		return TabMgrEnoScheduler
 	}
 
-	inst.tid = tid
+	if tmt == sch.TabRefreshTimerId {
+		tabMgr.arfTid = tid
+	} else {
+		inst.tid = tid
+	}
+
 	return TabMgrEnoNone
 }
 
