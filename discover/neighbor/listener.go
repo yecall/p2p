@@ -77,7 +77,7 @@ var lsnMgr = listenerManager{
 // To ecape the compiler "initialization loop" error
 //
 func init() {
-	lsnMgr.tep		= LsnMgrProc
+	lsnMgr.tep			= LsnMgrProc
 	udpReader.tep		= udpReaderLoop
 	udpReader.desc.Ep	= udpReaderLoop
 }
@@ -147,12 +147,6 @@ func (mgr *listenerManager)setupUdpConn() sch.SchErrno {
 	var conn		*net.UDPConn = nil
 	var realAddr	*net.UDPAddr = nil
 
-	// fetch configs
-	if eno := mgr.setupConfig(); eno != sch.SchEnoNone {
-		yclog.LogCallerFileLine("")
-		return eno
-	}
-
 	// setup udp address
 	strAddr := fmt.Sprintf("%s:%d", lsnMgr.cfg.IP.String(), lsnMgr.cfg.UDP)
 	udpAddr, err := net.ResolveUDPAddr("udp", strAddr)
@@ -174,6 +168,7 @@ func (mgr *listenerManager)setupUdpConn() sch.SchErrno {
 		yclog.LogCallerFileLine("setupUdpConn: LocalAddr failed")
 		return sch.SchEnoOS
 	}
+	yclog.LogCallerFileLine("setupUdpConn: real address: %s", realAddr.String())
 
 	// backup connection and real address
 	mgr.addr = *realAddr
@@ -209,10 +204,10 @@ func (mgr *listenerManager) start() sch.SchErrno {
 		return eno
 	}
 
-	eno = sch.SchinfSendMsg2Task(&msg)
+	eno = sch.SchinfSendMessage(&msg)
 	if eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("start: " +
-			"SchinfSendMsg2Task failed, sender: %s, recver: %s, eno: %d",
+			"SchinfSendMessage failed, sender: %s, recver: %s, eno: %d",
 			sch.SchinfGetMessageSender(&msg),
 			sch.SchinfGetMessageRecver(&msg),
 			eno)
@@ -558,10 +553,10 @@ func (rd udpReaderTask) msgHandler(buf []byte, len int, from *net.UDPAddr) sch.S
 		return schEno
 	}
 
-	schEno = sch.SchinfSendMsg2Task(&msg)
+	schEno = sch.SchinfSendMessage(&msg)
 	if schEno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("msgHandler: " +
-			"SchinfSendMsg2Task failed, sender: %s, recver: %s, eno: %d",
+			"SchinfSendMessage failed, sender: %s, recver: %s, eno: %d",
 			sch.SchinfGetMessageSender(&msg),
 			sch.SchinfGetMessageRecver(&msg),
 			schEno)

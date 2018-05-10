@@ -160,16 +160,16 @@ func DcvMgrFindNodeReq(req *sch.MsgDcvFindNodeReq) DcvMgrErrno {
 	//
 
 	var schMsg = sch.SchMessage{}
-
-	if eno := sch.SchinfMakeMessage(&schMsg, dcvMgr.ptnMe, dcvMgr.ptnTab, sch.EvNblFindNodeReq, &req);
+	var reqRefresh = sch.MsgTabRefreshReq{nil,nil}
+	if eno := sch.SchinfMakeMessage(&schMsg, dcvMgr.ptnMe, dcvMgr.ptnTab, sch.EvTabRefreshReq, &reqRefresh);
 		eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("DcvMgrFindNodeReq: SchinfMakeMessage failed, eno: %d", eno)
 		return DcvMgrEnoScheduler
 	}
 
-	if eno := sch.SchinfSendMsg2Task(&schMsg); eno != sch.SchEnoNone {
+	if eno := sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("DcvMgrFindNodeReq: " +
-			"SchinfSendMsg2Task failed, eno: %d, target: %s",
+			"SchinfSendMessage failed, eno: %d, target: %s",
 			eno, sch.SchinfGetTaskName(dcvMgr.ptnTab))
 		return DcvMgrEnoScheduler
 	}
@@ -198,9 +198,9 @@ func DcvMgrTabRefreshRsp(rsp *sch.MsgTabRefreshRsp) DcvMgrErrno {
 		return DcvMgrEnoScheduler
 	}
 
-	if eno := sch.SchinfSendMsg2Task(&schMsg); eno != sch.SchEnoNone {
+	if eno := sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("DcvMgrTabRefreshRsp: " +
-			"SchinfSendMsg2Task failed, eno: %d, target: %s",
+			"SchinfSendMessage failed, eno: %d, target: %s",
 			eno, sch.SchinfGetTaskName(dcvMgr.ptnTab))
 		return DcvMgrEnoScheduler
 	}

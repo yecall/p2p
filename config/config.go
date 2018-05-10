@@ -45,7 +45,6 @@ const (
 	PcfgEnoPrivateKye
 	PcfgEnoDataDir
 	PcfgEnoDatabase
-	PcfgEnoDataListenAddr
 	PcfgEnoIpAddr
 )
 
@@ -119,7 +118,7 @@ type Config struct {
 	StaticNodes		[]*Node				// static nodes
 	NodeDataDir		string				// node data directory
 	NodeDatabase	string				// node database
-	ListenAddr		string				// address listent
+	ListenAddr		string				// address listened
 	NoDial			bool				// outboundless flag
 	BootstrapNode	bool				// bootstrap node flag
 	Local			Node				// myself
@@ -181,7 +180,7 @@ const dftVersion = "0.1.0.0"
 // lever module of system.
 //
 var dftLocal = Node {
-	IP:		nil,
+	IP:		net.IPv4zero,
 	UDP:	0,
 	TCP:	0,
 	ID:		NodeID{0},
@@ -200,7 +199,6 @@ var config = Config {
 	NodeDatabase:		"node.db",
 	NoDial:				false,
 	BootstrapNode:		false,
-	ListenAddr:			"*:0",
 	Local:				dftLocal,
 }
 
@@ -265,11 +263,6 @@ func P2pConfig(cfg *Config) P2pCfgErrno {
 	if len(config.NodeDatabase) == 0 {
 		yclog.LogCallerFileLine("P2pConfig: invalid database name")
 		return PcfgEnoDatabase
-	}
-
-	if len(config.ListenAddr) == 0 {
-		yclog.LogCallerFileLine("P2pConfig: invalid listen address")
-		return PcfgEnoDataListenAddr
 	}
 
 	if config.Local.IP == nil {

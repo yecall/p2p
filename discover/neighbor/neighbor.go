@@ -306,9 +306,9 @@ func (inst *neighborInst) NgbProtoPingRsp(msg *um.Pong) NgbProtoErrno {
 		return NgbMgrEnoScheduler
 	}
 
-	if eno := sch.SchinfSendMsg2Task(&schMsg); eno != sch.SchEnoNone {
+	if eno := sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("NgbProtoPingRsp: "+
-			"SchinfSendMsg2Task failed, eno: %d, sender: %s, recver: %s",
+			"SchinfSendMessage failed, eno: %d, sender: %s, recver: %s",
 			eno,
 			sch.SchinfGetMessageSender(&schMsg),
 			sch.SchinfGetMessageRecver(&schMsg))
@@ -381,9 +381,9 @@ func (inst *neighborInst) NgbProtoFindNodeRsp(msg *um.Neighbors) NgbProtoErrno {
 		return NgbMgrEnoScheduler
 	}
 
-	if eno := sch.SchinfSendMsg2Task(&schMsg); eno != sch.SchEnoNone {
+	if eno := sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("NgbProtoFindNodeRsp: "+
-			"SchinfSendMsg2Task failed, eno: %d, sender: %s, recver: %s",
+			"SchinfSendMessage failed, eno: %d, sender: %s, recver: %s",
 			eno,
 			sch.SchinfGetMessageSender(&schMsg),
 			sch.SchinfGetMessageRecver(&schMsg))
@@ -427,9 +427,9 @@ func (inst *neighborInst) NgbProtoFindNodeTimeout() NgbProtoErrno {
 		return NgbMgrEnoScheduler
 	}
 
-	if eno := sch.SchinfSendMsg2Task(&schMsg); eno != sch.SchEnoNone {
+	if eno := sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("NgbProtoFindNodeTimeout: "+
-			"SchinfSendMsg2Task failed, eno: %d, sender: %s, recver: %s",
+			"SchinfSendMessage failed, eno: %d, sender: %s, recver: %s",
 			eno,
 			sch.SchinfGetMessageSender(&schMsg),
 			sch.SchinfGetMessageRecver(&schMsg))
@@ -479,9 +479,9 @@ func (inst *neighborInst) NgbProtoPingTimeout() NgbProtoErrno {
 		return NgbMgrEnoScheduler
 	}
 
-	if eno := sch.SchinfSendMsg2Task(&schMsg); eno != sch.SchEnoNone {
+	if eno := sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("NgbProtoPingTimeout: "+
-			"SchinfSendMsg2Task failed, eno: %d, sender: %s, recver: %s",
+			"SchinfSendMessage failed, eno: %d, sender: %s, recver: %s",
 			eno,
 			sch.SchinfGetMessageSender(&schMsg),
 			sch.SchinfGetMessageRecver(&schMsg))
@@ -849,8 +849,8 @@ func (ngbMgr *neighborManager)PongHandler(pong *um.Pong) NgbMgrErrno {
 		return NgbMgrEnoScheduler
 	}
 
-	if eno := sch.SchinfSendMsg2Task(&schMsg); eno != sch.SchEnoNone {
-		yclog.LogCallerFileLine("PongHandler: SchinfSendMsg2Task failed, eno: %d", eno)
+	if eno := sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("PongHandler: SchinfSendMessage failed, eno: %d", eno)
 		return NgbMgrEnoScheduler
 	}
 
@@ -924,8 +924,8 @@ func (ngbMgr *neighborManager)NeighborsHandler(nbs *um.Neighbors) NgbMgrErrno {
 		return NgbMgrEnoScheduler
 	}
 
-	if eno := sch.SchinfSendMsg2Task(&schMsg); eno != sch.SchEnoNone {
-		yclog.LogCallerFileLine("NeighborsHandler: SchinfSendMsg2Task failed, eno: %d", eno)
+	if eno := sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("NeighborsHandler: SchinfSendMessage failed, eno: %d", eno)
 		return NgbMgrEnoScheduler
 	}
 
@@ -952,9 +952,9 @@ func (ngbMgr *neighborManager)FindNodeReq(findNode *um.FindNode) NgbMgrErrno {
 			return NgbMgrEnoScheduler
 		}
 
-		if eno := sch.SchinfSendMsg2Task(&schMsg); eno != sch.SchEnoNone {
+		if eno := sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
 			yclog.LogCallerFileLine("FindNodeReq: "+
-				"SchinfSendMsg2Task failed, eno: %d, sender: %s, recver: %s",
+				"SchinfSendMessage failed, eno: %d, sender: %s, recver: %s",
 				eno,
 				sch.SchinfGetMessageSender(&schMsg),
 				sch.SchinfGetMessageRecver(&schMsg))
@@ -1039,8 +1039,8 @@ func (ngbMgr *neighborManager)FindNodeReq(findNode *um.FindNode) NgbMgrErrno {
 		return funcRsp2Tab()
 	}
 
-	if eno := sch.SchinfSendMsg2Task(&schMsg); eno != sch.SchEnoNone {
-		yclog.LogCallerFileLine("FindNodeReq: SchinfSendMsg2Task failed, eno: %d", eno)
+	if eno := sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("FindNodeReq: SchinfSendMessage failed, eno: %d", eno)
 		rsp.Result = NgbMgrEnoScheduler
 		rsp.FindNode = findNode
 		return funcRsp2Tab()
@@ -1067,9 +1067,9 @@ func (ngbMgr *neighborManager)PingpongReq(ping *um.Ping) NgbMgrErrno {
 			return NgbMgrEnoScheduler
 		}
 
-		if eno := sch.SchinfSendMsg2Task(&schMsg); eno != sch.SchEnoNone {
+		if eno := sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
 			yclog.LogCallerFileLine("PingpongReq: "+
-				"SchinfSendMsg2Task failed, eno: %d, sender: %s, recver: %s",
+				"SchinfSendMessage failed, eno: %d, sender: %s, recver: %s",
 				eno,
 				sch.SchinfGetMessageSender(&schMsg),
 				sch.SchinfGetMessageRecver(&schMsg))

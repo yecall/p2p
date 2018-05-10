@@ -127,7 +127,10 @@ func lsnMgrPoweron(ptn interface{}) sch.SchErrno {
 	}
 	lsnMgr.listenAddr = lsnMgr.listener.Addr().(*net.TCPAddr)
 
-	yclog.LogCallerFileLine("lsnMgrPoweron: task inited ok")
+	yclog.LogCallerFileLine("lsnMgrPoweron: " +
+		"task inited ok, listening address: %s",
+		lsnMgr.listenAddr.String())
+
 	return sch.SchEnoNone
 }
 
@@ -166,7 +169,7 @@ func lsnMgrStart() sch.SchErrno {
 		Name:		PeerAccepterName,
 		MbSize:		0,
 		Ep:			PeerAcceptProc,
-		Wd:			nil,
+		Wd:			&sch.SchWatchDog{HaveDog:false,},
 		Flag:		sch.SchCreatedGo,
 		DieCb:		nil,
 		UserDa:		nil,
@@ -335,10 +338,10 @@ acceptLoop:
 			continue
 		}
 
-		eno = sch.SchinfSendMsg2Task(&msg)
+		eno = sch.SchinfSendMessage(&msg)
 		if eno != sch.SchEnoNone {
 			yclog.LogCallerFileLine("PeerAcceptProc: " +
-				"SchinfSendMsg2Task for EvPeLsnConnAcceptedInd failed, target: %s",
+				"SchinfSendMessage for EvPeLsnConnAcceptedInd failed, target: %s",
 				sch.SchinfGetTaskName(acceptTCB.ptnPeMgr))
 			acceptTCB.lockTcb.Unlock()
 			continue

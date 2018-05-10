@@ -88,6 +88,8 @@ const maxTcpmsgSize = 1024*1024*4				// max size of a tcpmsg package could be, c
 												// it's a fixed value here than can be configurated
 												// by other module.
 
+const durDcvFindNodeTimer = time.Second * 20	// duration to wait for find node response from discover task
+
 type peMgrConfig struct {
 	maxPeers		int				// max peers would be
 	maxOutbounds	int				// max concurrency outbounds
@@ -123,6 +125,7 @@ type peerManager struct {
 	name			string							// name
 	tep				sch.SchUserTaskEp				// entry
 	cfg				peMgrConfig						// configuration
+	tidFindNode		int								// find node timer identity
 	ptnMe			interface{}						// pointer to myself(peer manager task node)
 	ptnTab			interface{}						// pointer to table task node
 	ptnLsn			interface{}						// pointer to peer listener manager task node
@@ -143,6 +146,7 @@ var peMgr = peerManager{
 	name:			PeerMgrName,
 	tep:			nil,
 	cfg:			peMgrConfig{},
+	tidFindNode:	sch.SchInvalidTid,
 	ptnMe:			nil,
 	ptnTab:			nil,
 	ptnLsn:			nil,
@@ -187,6 +191,9 @@ func PeerMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 
 	case sch.EvDcvFindNodeRsp:
 		eno = peMgrDcvFindNodeRsp(msg.Body)
+
+	case sch.EvPeDcvFindNodeTimer:
+		eno = peMgrDcvFindNodeTimerHandler()
 
 	case sch.EvPeLsnConnAcceptedInd:
 		eno = peMgrLsnConnAcceptedInd(msg.Body)
@@ -279,6 +286,35 @@ func peMgrPoweron(ptn interface{}) PeMgrErrno {
 		maxMsgSize:		maxTcpmsgSize,
 	}
 
+	//
+	// Notice: in current implement, the peer module would start its inbound and outbound
+	// procedures only after event sch.EvPeMgrStartReq received, and the inbound and outbound
+	// are carried out at the same time(see is event handler), this might be an issue leads to
+	// the eclipse attack... Not so much considered about this yet, we just start the peer
+	// manager here as following.
+	//
+
+	var msg = sch.SchMessage{}
+
+	if eno := sch.SchinfMakeMessage(&msg, peMgr.ptnMe, peMgr.ptnMe, sch.EvPeMgrStartReq, nil);
+		eno != sch.SchEnoNone {
+			yclog.LogCallerFileLine("peMgrPoweron: " +
+				"SchinfMakeMessage failed, eno: %d, target: %s",
+				eno, sch.SchinfGetTaskName(peMgr.ptnMe))
+		return PeMgrEnoScheduler
+	}
+
+	if eno := sch.SchinfSendMessage(&msg); eno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("peMgrPoweron: " +
+			"SchinfSendMessage failed, eno: %d, target: %s",
+			eno, sch.SchinfGetTaskName(peMgr.ptnMe))
+		return PeMgrEnoScheduler
+	}
+
+	yclog.LogCallerFileLine("peMgrPoweron: " +
+		"EvPeMgrStartReq send ok, target: %s",
+		sch.SchinfGetTaskName(peMgr.ptnMe))
+
 	return PeMgrEnoNone
 }
 
@@ -288,6 +324,14 @@ func peMgrPoweron(ptn interface{}) PeMgrErrno {
 func peMgrPoweroff(ptn interface{}) PeMgrErrno {
 
 	yclog.LogCallerFileLine("peMgrPoweroff: pwoeroff received, done the task")
+
+	if peMgr.tidFindNode != sch.SchInvalidTid {
+		if eno := sch.SchinfKillTimer(peMgr.ptnMe, peMgr.tidFindNode); eno != sch.SchEnoNone {
+			yclog.LogCallerFileLine("peMgrPoweroff: SchinfKillTimer failed, eno: %d", eno)
+			return PeMgrEnoScheduler
+		}
+		peMgr.tidFindNode = sch.SchInvalidTid
+	}
 
 	if eno := sch.SchinfTaskDone(ptn, sch.SchEnoKilled); eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("peMgrPoweroff: SchinfTaskDone failed, eno: %d", eno)
@@ -315,6 +359,8 @@ func peMgrStartReq(msg interface{}) PeMgrErrno {
 	// threshold, and son on.
 	//
 
+	yclog.LogCallerFileLine("peMgrStartReq: going to start both inbound and outbound procedures")
+
 	_ = msg
 
 	var schMsg = sch.SchMessage{}
@@ -329,10 +375,10 @@ func peMgrStartReq(msg interface{}) PeMgrErrno {
 		return PeMgrEnoScheduler
 	}
 
-	eno = sch.SchinfSendMsg2Task(&schMsg)
+	eno = sch.SchinfSendMessage(&schMsg)
 	if eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("peMgrStartReq: " +
-			"SchinfSendMsg2Task for EvPeLsnConnAcceptedInd failed, target: %s",
+			"SchinfSendMessage for EvPeLsnConnAcceptedInd failed, target: %s",
 			sch.SchinfGetTaskName(peMgr.ptnLsn))
 		return PeMgrEnoScheduler
 	}
@@ -346,10 +392,10 @@ func peMgrStartReq(msg interface{}) PeMgrErrno {
 		return PeMgrEnoScheduler
 	}
 
-	eno = sch.SchinfSendMsg2Task(&schMsg)
+	eno = sch.SchinfSendMessage(&schMsg)
 	if eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("peMgrStartReq: " +
-			"SchinfSendMsg2Task for EvPeOutboundReq failed, target: %s",
+			"SchinfSendMessage for EvPeOutboundReq failed, target: %s",
 			sch.SchinfGetTaskName(peMgr.ptnMe))
 		return PeMgrEnoScheduler
 	}
@@ -417,16 +463,33 @@ func peMgrDcvFindNodeRsp(msg interface{}) PeMgrErrno {
 			return PeMgrEnoScheduler
 		}
 
-		eno = sch.SchinfSendMsg2Task(&schMsg)
+		eno = sch.SchinfSendMessage(&schMsg)
 		if eno != sch.SchEnoNone {
 			yclog.LogCallerFileLine("peMgrDcvFindNodeRsp: " +
-				"SchinfSendMsg2Task for EvPeOutboundReq failed, target: %s",
+				"SchinfSendMessage for EvPeOutboundReq failed, target: %s",
 				sch.SchinfGetTaskName(peMgr.ptnMe))
 			return PeMgrEnoScheduler
 		}
 	}
 
 	return PeMgrEnoNone
+}
+
+//
+// handler of timer for find node response expired
+//
+func peMgrDcvFindNodeTimerHandler() PeMgrErrno {
+
+	//
+	// This timer is set after a find node request is sent peer manager to discover task.
+	// When find node response from discover is received, if the timer still not expired,
+	// it then should be removed. Notice that this is an absolute timer than a cycly one,
+	// and when it's expired, we try findnode, and set the timer again. This is done by
+	// calling function peMgrAsk4More, see it for details pls.
+	//
+
+	yclog.LogCallerFileLine("peMgrDcvFindNodeTimerHandler: find node expired, try it again")
+	return peMgrAsk4More()
 }
 
 //
@@ -478,7 +541,7 @@ func peMgrLsnConnAcceptedInd(msg interface{}) PeMgrErrno {
 		Name:		PeerAccepterName + fmt.Sprintf("%s", ibInstSeq) + peInst.raddr.String(),
 		MbSize:		PeInstMailboxSize,
 		Ep:			PeerInstProc,
-		Wd:			nil,
+		Wd:			&sch.SchWatchDog{HaveDog:false,},
 		Flag:		sch.SchCreatedGo,
 		DieCb:		nil,
 		UserDa:		peInst,
@@ -514,9 +577,9 @@ func peMgrLsnConnAcceptedInd(msg interface{}) PeMgrErrno {
 		return PeMgrEnoScheduler
 	}
 
-	if eno = sch.SchinfSendMsg2Task(&schMsg); eno != sch.SchEnoNone {
+	if eno = sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("peMgrLsnConnAcceptedInd: " +
-			"SchinfSendMsg2Task EvPeHandshakeReq failed, eno: %d, target: %s",
+			"SchinfSendMessage EvPeHandshakeReq failed, eno: %d, target: %s",
 			eno, sch.SchinfGetTaskName(peInst.ptnMe))
 		return PeMgrEnoScheduler
 	}
@@ -618,7 +681,7 @@ func peMgrOutboundReq(msg interface{}) PeMgrErrno {
 	}
 
 	yclog.LogCallerFileLine("peMgrOutboundReq: " +
-		"create outbound intance failed: %d, ok: %d",
+		"create outbound intances end, failed: %d, ok: %d",
 		failed, ok)
 
 	// if outbounds are not enougth, ask discover to find more
@@ -671,9 +734,9 @@ func peMgrConnOutRsp(msg interface{}) PeMgrErrno {
 		return PeMgrEnoScheduler
 	}
 
-	if eno = sch.SchinfSendMsg2Task(&schMsg); eno != sch.SchEnoNone {
+	if eno = sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("peMgrConnOutRsp: " +
-			"SchinfSendMsg2Task EvPeHandshakeReq failed, eno: %d, target: %s",
+			"SchinfSendMessage EvPeHandshakeReq failed, eno: %d, target: %s",
 			eno, sch.SchinfGetTaskName(rsp.ptn))
 		return PeMgrEnoScheduler
 	}
@@ -719,9 +782,9 @@ func peMgrHandshakeRsp(msg interface{}) PeMgrErrno {
 		return PeMgrEnoScheduler
 	}
 
-	if eno = sch.SchinfSendMsg2Task(&schMsg); eno != sch.SchEnoNone {
+	if eno = sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("peMgrHandshakeRsp: " +
-			"SchinfSendMsg2Task EvPeHandshakeReq failed, eno: %d, target: %s",
+			"SchinfSendMessage EvPeHandshakeReq failed, eno: %d, target: %s",
 			eno, sch.SchinfGetTaskName(rsp.ptn))
 		return PeMgrEnoScheduler
 	}
@@ -793,9 +856,9 @@ func peMgrCloseReq(msg interface{}) PeMgrErrno {
 		return PeMgrEnoScheduler
 	}
 
-	if eno = sch.SchinfSendMsg2Task(&schMsg); eno != sch.SchEnoNone {
+	if eno = sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("peMgrCloseReq: " +
-			"SchinfSendMsg2Task EvPeHandshakeReq failed, eno: %d, target: %s",
+			"SchinfSendMessage EvPeHandshakeReq failed, eno: %d, target: %s",
 			eno, sch.SchinfGetTaskName(req.Ptn))
 		return PeMgrEnoScheduler
 	}
@@ -847,10 +910,10 @@ func peMgrConnCloseCfm(msg interface{}) PeMgrErrno {
 		return PeMgrEnoScheduler
 	}
 
-	schEno = sch.SchinfSendMsg2Task(&schMsg)
+	schEno = sch.SchinfSendMessage(&schMsg)
 	if schEno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("peMgrConnCloseCfm: " +
-			"SchinfSendMsg2Task for EvPeOutboundReq failed, target: %s",
+			"SchinfSendMessage for EvPeOutboundReq failed, target: %s",
 			sch.SchinfGetTaskName(peMgr.ptnMe))
 		return PeMgrEnoScheduler
 	}
@@ -899,10 +962,10 @@ func peMgrConnCloseInd(msg interface{}) PeMgrErrno {
 		return PeMgrEnoScheduler
 	}
 
-	schEno = sch.SchinfSendMsg2Task(&schMsg)
+	schEno = sch.SchinfSendMessage(&schMsg)
 	if schEno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("peMgrConnCloseInd: " +
-			"SchinfSendMsg2Task for EvPeOutboundReq failed, target: %s",
+			"SchinfSendMessage for EvPeOutboundReq failed, target: %s",
 			sch.SchinfGetTaskName(peMgr.ptnMe))
 		return PeMgrEnoScheduler
 	}
@@ -946,7 +1009,7 @@ func peMgrCreateOutboundInst(node *ycfg.Node) PeMgrErrno {
 		Name:		"Outbound" + fmt.Sprintf("%s", obInstSeq),
 		MbSize:		PeInstMailboxSize,
 		Ep:			PeerInstProc,
-		Wd:			nil,
+		Wd:			&sch.SchWatchDog{HaveDog:false,},
 		Flag:		sch.SchCreatedGo,
 		DieCb:		nil,
 		UserDa:		peInst,
@@ -982,9 +1045,9 @@ func peMgrCreateOutboundInst(node *ycfg.Node) PeMgrErrno {
 		return PeMgrEnoScheduler
 	}
 
-	if eno = sch.SchinfSendMsg2Task(&schMsg); eno != sch.SchEnoNone {
+	if eno = sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("peMgrCreateOutboundInst: " +
-			"SchinfSendMsg2Task EvPeHandshakeReq failed, eno: %d, target: %s",
+			"SchinfSendMessage EvPeHandshakeReq failed, eno: %d, target: %s",
 			eno, sch.SchinfGetTaskName(peInst.ptnMe))
 		return PeMgrEnoScheduler
 	}
@@ -1067,8 +1130,10 @@ func peMgrKillInst(ptn interface{}, node *ycfg.Node) PeMgrErrno {
 //
 func peMgrAsk4More() PeMgrErrno {
 
+	//
 	// Send EvDcvFindNodeReq to discover task. The filters “include" and
 	// "exclude" are not applied currently.
+	//
 
 	var eno sch.SchErrno
 	var schMsg = sch.SchMessage{}
@@ -1085,12 +1150,59 @@ func peMgrAsk4More() PeMgrErrno {
 		return PeMgrEnoScheduler
 	}
 
-	if eno = sch.SchinfSendMsg2Task(&schMsg); eno != sch.SchEnoNone {
+	if eno = sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("peMgrAsk4More: " +
-			"SchinfSendMsg2Task EvPeHandshakeReq failed, eno: %d, target: %s",
+			"SchinfSendMessage EvPeHandshakeReq failed, eno: %d, target: %s",
 			eno, sch.SchinfGetTaskName(peMgr.ptnDcv))
 		return PeMgrEnoScheduler
 	}
+
+	var td = sch.TimerDescription {
+		Name:	"",
+		Utid:	sch.PeDcvFindNodeTimerId,
+		Tmt:	sch.SchTmTypeAbsolute,
+		Dur:	durDcvFindNodeTimer,
+		Extra:	nil,
+	}
+
+	peMgr.tidFindNode = sch.SchInvalidTid
+
+	//
+	// if the findnode timer not still not expired, we kill it and set a new one,
+	// but attention: if SchEnoNotFound returned while killing timer, we still go
+	// ahead, see function sch.SchinfKillTimer for more please.
+	//
+
+	tid := peMgr.tidFindNode
+	if tid != sch.SchInvalidTid {
+		if eno = sch.SchinfKillTimer(peMgr.ptnMe, tid);
+			eno != sch.SchEnoNone && eno != sch.SchEnoNotFound {
+			yclog.LogCallerFileLine("peMgrAsk4More: " +
+				"kill timer failed, eno: %d, tid: %d",
+				eno, tid)
+			return PeMgrEnoScheduler
+		}
+		if eno != sch.SchEnoNotFound {
+			yclog.LogCallerFileLine("peMgrAsk4More: " +
+				"timer not found, tid: %d",
+				tid)
+		}
+		peMgr.tidFindNode = sch.SchInvalidTid
+	}
+
+	if eno, tid = sch.SchInfSetTimer(peMgr.ptnMe, &td);
+		eno != sch.SchEnoNone || tid == sch.SchInvalidTid {
+		yclog.LogCallerFileLine("peMgrAsk4More: " +
+			"set timer sch.PeDcvFindNodeTimerId failed, eno: %d",
+			eno)
+		return PeMgrEnoScheduler
+	}
+
+	yclog.LogCallerFileLine("peMgrAsk4More: " +
+		"set timer sch.PeDcvFindNodeTimerId ok, tid: %d",
+		tid)
+
+	peMgr.tidFindNode = tid
 
 	return PeMgrEnoNone
 }
@@ -1318,9 +1430,9 @@ func piConnOutReq(inst *peerInstance, msg interface{}) PeMgrErrno {
 		return PeMgrEnoScheduler
 	}
 
-	if schEno = sch.SchinfSendMsg2Task(&schMsg); schEno != sch.SchEnoNone {
+	if schEno = sch.SchinfSendMessage(&schMsg); schEno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("piConnOutReq: " +
-			"SchinfSendMsg2Task EvPeConnOutRsp failed, eno: %d, target: %s",
+			"SchinfSendMessage EvPeConnOutRsp failed, eno: %d, target: %s",
 			schEno, sch.SchinfGetTaskName(inst.ptnMgr))
 		return PeMgrEnoScheduler
 	}
@@ -1398,9 +1510,9 @@ func piHandshakeReq(inst *peerInstance, msg interface{}) PeMgrErrno {
 		return PeMgrEnoScheduler
 	}
 
-	if schEno = sch.SchinfSendMsg2Task(&schMsg); schEno != sch.SchEnoNone {
+	if schEno = sch.SchinfSendMessage(&schMsg); schEno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("piHandshakeReq: " +
-			"SchinfSendMsg2Task EvPeConnOutRsp failed, eno: %d, target: %s",
+			"SchinfSendMessage EvPeConnOutRsp failed, eno: %d, target: %s",
 			schEno, sch.SchinfGetTaskName(inst.ptnMgr))
 		return PeMgrEnoScheduler
 	}

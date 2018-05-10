@@ -77,7 +77,7 @@ const (
 	autoRefreshCycle	= 1 * time.Hour			// period to auto refresh
 	findNodeExpiration	= 21 * time.Second		// should be (NgbProtoFindNodeResponseTimeout + delta)
 	pingpongExpiration	= 21 * time.Second		// should be (NgbProtoPingResponseTimeout + delta)
-	seedCount           = 32					// wanted number of seeds
+	seedMaxCount          = 32					// wanted number of seeds
 	seedMaxAge          = 5 * 24 * time.Hour	// max age can seeds be
 	nodeExpiration		= 24 * time.Hour		// Time after which an unseen node should be dropped.
 	nodeCleanupCycle	= time.Hour				// Time period for running the expiration task.
@@ -494,7 +494,7 @@ func TabMgrRefreshReq(msg *sch.MsgTabRefreshReq)TabMgrErrno {
 //
 func TabMgrFindNodeRsp(msg *sch.NblFindNodeRsp)TabMgrErrno {
 
-	yclog.LogCallerFileLine("TabMgrRefreshReq: FindNode response received");
+	yclog.LogCallerFileLine("TabMgrRefreshReq: FindNode response received")
 
 	if msg == nil {
 		yclog.LogCallerFileLine("TabMgrRefreshReq: invalid parameters")
@@ -572,7 +572,7 @@ func TabMgrFindNodeRsp(msg *sch.NblFindNodeRsp)TabMgrErrno {
 	for _, node := range msg.Neighbors.Nodes {
 		if eno := tabAddPendingBoundInst(node); eno != TabMgrEnoNone {
 			yclog.LogCallerFileLine("TabMgrFindNodeRsp: tabAddPendingBoundInst failed, eno: %d", eno)
-			break;
+			break
 		}
 	}
 
@@ -668,6 +668,19 @@ func TabMgrPingpongRsp(msg *sch.NblPingRsp) TabMgrErrno {
 	if msg.Result != 0 {
 		yclog.LogCallerFileLine("TabMgrPingpongRsp: fail reported, result: %d", msg.Result)
 		return TabMgrEnoNone
+	}
+
+	//
+	// update last pong time
+	//
+
+	pot	:= time.Now()
+	if eno := tabBucketUpdatePingpongTime(NodeID(inst.req.(*um.Ping).To.NodeId), nil, &pot);
+		eno != TabMgrEnoNone {
+		yclog.LogCallerFileLine("tabActiveBoundInst: " +
+			"tabBucketUpdatePingpongTime failed, eno: %d",
+			eno)
+		return eno
 	}
 
 	//
@@ -855,7 +868,7 @@ func tabNodeDbPrepare() TabMgrErrno {
 // Node identity to sha
 //
 func tabNodeId2Hash(id NodeID) *Hash {
-	h := sha256.Sum256(tabMgr.cfg.local.ID[:])
+	h := sha256.Sum256(id[:])
 	return (*Hash)(&h)
 }
 
@@ -910,7 +923,7 @@ func tabSetupLog2DistanceLookupTable(lkt []int) TabMgrErrno {
 	lkt[0] = 8
 	for n = 0; n < 8; n++ {
 		for b = 1<<n; b < 1<<(n+1); b++ {
-			lkt[b] = int(8 - n - 1);
+			lkt[b] = int(8 - n - 1)
 		}
 	}
 	return TabMgrEnoNone
@@ -943,7 +956,7 @@ func tabRefresh(tid *NodeID) TabMgrErrno {
 	}
 
 	if nodes = tabClosest(target, TabInstQPendingMax); len(nodes) == 0 {
-		seeds := tabSeedsFromDb(TabInstQPendingMax)
+		seeds := tabSeedsFromDb(TabInstQPendingMax, seedMaxAge)
 		nodes = append(nodes, tabMgr.cfg.bootstrapNodes...)
 		nodes = append(nodes, seeds...)
 		if len(nodes) > TabInstQPendingMax {
@@ -988,7 +1001,7 @@ func tabClosest(target NodeID, size int) []*Node {
 	// since we do not sort the nodes in the first bank, see bellow pls.
 	//
 
-	var closest = []*Node{}
+	var closest = make([]*Node, 0, maxBonding)
 	var count = 0
 
 	ht := tabNodeId2Hash(target)
@@ -1053,17 +1066,29 @@ func tabClosest(target NodeID, size int) []*Node {
 //
 // Fetch seeds from node database
 //
-func tabSeedsFromDb(size int) []*Node {
+func tabSeedsFromDb(size int, age time.Duration) []*Node {
 
-	nodes := tabMgr.nodeDb.querySeeds(seedCount, seedMaxAge)
+	if size == 0 {
+		yclog.LogCallerFileLine("tabSeedsFromDb: invalid zero size")
+		return nil
+	}
+
+	if size > seedMaxCount { size = seedMaxCount }
+	if age > seedMaxAge { age = seedMaxAge }
+	nodes := tabMgr.nodeDb.querySeeds(size, age)
 
 	if nodes == nil {
 		yclog.LogCallerFileLine("tabSeedsFromDb: nil nodes")
 		return nil
 	}
+
 	if len(nodes) == 0 {
 		yclog.LogCallerFileLine("tabSeedsFromDb: empty node table")
 		return nil
+	}
+
+	if len(nodes) > size {
+		nodes = nodes[0:size]
 	}
 
 	return nodes
@@ -1142,13 +1167,13 @@ func tabQuery(target *NodeID, nodes []*Node) TabMgrErrno {
 				return TabMgrEnoScheduler
 			}
 
-			if eno := sch.SchinfSendMsg2Task(&schMsg); eno != sch.SchEnoNone {
-				yclog.LogCallerFileLine("tabQuery: SchinfSendMsg2Task failed, eno: %d", eno)
+			if eno := sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
+				yclog.LogCallerFileLine("tabQuery: SchinfSendMessage failed, eno: %d", eno)
 				return TabMgrEnoScheduler
 			}
 
 			if eno := tabStartTimer(icb, sch.TabFindNodeTimerId, findNodeExpiration); eno != TabMgrEnoNone {
-				yclog.LogCallerFileLine("tabQuery: tabRefresh failed, eno: %d", eno)
+				yclog.LogCallerFileLine("tabQuery: tabStartTimer failed, eno: %d", eno)
 				return eno
 			}
 
@@ -1558,14 +1583,14 @@ func tabBucketUpdatePingpongTime(id NodeID, pit *time.Time, pot *time.Time) TabM
 //
 // Find max find node faile count
 //
-func (b *bucket) maxFindNodeFiled(src []*bucketEntry) ([]*bucketEntry) {
+func (b *bucket) maxFindNodeFailed(src []*bucketEntry) ([]*bucketEntry) {
 
 	//
 	// if the source is nil, recursive then
 	//
 
 	if src == nil {
-		return b.maxFindNodeFiled(b.nodes)
+		return b.maxFindNodeFailed(b.nodes)
 	}
 
 	//
@@ -1573,7 +1598,7 @@ func (b *bucket) maxFindNodeFiled(src []*bucketEntry) ([]*bucketEntry) {
 	//
 
 	var max = 0
-	var beMaxf = []*bucketEntry{}
+	var beMaxf = make([]*bucketEntry, 0)
 
 	for _, be := range src {
 		if be.failCount > max {
@@ -1618,7 +1643,7 @@ func (b *bucket) latestAdd(src []*bucketEntry) ([]*bucketEntry) {
 	//
 
 	var latest = time.Now().Add(time.Hour*24*1024)
-	var beLatest = []*bucketEntry{}
+	var beLatest = make([]*bucketEntry, 0)
 
 	for _, be := range src {
 		if be.addTime.After(latest) {
@@ -1651,7 +1676,7 @@ func (b *bucket) eldestPong(src []*bucketEntry) ([]*bucketEntry) {
 	//
 
 	var eldest = time.Now()
-	var beEldest = []*bucketEntry{}
+	var beEldest = make([]*bucketEntry, 0)
 
 	for _, be := range src {
 		if be.lastPong.Before(eldest) {
@@ -1734,7 +1759,7 @@ func tabBucketAddNode(n *um.Node, lastPing *time.Time, lastPong *time.Time) TabM
 	var kicked []*bucketEntry = nil
 	var beKicked *bucketEntry = nil
 
-	if kicked = b.maxFindNodeFiled(nil); len(kicked) == 1 {
+	if kicked = b.maxFindNodeFailed(nil); len(kicked) == 1 {
 		beKicked = kicked[0]
 		goto kickSelected
 	}
@@ -1932,11 +1957,23 @@ func tabActiveBoundInst() TabMgrErrno {
 		// tabBucketAddNode for more about this.
 		//
 
-		icb.pot	= time.Now().Add(time.Hour*24*1024)
+		pot	:= time.Now().Add(time.Hour*24*1024)
+		pit := time.Now()
+		if eno := tabBucketUpdatePingpongTime(NodeID(pn.ID), &pit, &pot); eno != TabMgrEnoNone {
+			yclog.LogCallerFileLine("tabActiveBoundInst: " +
+				"tabBucketUpdatePingpongTime failed, eno: %d",
+				eno)
+			return eno
+		}
 
-		if eno = sch.SchinfSendMsg2Task(&schMsg); eno != sch.SchEnoNone {
-			yclog.LogCallerFileLine("tabActiveBoundInst: SchinfSendMsg2Task failed, eno: %d", eno)
+		if eno := sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
+			yclog.LogCallerFileLine("tabActiveBoundInst: SchinfSendMessage failed, eno: %d", eno)
 			return TabMgrEnoScheduler
+		}
+
+		if eno := tabStartTimer(icb, sch.TabPingpongTimerId, pingpongExpiration); eno != TabMgrEnoNone {
+			yclog.LogCallerFileLine("tabActiveBoundInst: tabStartTimer failed, eno: %d", eno)
+			return eno
 		}
 
 		tabMgr.boundPending = append(tabMgr.boundPending[:0], tabMgr.boundPending[1:]...)
@@ -1968,8 +2005,8 @@ func tabDiscoverResp(node *um.Node) TabMgrErrno {
 		return TabMgrEnoScheduler
 	}
 
-	if eno := sch.SchinfSendMsg2Task(&schMsg); eno != sch.SchEnoNone {
-		yclog.LogCallerFileLine("tabDiscoverResp: SchinfSendMsg2Task failed, eno: %d", eno)
+	if eno := sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("tabDiscoverResp: SchinfSendMessage failed, eno: %d", eno)
 		return TabMgrEnoScheduler
 	}
 

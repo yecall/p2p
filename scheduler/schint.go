@@ -112,7 +112,7 @@ const schMaxTaskTimer	= SchMaxTaskTimer				// max timers can be held by one user
 const schInvalidTid		= SchInvalidTid			// invalid timer identity
 
 type schTask struct {
-	lock		sync.Locker						// lock to protect task control block
+	lock		sync.Mutex						// lock to protect task control block
 	name		string							// task name
 	utep		schUserTaskEp					// user task entry point
 	mailbox		schMailBox						// mail box
@@ -123,7 +123,7 @@ type schTask struct {
 	dog			schWatchDog						// wathch dog
 	dieCb		func(interface{}) SchErrno		// callbacked when going to die
 	goStatus	int								// in going or suspended
-	userData	interface{}					// data area pointer of user task
+	userData	interface{}						// data area pointer of user task
 }
 
 //

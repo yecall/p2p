@@ -194,22 +194,24 @@ const (
 // Peer connection establishment event
 //
 const PePingpongTimerId	= 0
+const PeDcvFindNodeTimerId = 1
 const (
-	EvPeerEstBase		= 1800
-	EvPePingpongTimer	= EvTimerBase	+ PePingpongTimerId
-	EvPeConnOutReq		= EvPeerEstBase + 1
-	EvPeConnOutRsp		= EvPeerEstBase + 2
-	EvPeHandshakeReq	= EvPeerEstBase + 3
-	EvPeHandshakeRsp	= EvPeerEstBase + 4
-	EvPePingpongReq		= EvPeerEstBase + 5
-	EvPePingpongRsp		= EvPeerEstBase + 6
-	EvPeCloseReq		= EvPeerEstBase + 7
-	EvPeCloseCfm		= EvPeerEstBase + 8
-	EvPeCloseInd		= EvPeerEstBase + 9
-	EvPeOutboundReq		= EvPeerEstBase + 10
-	EvPeEstablishedInd	= EvPeerEstBase + 11
-	EvPeMgrStartReq		= EvPeerEstBase + 12
-	EvPeDataReq			= EvPeerEstBase + 13
+	EvPeerEstBase			= 1800
+	EvPePingpongTimer		= EvTimerBase	+ PePingpongTimerId
+	EvPeDcvFindNodeTimer	= EvTimerBase	+ PeDcvFindNodeTimerId
+	EvPeConnOutReq			= EvPeerEstBase + 1
+	EvPeConnOutRsp			= EvPeerEstBase + 2
+	EvPeHandshakeReq		= EvPeerEstBase + 3
+	EvPeHandshakeRsp		= EvPeerEstBase + 4
+	EvPePingpongReq			= EvPeerEstBase + 5
+	EvPePingpongRsp			= EvPeerEstBase + 6
+	EvPeCloseReq			= EvPeerEstBase + 7
+	EvPeCloseCfm			= EvPeerEstBase + 8
+	EvPeCloseInd			= EvPeerEstBase + 9
+	EvPeOutboundReq			= EvPeerEstBase + 10
+	EvPeEstablishedInd		= EvPeerEstBase + 11
+	EvPeMgrStartReq			= EvPeerEstBase + 12
+	EvPeDataReq				= EvPeerEstBase + 13
 )
 
 //

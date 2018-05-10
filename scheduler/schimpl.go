@@ -510,6 +510,7 @@ func schimplCreateTask(taskDesc *schTaskDescription) (SchErrno, interface{}){
 	ptn.task.utep			= schUserTaskEp(taskDesc.Ep)
 	mq 						:= make(chan schMessage, taskDesc.MbSize)
 	ptn.task.mailbox.que	= &mq
+	ptn.task.mailbox.size	= taskDesc.MbSize
 	ptn.task.done			= make(chan SchErrno)
 	ptn.task.dog			= schWatchDog(*taskDesc.Wd)
 	ptn.task.dieCb			= taskDesc.DieCb
@@ -1083,9 +1084,15 @@ func schimplKillTimer(ptn *schTaskNode, tid int) SchErrno {
 		return SchEnoParameter
 	}
 
+	// Notice: when try to kill a timer, the timer might have been expired, but
+	// the message sent about this is still not received by user task. In this
+	// case, user task would get "SchEnoNotFound", and this is not fault of the
+	// scheduler really, but the user task would be confuse with the event about
+	// a timer killed failed(SchEnoNotFound) received later. We still not solve
+	// this issue now.
 	if ptn.task.tmTab[tid] == nil {
 		yclog.LogCallerFileLine("schimplKillTimer: try to kill a null timer")
-		return SchEnoParameter
+		return SchEnoNotFound
 	}
 
 	// emit stop signal and wait stopped signal

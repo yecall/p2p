@@ -281,18 +281,18 @@ func SchinfGetTaskNodeByName(name string) (eno SchErrno, task interface{}) {
 //
 // Send message to a specific task
 //
-func SchinfSendMsg2TaskByName(dstTask string, srcTask string, msg *SchMessage) SchErrno {
+func SchinfSendMessageByName(dstTask string, srcTask string, msg *SchMessage) SchErrno {
 
 	eno, src := SchinfGetTaskNodeByName(srcTask)
 	if eno != SchEnoNone || src == nil {
-		yclog.LogCallerFileLine("SchinfSendMsg2TaskByName: " +
+		yclog.LogCallerFileLine("SchinfSendMessageByName: " +
 			"SchinfGetTaskNodeByName failed, name: %s, eno: %d", srcTask, eno)
 		return eno
 	}
 
 	eno, dst := SchinfGetTaskNodeByName(dstTask)
 	if eno != SchEnoNone || dst == nil {
-		yclog.LogCallerFileLine("SchinfSendMsg2TaskByName: " +
+		yclog.LogCallerFileLine("SchinfSendMessageByName: " +
 			"SchinfGetTaskNodeByName failed, name: %s, eno: %d", dstTask, eno)
 		return eno
 	}
@@ -300,10 +300,10 @@ func SchinfSendMsg2TaskByName(dstTask string, srcTask string, msg *SchMessage) S
 	msg.sender = src.(*schTaskNode)
 	msg.recver = dst.(*schTaskNode)
 
-	return SchinfSendMsg2Task(msg)
+	return SchinfSendMessage(msg)
 }
 
-func SchinfSendMsg2Task(msg *SchMessage) SchErrno {
+func SchinfSendMessage(msg *SchMessage) SchErrno {
 	return schimplSendMsg2Task((*schMessage)(msg))
 }
 
@@ -325,7 +325,7 @@ func SchinfMakeMessage(msg *SchMessage, s, r interface{}, id int, body interface
 //
 // Send message to a specific task group
 //
-func SchinfSendMsg2TaskGroup(grp string, msg *SchMessage) (eno SchErrno, failedCount int) {
+func SchinfSendMessageGroup(grp string, msg *SchMessage) (eno SchErrno, failedCount int) {
 	return schimplSendMsg2TaskGroup(grp, (*schMessage)(msg))
 }
 
