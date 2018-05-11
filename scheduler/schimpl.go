@@ -546,19 +546,22 @@ func schimplCreateTask(taskDesc *schTaskDescription) (SchErrno, interface{}){
 	}
 
 	//
-	// map task name to task node ponter. some dynamic tasks might have empty
+	// map task name to task node pointer. some dynamic tasks might have empty
 	// task name, in this case, the task node pointer would not be mapped in
 	// table, and this task could not be found by function schimplGetTaskNodeByName
 	//
 
+	p2pSDL.lock.Lock()
 	if len(ptn.task.name) <= 0 {
 		yclog.LogCallerFileLine("schimplCreateTask: task with empty name")
-	} else if p2pSDL.tkMap[schTaskName(ptn.task.name)] != nil {
+	} else if _, dup := p2pSDL.tkMap[schTaskName(ptn.task.name)]; dup == true {
 		yclog.LogCallerFileLine("schimplCreateTask: duplicated task name: %s", ptn.task.name)
+		p2pSDL.lock.Unlock()
 		return SchEnoDuplicated, nil
 	} else {
 		p2pSDL.tkMap[schTaskName(ptn.task.name)] = ptn
 	}
+	p2pSDL.lock.Unlock()
 
 	//
 	// start task to work

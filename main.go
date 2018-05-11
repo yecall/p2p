@@ -35,6 +35,28 @@ func main() {
 
 	yclog.LogCallerFileLine("main: going to start ycp2p ...")
 
+	//
+	// fetch default from underlying
+	//
+
+	dftCfg := shell.ShellDefaultConfig()
+	if dftCfg == nil {
+		yclog.LogCallerFileLine("main: ShellDefaultConfig failed")
+		return
+	}
+
+	//
+	// one can then apply his configurations based on the default by calling
+	// ShellConfig with a defferent configuration if he likes to.
+	//
+
+	myCfg := *dftCfg
+	shell.ShellConfig(&myCfg)
+
+	//
+	// init and then start
+	//
+
 	if eno := shell.P2pInit(); eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("main: SchinfSchedulerInit failed, eno: %d", eno)
 		return
@@ -43,6 +65,10 @@ func main() {
 	eno, _ := shell.P2pStart()
 
 	yclog.LogCallerFileLine("main: ycp2p started, eno: %d", eno)
+
+	//
+	// hook a system interrupt signal and wait on it
+	//
 
 	sigc := make(chan os.Signal, 1)
 	signal.Notify(sigc, os.Interrupt)

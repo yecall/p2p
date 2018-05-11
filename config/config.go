@@ -22,14 +22,17 @@
 package config
 
 import (
+	"strings"
+	"strconv"
 	"net"
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"path/filepath"
 	"os"
 	"os/user"
 	"runtime"
 	"fmt"
-	"path"
+	ethereum "github.com/ethereum/go-ethereum/crypto"
 	yclog "ycp2p/logger"
 )
 
@@ -40,37 +43,46 @@ import (
 type P2pCfgErrno int
 
 const (
-	PcfgEnoNone		= iota
+	PcfgEnoNone			= iota
 	PcfgEnoParameter
+	PcfgEnoPublicKye
 	PcfgEnoPrivateKye
 	PcfgEnoDataDir
 	PcfgEnoDatabase
 	PcfgEnoIpAddr
+	PcfgEnoNodeId
 )
 
 //
 // Some paths
 //
 const (
-	PcfgEnoIpAddrivateKey      = "nodekey"            // Path within the datadir to the node's private key
-	datadirDefaultKeyStore = "keystore"           // Path within the datadir to the keystore
-	datadirStaticNodes     = "static-nodes.json"  // Path within the datadir to the static node list
-	datadirTrustedNodes    = "trusted-nodes.json" // Path within the datadir to the trusted node list
-	datadirNodeDatabase    = "nodes"              // Path within the datadir to store the node infos
+	PcfgEnoIpAddrivateKey	= "nodekey"	// Path within the datadir to the node's private key
+	datadirNodeDatabase		= "nodes"	// Path within the datadir to store the node infos
 )
 
 //
-// Boot nodes
+// Bootstrap nodes, in a format like:
 //
-var MainnetBootnodes = []string{
-	"ynode://xxx...@127.0.0.1:30303",
+//	node-identity-hex-string@ip:udp-port:tcp-port
+//
+const P2pMaxBootstrapNodes = 32
+var BootstrapNodeUrl = []string {
+	"a979fb575495b8d6db44f750317d0f4622bf4c2aa3365d6af7c284339968eef29b69ad0dce72a4d8db5ebb4968de0e3bec910127f134779fbcb0cb6d3331163c@52.16.188.185:30303:30303",
+	"3f1d12044546b76342d59d4a05532c14b85aa669704bfe1f864fe079415aa2c02d743e03218e57a33fb94523adb54032871a6c51b2cc5514cb7c7e35b3ed0a99@13.93.211.84:30303:30303",
+	"78de8a0916848093c73790ead81d1928bec737d565119932b98c6b100d944b7a95e94f847f689fc723399d2e31129d182f7ef3863f2b4c820abbf3ab2722344d@191.235.84.50:30303:30303",
 }
+
+//
+// Build "Node" struct for bootstraps
+//
+var BootstrapNodes = P2pSetupDefaultBootstrapNodes()
 
 //
 // Node ID length in bits
 //
 const NodeIDBits	= 512
-const NodeIDBytes	= NodeIDBits/8
+const NodeIDBytes	= NodeIDBits / 8
 
 //
 // Node identity
@@ -90,8 +102,8 @@ const MaxPeers = 32
 //
 // Max concurrecny inboudn and outbound
 //
-const MaxInbounds	= MaxPeers/2
-const MaxOutbounds	= MaxPeers/2
+const MaxInbounds	= MaxPeers / 2
+const MaxOutbounds	= MaxPeers / 2
 
 
 
@@ -110,6 +122,7 @@ type Node struct {
 type Config struct {
 	Version			string				// p2p version
 	PrivateKey		*ecdsa.PrivateKey	// node private key
+	PublicKey		*ecdsa.PublicKey	// node public key
 	MaxPeers		int					// max peers can be
 	MaxInbounds		int					// max peers for inbound concurrency establishing can be
 	MaxOutbounds	int					// max peers for outbound concurrency establishing can be
@@ -175,6 +188,11 @@ type Cfg4TabManager struct {
 const dftVersion = "0.1.0.0"
 
 //
+// Default p2p instance name
+//
+const dftName = "test"
+
+//
 // Default configuration(notice that it's not a validated configuration and
 // could never be applied), most of those defaults must be overided by higher
 // lever module of system.
@@ -189,24 +207,25 @@ var dftLocal = Node {
 var config = Config {
 	Version:			dftVersion,
 	PrivateKey:			nil,
+	PublicKey:			nil,
 	MaxPeers:			MaxPeers,
 	MaxInbounds:		MaxInbounds,
 	MaxOutbounds:		MaxOutbounds,
-	Name:				"yeeco.node",
-	BootstrapNodes:		nil,
+	Name:				dftName,
+	BootstrapNodes:		BootstrapNodes,
 	StaticNodes:		nil,
-	NodeDataDir:		P2pDefaultDataDir(),
-	NodeDatabase:		"node.db",
+	NodeDataDir:		P2pDefaultDataDir(true),
+	NodeDatabase:		datadirNodeDatabase,
 	NoDial:				false,
 	BootstrapNode:		false,
 	Local:				dftLocal,
 }
 
 //
-// Setup local node identity
+// Get default config
 //
-func p2pSetupLocalNodeId() P2pCfgErrno {
-	return PcfgEnoNone
+func P2pDefaultConfig() *Config {
+	return &config
 }
 
 //
@@ -215,7 +234,9 @@ func p2pSetupLocalNodeId() P2pCfgErrno {
 func P2pConfig(cfg *Config) P2pCfgErrno {
 
 	//
-	// update
+	// Update, one SHOULD first call P2pDefaultConfig to get default value, modify
+	// some fields if necessary, and then call this function, since the configuration
+	// is overlapped directly here in this function.
 	//
 
 	if cfg == nil {
@@ -225,12 +246,18 @@ func P2pConfig(cfg *Config) P2pCfgErrno {
 	config = *cfg
 
 	//
-	// check configuration
+	// Check configuration. Notice that we do not need a private key in current
+	// implement, only public key needed to build the local node identity, so one
+	// can leave private to be nil while give a not nil public key. If both are
+	// nils, key pair will be built, see bellow pls.
 	//
 
 	if config.PrivateKey == nil {
-		yclog.LogCallerFileLine("P2pConfig: invalid private key")
-		return PcfgEnoPrivateKye
+		yclog.LogCallerFileLine("P2pConfig: private key is empty")
+	}
+
+	if config.PublicKey == nil {
+		yclog.LogCallerFileLine("P2pConfig: public key is empty")
 	}
 
 	if config.MaxPeers == 0 ||
@@ -255,7 +282,7 @@ func P2pConfig(cfg *Config) P2pCfgErrno {
 		yclog.LogCallerFileLine("P2pConfig: StaticNodes is empty")
 	}
 
-	if len(config.NodeDataDir) == 0 || path.IsAbs(config.NodeDataDir) == false {
+	if len(config.NodeDataDir) == 0 /*|| path.IsAbs(config.NodeDataDir) == false*/ {
 		yclog.LogCallerFileLine("P2pConfig: invaid data directory")
 		return PcfgEnoDataDir
 	}
@@ -268,6 +295,15 @@ func P2pConfig(cfg *Config) P2pCfgErrno {
 	if config.Local.IP == nil {
 		yclog.LogCallerFileLine("P2pConfig: invalid ip address")
 		return PcfgEnoIpAddr
+	}
+
+	//
+	// setup local node identity from key
+	//
+
+	if p2pSetupLocalNodeId() != PcfgEnoNone {
+		yclog.LogCallerFileLine("P2pConfig: invalid ip address")
+		return PcfgEnoNodeId
 	}
 
 	return PcfgEnoNone
@@ -285,20 +321,80 @@ func P2pNodeId2HexString(id NodeID) string {
 }
 
 //
-// Get default data directory
+// Hex-string to node identity
 //
-func P2pDefaultDataDir() string {
-	home := P2pGetUserHomeDir()
-	if home != "" {
-		if runtime.GOOS == "darwin" {
-			return filepath.Join(home, "Library", "yee")
-		} else if runtime.GOOS == "windows" {
-			return filepath.Join(home, "AppData", "Roaming", "Yee")
+func P2pHexString2NodeId(hex string) *NodeID {
+
+	var nid = NodeID{byte(0)}
+
+	if len(hex) != NodeIDBytes * 2 {
+		yclog.LogCallerFileLine("P2pHexString2NodeId: invalid length: %d", len(hex))
+		return nil
+	}
+
+	for cidx, c := range hex {
+
+		if c >= '0' && c <= '9' {
+			c = c - '0'
+		} else if c >= 'a' && c <= 'f' {
+			c = c - 'a'
+		} else if c >= 'A' && c <= 'F' {
+			c = c - 'A'
 		} else {
-			return filepath.Join(home, ".yee")
+			yclog.LogCallerFileLine("P2pHexString2NodeId: invalid string: %s", hex)
+			return nil
+		}
+
+		bidx := cidx >> 1
+		if cidx & 0x01 == 0 {
+			nid[bidx] = byte(c << 4)
+		} else {
+			nid[bidx] += byte(c)
 		}
 	}
-	return ""
+
+	return &nid
+}
+
+//
+// Get default data directory
+//
+func P2pDefaultDataDir(flag bool) string {
+
+	//
+	// get home and setup default dir
+	//
+
+	home := P2pGetUserHomeDir()
+
+	if home != "" {
+		if runtime.GOOS == "darwin" {
+			home = filepath.Join(home, "Library", "yee")
+		} else if runtime.GOOS == "windows" {
+			home = filepath.Join(home, "AppData", "Roaming", "Yee")
+		} else {
+			home = filepath.Join(home, ".yee")
+		}
+	}
+
+	//
+	// check flag to create default directory if it's not exit
+	//
+
+	if flag {
+		_, err := os.Stat(home)
+		if err == nil {
+			return home
+		}
+		if os.IsNotExist(err) {
+			err := os.MkdirAll(home, 0700)
+			if err != nil {
+				return ""
+			}
+		}
+	}
+
+	return home
 }
 
 //
@@ -314,49 +410,170 @@ func P2pGetUserHomeDir() string {
 	return ""
 }
 
-//
-// Open data directory
-//
-func P2pOpenDataDir() error {
-	/*
-	 * The flock package can not be gitted from following URL, we empty this function
-	 * now, We would solve this issue later.
-	 *
-	 * import "github.com/prometheus/prometheus/util/flock"
-	 *
-	 *
+func p2pBuildPrivateKey() *ecdsa.PrivateKey {
+
+	//
+	// Here we apply the Ethereum crypto package to build node private key:
+	//
+	// 1) if no data directory specified, try to generate key, but do no save to file;
+	// 2) if data directory presented, try to load key from file;
+	// 3) if load failed, try to generate key and the save it to file;
+	//
+	// See bellow please, also see Ethereum function node.NodeKey pls.
+	//
 
 	if config.NodeDataDir == "" {
+		key, err := ethereum.GenerateKey()
+		if err != nil {
+			yclog.LogCallerFileLine("p2pBuildPrivateKey: GenerateKey failed, err: %s", err.Error())
+			return nil
+		}
+		return key
+	}
+
+	keyfile := filepath.Join(config.NodeDataDir, config.Name, PcfgEnoIpAddrivateKey)
+	if key, err := ethereum.LoadECDSA(keyfile); err == nil {
+		yclog.LogCallerFileLine("p2pBuildPrivateKey: private key loaded ok from file: %s", keyfile)
+		return key
+	}
+
+	key, err := ethereum.GenerateKey()
+	if err != nil {
+		yclog.LogCallerFileLine("p2pBuildPrivateKey: GenerateKey failed, err: %s", err.Error())
 		return nil
 	}
 
-	instdir := filepath.Join(config.NodeDataDir, config.Name)
-	if err := os.MkdirAll(instdir, 0700); err != nil {
-		return err
+	instanceDir := filepath.Join(config.NodeDataDir, config.Name)
+	if _, err := os.Stat(instanceDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(instanceDir, 0700); err != nil {
+			yclog.LogCallerFileLine("p2pBuildPrivateKey: " +
+				"MkdirAll failed, err: %s, path: %s",
+				err.Error(), instanceDir)
+			return key
+		}
 	}
-	// Lock the instance directory to prevent concurrent use by another instance as well as
-	// accidental use of the instance directory as a database.
-	release, _, err := flock.New(filepath.Join(instdir, "LOCK"))
-	if err != nil {
-		return convertFileLockError(err)
-	}
-	n.instanceDirLock = release
-	return nil*/
 
-	return nil
+	if err := ethereum.SaveECDSA(keyfile, key); err != nil {
+		yclog.LogCallerFileLine("p2pBuildPrivateKey: SaveECDSA failed, err: %s", err.Error())
+	}
+	yclog.LogCallerFileLine("p2pBuildPrivateKey: key save ok to file: %s", keyfile)
+
+	return key
 }
 
+//
+// Trans public key to node identity
+//
+func p2pPubkey2NodeId(pub *ecdsa.PublicKey) *NodeID {
+
+	var id NodeID
+
+	pbytes := elliptic.Marshal(pub.Curve, pub.X, pub.Y)
+
+	if len(pbytes)-1 != len(id) {
+		yclog.LogCallerFileLine("p2pPubkey2NodeId: invalid public key for node identity")
+		return nil
+	}
+	copy(id[:], pbytes[1:])
+
+	return &id
+}
+
+//
+// Setup local node identity
+//
+func p2pSetupLocalNodeId() P2pCfgErrno {
+
+	if config.PrivateKey != nil {
+
+		config.PublicKey = &config.PrivateKey.PublicKey
+
+	} else if config.PublicKey == nil {
+
+		config.PrivateKey = p2pBuildPrivateKey()
+
+		if config.PrivateKey == nil {
+			yclog.LogCallerFileLine("p2pSetupLocalNodeId: p2pBuildPrivateKey failed")
+			return PcfgEnoPrivateKye
+		}
+
+		config.PublicKey = &config.PrivateKey.PublicKey
+	}
+
+	pnid := p2pPubkey2NodeId(config.PublicKey)
+
+	if pnid == nil {
+
+		yclog.LogCallerFileLine("p2pSetupLocalNodeId: p2pPubkey2NodeId failed")
+		return PcfgEnoPublicKye
+	}
+	config.Local.ID = *pnid
+
+	yclog.LogCallerFileLine("p2pSetupLocalNodeId: " +
+		"local node identity: %s",
+		P2pNodeId2HexString(config.Local.ID))
+
+	return PcfgEnoNone
+}
+
+//
+// Setup default bootstrap nodes
+//
+func P2pSetupDefaultBootstrapNodes() []*Node {
+
+	var bsn = make([]*Node, 0, P2pMaxBootstrapNodes)
+
+	for idx, url := range BootstrapNodeUrl {
+
+		strs := strings.Split(url,"@")
+		if len(strs) != 2 {
+			yclog.LogCallerFileLine("P2pSetupDefaultBootstrapNodes: invalid bootstrap url: %s", url)
+			return nil
+		}
+
+		strNodeId := strs[0]
+		strs = strings.Split(strs[1],":")
+		if len(strs) != 3 {
+			yclog.LogCallerFileLine("P2pSetupDefaultBootstrapNodes: invalid bootstrap url: %s", url)
+			return nil
+		}
+
+		strIp := strs[0]
+		strUdpPort := strs[1]
+		strTcpPort := strs[2]
+
+		pid := P2pHexString2NodeId(strNodeId);
+		if pid == nil {
+			yclog.LogCallerFileLine("P2pSetupDefaultBootstrapNodes: P2pHexString2NodeId failed, strNodeId: %s", strNodeId)
+			return nil
+		}
+
+		bsn = append(bsn, new(Node))
+		copy(bsn[idx].ID[:], (*pid)[:])
+		bsn[idx].IP = net.ParseIP(strIp)
+
+		if port, err := strconv.Atoi(strUdpPort); err != nil {
+			yclog.LogCallerFileLine("P2pSetupDefaultBootstrapNodes: Atoi for UDP port failed, err: %s", err.Error())
+			return nil
+		} else {
+			bsn[idx].UDP = uint16(port)
+		}
+
+		if port, err := strconv.Atoi(strTcpPort); err != nil {
+			yclog.LogCallerFileLine("P2pSetupDefaultBootstrapNodes: Atoi for TCP port failed, err: %s", err.Error())
+			return nil
+		} else {
+			bsn[idx].TCP = uint16(port)
+		}
+	}
+
+	return  bsn
+}
 
 //
 // Get configuration of neighbor discovering listener
 //
 func P2pConfig4UdpListener() *Cfg4UdpListener {
-
-	//
-	// local configuration must be completed firstly before
-	// calling this function
-	//
-
 	return &Cfg4UdpListener {
 		IP:		config.Local.IP,
 		Port:	config.Local.UDP,

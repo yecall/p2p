@@ -26,15 +26,16 @@ import (
 )
 
 //
-// Yee-Blockchain-Protocol p2p config
+// Get default configuration pointer
 //
-type YbcpConfig struct {
-	cfg		ycfg.Config
+func ShellDefaultConfig() *ycfg.Config {
+	return ycfg.P2pDefaultConfig()
 }
 
 //
-// Yee-DHT p2p config
+// Set configuration
 //
-type YdhtConfig struct {
-	_dummy_	interface{}
+func ShellConfig(cfg *ycfg.Config) ycfg.P2pCfgErrno {
+	return ycfg.P2pConfig(cfg)
 }
+

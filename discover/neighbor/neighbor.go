@@ -582,7 +582,7 @@ const (
 // Control block of neighbor manager task
 //
 type neighborManager struct {
-	lock		sync.Locker					// lock for protection
+	lock		sync.Mutex					// lock for protection
 	name		string						// name
 	tep			sch.SchUserTaskEp			// entry
 	ptnMe		interface{}					// pointer to task node of myself

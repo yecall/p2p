@@ -117,7 +117,7 @@ type tabConfig struct {
 	bootstrapNodes	[]*Node		// bootstrap nodes
 	dataDir			string		// data directory
 	nodeDb			string		// node database
-	bootstratNode	bool		// bootstrap node flag
+	bootstratNode	bool		// bootstrap flag of local node
 }
 
 //
@@ -189,10 +189,10 @@ var tabMgr = tableManager{
 	ptnDcvMgr:		nil,
 	shaLocal:		Hash{},
 	buckets:		[nBuckets]*bucket{},
-	queryIcb:		make([]*instCtrlBlock, TabInstQueringMax),
-	boundIcb:		make([]*instCtrlBlock, TabInstBondingMax),
-	queryPending:	make([]*queryPendingEntry, TabInstQPendingMax),
-	boundPending:	make([]*Node, TabInstBPendingMax),
+	queryIcb:		make([]*instCtrlBlock, 0, TabInstQueringMax),
+	boundIcb:		make([]*instCtrlBlock, 0, TabInstBondingMax),
+	queryPending:	make([]*queryPendingEntry, 0, TabInstQPendingMax),
+	boundPending:	make([]*Node, 0, TabInstBPendingMax),
 	dlkTab:			make([]int, 256),
 	refreshing:		false,
 	dataDir:		"",
@@ -841,6 +841,13 @@ func tabGetConfig(tabCfg *tabConfig) TabMgrErrno {
 	tabCfg.nodeDb			= cfg.NodeDB
 	tabCfg.bootstratNode	= cfg.BootstrapNode
 
+	tabCfg.bootstrapNodes = make([]*Node, len(cfg.BootstrapNodes))
+	for idx, n := range cfg.BootstrapNodes {
+		tabCfg.bootstrapNodes[idx] = new(Node)
+		tabCfg.bootstrapNodes[idx].Node = *n
+		tabCfg.bootstrapNodes[idx].sha = *tabNodeId2Hash(NodeID(n.ID))
+	}
+
 	return TabMgrEnoNone
 }
 
@@ -963,6 +970,8 @@ func tabRefresh(tid *NodeID) TabMgrErrno {
 			nodes = nodes[:TabInstQPendingMax]
 		}
 	}
+
+	yclog.LogCallerFileLine("tabRefresh: total number of nodes to query: %d", len(nodes))
 
 	var eno TabMgrErrno
 
@@ -1177,7 +1186,14 @@ func tabQuery(target *NodeID, nodes []*Node) TabMgrErrno {
 				return eno
 			}
 
-			tabMgr.queryIcb[loop] = icb
+			yclog.LogCallerFileLine("tabQuery: EvNblFindNodeReq sent, \n" +
+				"id: %s, ip: %s, udp-port: %d, tcp-port: %d",
+				ycfg.P2pNodeId2HexString(msg.To.NodeId),
+				msg.To.IP.String(),
+				msg.To.UDP,
+				msg.To.TCP)
+
+			tabMgr.queryIcb = append(tabMgr.queryIcb, icb)
 			nidx++
 		}
 	}
@@ -1187,14 +1203,16 @@ func tabQuery(target *NodeID, nodes []*Node) TabMgrErrno {
 	//
 
 	for ; nidx < remain; nidx++ {
-		pidx := len(tabMgr.queryPending)
-		if  pidx >= TabInstQPendingMax {
+		if  len(tabMgr.queryPending) >= TabInstQPendingMax {
 			break
 		}
-		tabMgr.queryPending[pidx] = &queryPendingEntry{
+		tabMgr.queryPending = append(tabMgr.queryPending, &queryPendingEntry{
 			node:nodes[nidx],
 			target: target,
-		}
+		})
+		yclog.LogCallerFileLine("tabQuery: " +
+			"node append to pending, id: %s",
+			ycfg.P2pNodeId2HexString(nodes[nidx].ID))
 	}
 
 	return TabMgrEnoNone
