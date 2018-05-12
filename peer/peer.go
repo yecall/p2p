@@ -163,7 +163,7 @@ var peMgr = peerManager{
 
 
 //
-// To ecape the compiler "initialization loop" error
+// To escape the compiler "initialization loop" error
 //
 func init() {
 	peMgr.tep = PeerMgrProc;

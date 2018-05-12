@@ -25,6 +25,7 @@ import (
 	"syscall"
 	"net"
 	"fmt"
+	"time"
 	sch		"ycp2p/scheduler"
 	cfg		"ycp2p/config"
 	umsg	"ycp2p/discover/udpmsg"
@@ -74,7 +75,7 @@ var lsnMgr = listenerManager{
 }
 
 //
-// To ecape the compiler "initialization loop" error
+// To escape the compiler "initialization loop" error
 //
 func init() {
 	lsnMgr.tep			= LsnMgrProc
@@ -415,8 +416,6 @@ var udpReader  = udpReaderTask {
 	},
 }
 
-var UdpConn = udpReader.conn
-
 
 //
 // EvNblMsgInd message body
@@ -431,13 +430,19 @@ type UdpMsgInd struct {
 //
 func udpReaderLoop(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 
-	// never not be scheduled for any messages
+	//
+	// should never not be scheduled for any messages
+	//
+
 	var _ = msg
 
 	eno := sch.SchEnoNone
 	buf := make([]byte, 2048)
 
+	//
 	// get related task node pointers
+	//
+
 	udpReader.ptnMe = ptn
 	eno, udpReader.ptnNgbMgr = sch.SchinfGetTaskNodeByName(NgbMgrName)
 	if eno != sch.SchEnoNone {
@@ -461,17 +466,35 @@ _loop:
 
 	for {
 
+		//
 		// try reading
+		//
+
 		bys, peer, err := udpReader.conn.ReadFromUDP(buf)
 
+		//
 		// check error
-		if err != nil && udpReader.canErrIgnored(err) != true {
-			yclog.LogCallerFileLine("udpReaderLoop: broken, err: %s", err.Error())
-			break _loop
-		}
+		//
 
-		// deal with the message
-		udpReader.msgHandler(buf, bys, peer)
+		if err != nil {
+
+			if udpReader.canErrIgnored(err) != true {
+
+				//
+				// can't be ignored, we break the loop
+				//
+
+				yclog.LogCallerFileLine("udpReaderLoop: broken, err: %s", err.Error())
+				break _loop
+			}
+		} else {
+
+			//
+			// deal with the message
+			//
+
+			udpReader.msgHandler(buf, bys, peer)
+		}
 	}
 
 	//
@@ -482,8 +505,12 @@ _loop:
 
 	if sch.SchinfTaskKilled(ptn) != true {
 
+		//
 		// not killed, we done with error then
+		//
+
 		eno = sch.SchinfTaskDone(ptn, sch.SchEnoOS)
+
 		if eno != sch.SchEnoNone {
 			yclog.LogCallerFileLine("udpReaderLoop: DONE failed, eno: %d", eno)
 		}
@@ -571,8 +598,8 @@ func (rd udpReaderTask) msgHandler(buf []byte, len int, from *net.UDPAddr) sch.S
 //
 func sendUdpMsg(buf []byte, toAddr *net.UDPAddr) sch.SchErrno {
 
-	if UdpConn == nil {
-		yclog.LogCallerFileLine("SendUdpMsg: invalid UDP connection")
+	if udpReader.conn == nil {
+		yclog.LogCallerFileLine("sendUdpMsg: invalid UDP connection")
 		return sch.SchEnoInternal
 	}
 
@@ -581,8 +608,13 @@ func sendUdpMsg(buf []byte, toAddr *net.UDPAddr) sch.SchErrno {
 		return sch.SchEnoParameter
 	}
 
+	if err := udpReader.conn.SetDeadline(time.Now().Add(NgbProtoWriteTimeout)); err != nil {
+		yclog.LogCallerFileLine("sendUdpMsg: SetDeadline failed, err: %s", err.Error())
+		return sch.SchEnoUserTask
+	}
+
 	if _, err := udpReader.conn.WriteToUDP(buf, toAddr); err != nil {
-		yclog.LogCallerFileLine("SendUdpMsg: err: %s", err.Error())
+		yclog.LogCallerFileLine("sendUdpMsg: WriteToUDP failed, err: %s", err.Error())
 		return sch.SchEnoUserTask
 	}
 

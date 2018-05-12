@@ -52,7 +52,7 @@ var lsnMgr = listenerManager{
 
 
 //
-// To ecape the compiler "initialization loop" error
+// To escape the compiler "initialization loop" error
 //
 func init() {
 	lsnMgr.tep = LsnMgrProc
@@ -163,7 +163,7 @@ func lsnMgrStart() sch.SchErrno {
 	// to close the listener, so the task would get out.
 	//
 
-	yclog.LogCallerFileLine("lsnMgrStop: try to create accept task ...")
+	yclog.LogCallerFileLine("lsnMgrStart: try to create accept task ...")
 
 	var tskDesc = sch.SchTaskDescription{
 		Name:		PeerAccepterName,
@@ -185,7 +185,7 @@ func lsnMgrStart() sch.SchErrno {
 		return sch.SchEnoInternal
 	}
 
-	yclog.LogCallerFileLine("lsnMgrStop: accept task created")
+	yclog.LogCallerFileLine("lsnMgrStart: accept task created")
 	return sch.SchEnoNone
 }
 

@@ -201,7 +201,7 @@ var tabMgr = tableManager{
 }
 
 //
-// To ecape the compiler "initialization loop" error
+// To escape the compiler "initialization loop" error
 //
 func init() {
 	tabMgr.tep = TabMgrProc
