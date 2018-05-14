@@ -393,6 +393,7 @@ func TabMgrPingpongTimerHandler(inst *instCtrlBlock) TabMgrErrno {
 	//
 
 	inst.state = TabInstStateBTimeout
+	inst.rsp = nil
 	if eno := tabUpdateNodeDb(inst, TabMgrEnoTimeout); eno != TabMgrEnoNone {
 		yclog.LogCallerFileLine("TabMgrPingpongTimerHandler: tabUpdateNodeDb failed, eno: %d", eno)
 		return eno
@@ -445,6 +446,7 @@ func TabMgrFindNodeTimerHandler(inst *instCtrlBlock) TabMgrErrno {
 	//
 
 	inst.state = TabInstStateQTimeout
+	inst.rsp = nil
 	if eno := tabUpdateNodeDb(inst, TabMgrEnoTimeout); eno != TabMgrEnoNone {
 		yclog.LogCallerFileLine("TabMgrFindNodeTimerHandler: tabUpdateNodeDb failed, eno: %d", eno)
 		return eno
@@ -512,6 +514,7 @@ func TabMgrFindNodeRsp(msg *sch.NblFindNodeRsp)TabMgrErrno {
 		yclog.LogCallerFileLine("TabMgrFindNodeRsp: instance not found")
 		return TabMgrEnoNotFound
 	}
+	inst.rsp = msg
 
 	//
 	// obtain result
@@ -558,7 +561,7 @@ func TabMgrFindNodeRsp(msg *sch.NblFindNodeRsp)TabMgrErrno {
 	}
 
 	//
-	// check result reported
+	// check result reported, if it's failed, need not go further
 	//
 
 	if msg.Result != 0 {
@@ -617,6 +620,7 @@ func TabMgrPingpongRsp(msg *sch.NblPingRsp) TabMgrErrno {
 		}
 		return tabUpdateBootstarpNode(&msg.Pong.From)
 	}
+	inst.rsp = msg
 
 	//
 	// obtain result
@@ -642,7 +646,6 @@ func TabMgrPingpongRsp(msg *sch.NblPingRsp) TabMgrErrno {
 		yclog.LogCallerFileLine("TabMgrPingpongRsp: tabUpdateBucket failed, eno: %d", eno)
 		return eno
 	}
-
 
 	//
 	// delete the active instance
@@ -1133,16 +1136,13 @@ func tabQuery(target *NodeID, nodes []*Node) TabMgrErrno {
 	actNum := len(tabMgr.queryIcb)
 	pndNum := len(tabMgr.queryPending)
 
+	yclog.LogCallerFileLine("tabQuery: " +
+		"remain: %d, actNum: %d, pndNum: %d",
+		remain, actNum, pndNum)
+
 	if remain == 0 {
 		yclog.LogCallerFileLine("tabQuery: invalid parameters, no node to be handled")
 		return TabMgrEnoParameter
-	}
-
-	if actNum < TabInstQueringMax && pndNum != 0 {
-		yclog.LogCallerFileLine("tabQuery: " +
-			"internal errors, active: %d, pending: %d",
-			actNum, pndNum)
-		return TabMgrEnoInternal
 	}
 
 	//
@@ -1154,7 +1154,7 @@ func tabQuery(target *NodeID, nodes []*Node) TabMgrErrno {
 
 	if actNum < TabInstQueringMax {
 
-		for loop := actNum; loop < remain && loop < TabInstQueringMax - actNum; loop++ {
+		for loop := 0; loop < remain && loop < TabInstQueringMax - actNum; loop++ {
 
 			msg := new(um.FindNode)
 			icb := new(instCtrlBlock)
@@ -1197,8 +1197,9 @@ func tabQuery(target *NodeID, nodes []*Node) TabMgrErrno {
 				return eno
 			}
 
-			yclog.LogCallerFileLine("tabQuery: EvNblFindNodeReq sent, \n" +
-				"id: %s, ip: %s, udp-port: %d, tcp-port: %d",
+			yclog.LogCallerFileLine("tabQuery: active query appended and EvNblFindNodeReq sent, \n" +
+				"id: %s\n" +
+				"ip: %s, udp-port: %d, tcp-port: %d",
 				ycfg.P2pNodeId2HexString(msg.To.NodeId),
 				msg.To.IP.String(),
 				msg.To.UDP,
@@ -1222,7 +1223,7 @@ func tabQuery(target *NodeID, nodes []*Node) TabMgrErrno {
 			target: target,
 		})
 		yclog.LogCallerFileLine("tabQuery: " +
-			"node append to pending, id: %s",
+			"node append to query pending, id: %s",
 			ycfg.P2pNodeId2HexString(nodes[nidx].ID))
 	}
 
@@ -1844,6 +1845,7 @@ func tabDeleteActiveQueryInst(inst *instCtrlBlock) TabMgrErrno {
 				inst.tid = sch.SchInvalidTid
 			}
 			tabMgr.queryIcb = append(tabMgr.queryIcb[0:idx], tabMgr.queryIcb[idx+1:]...)
+			yclog.LogCallerFileLine("tabDeleteActiveQueryInst: active query removed")
 			return TabMgrEnoNone
 		}
 	}
@@ -1863,7 +1865,7 @@ func tabActiveQueryInst() TabMgrErrno {
 
 	if len(tabMgr.queryIcb) == TabInstQueringMax {
 		yclog.LogCallerFileLine("tabActiveQueryInst: active query table full")
-		return TabMgrEnoResource
+		return TabMgrEnoNone
 	}
 
 	//
@@ -1872,21 +1874,22 @@ func tabActiveQueryInst() TabMgrErrno {
 
 	if len(tabMgr.queryPending) == 0 {
 		yclog.LogCallerFileLine("tabActiveQueryInst: pending query table empty")
-		return TabMgrEnoNotFound
+		return TabMgrEnoNone
 	}
 
 	//
 	// activate pendings
 	//
 
-	for len(tabMgr.queryPending) > 0 && len(tabMgr.queryIcb) != TabInstQueringMax {
+	for len(tabMgr.queryPending) > 0 && len(tabMgr.queryIcb) < TabInstQueringMax {
 		p := tabMgr.queryPending[0]
 		var nodes = []*Node{p.node}
 		if eno := tabQuery(p.target, nodes); eno != TabMgrEnoNone {
-			yclog.LogCallerFileLine("")
+			yclog.LogCallerFileLine("tabActiveQueryInst: tabQuery failed, eno: %d", eno)
 			return eno
 		}
 		tabMgr.queryPending = append(tabMgr.queryPending[:0], tabMgr.queryPending[1:]...)
+		yclog.LogCallerFileLine("tabActiveQueryInst: pending query activated and removed")
 	}
 
 	return TabMgrEnoNone
@@ -1914,6 +1917,7 @@ func tabDeleteActiveBoundInst(inst *instCtrlBlock) TabMgrErrno {
 				inst.tid = sch.SchInvalidTid
 			}
 			tabMgr.boundIcb = append(tabMgr.boundIcb[0:idx], tabMgr.boundIcb[idx+1:]...)
+			yclog.LogCallerFileLine("tabDeleteActiveBoundInst: active bound removed")
 		}
 	}
 
@@ -1937,6 +1941,7 @@ func tabAddPendingBoundInst(node *um.Node) TabMgrErrno {
 	}
 
 	tabMgr.boundPending = append(tabMgr.boundPending, interface{}(node).(*Node))
+	yclog.LogCallerFileLine("tabAddPendingBoundInst: pending bound appended")
 	return TabMgrEnoNone
 }
 
@@ -1947,12 +1952,12 @@ func tabActiveBoundInst() TabMgrErrno {
 
 	if len(tabMgr.boundIcb) == TabInstBondingMax {
 		yclog.LogCallerFileLine("tabActiveBoundInst: active bounding table is full")
-		return TabMgrEnoResource
+		return TabMgrEnoNone
 	}
 
 	if len(tabMgr.boundPending) == 0 {
 		yclog.LogCallerFileLine("tabActiveBoundInst: pending table is empty")
-		return TabMgrEnoResource
+		return TabMgrEnoNone
 	}
 
 	//
@@ -2013,6 +2018,7 @@ func tabActiveBoundInst() TabMgrErrno {
 
 		tabMgr.boundPending = append(tabMgr.boundPending[:0], tabMgr.boundPending[1:]...)
 		tabMgr.boundIcb = append(tabMgr.boundIcb, icb)
+		yclog.LogCallerFileLine("tabActiveBoundInst: pending bound removed and activated")
 	}
 
 	return TabMgrEnoNone

@@ -215,7 +215,7 @@ func schimplTimerCommonTask(ptm *schTmcbNode) SchErrno {
 		tn.tmcb.name		= ""
 		tn.tmcb.tmt			= schTmTypeNull
 		tn.tmcb.dur			= 0
-		tn.tmcb.taskNode	= tn.tmcb.taskNode
+		//tn.tmcb.taskNode	= tn.tmcb.taskNode
 		tn.tmcb.extra		= nil
 	}
 
@@ -842,7 +842,7 @@ func schimplCreateTask(taskDesc *schTaskDescription) (SchErrno, interface{}){
 	// make timer map clean
 	//
 
-	for k, _ := range ptn.task.tmIdxTab {
+	for k := range ptn.task.tmIdxTab {
 		yclog.LogCallerFileLine("schimplCreateTask: user task timer map is not empty")
 		delete(ptn.task.tmIdxTab, k)
 	}

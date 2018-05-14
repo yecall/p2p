@@ -24,6 +24,7 @@ import (
 	"net"
 	"sync"
 	"time"
+	"fmt"
 	sch		"ycp2p/scheduler"
 	um		"ycp2p/discover/udpmsg"
 	ycfg	"ycp2p/config"
@@ -660,6 +661,12 @@ var ngbMgr = &neighborManager {
 }
 
 //
+// The scheduler need unique task name, here is sequence for dynamic instance task name
+//
+var fnInstSeq = 0	// for findnode instance
+var ppInstSeq = 0	// for pingpong instance
+
+//
 // To escape the compiler "initialization loop" error
 //
 func init() {
@@ -1083,8 +1090,9 @@ func (ngbMgr *neighborManager)FindNodeReq(findNode *um.FindNode) NgbMgrErrno {
 	// when everything is ok, see bellow pls.
 	//
 
+	fnInstSeq++
 	var dc = sch.SchTaskDescription {
-		Name:	NgbProcName + "_findnode_" +strPeerNodeId,
+		Name:	fmt.Sprintf("%s%d_findnode_%s", NgbProcName, fnInstSeq, strPeerNodeId),
 		MbSize:	ngbProcMailboxSize,
 		Ep:		NgbProtoProc,
 		Wd:		&noDog,
@@ -1222,8 +1230,9 @@ func (ngbMgr *neighborManager)PingpongReq(ping *um.Ping) NgbMgrErrno {
 		HaveDog:false,
 	}
 
+	ppInstSeq++
 	var dc = sch.SchTaskDescription {
-		Name:	NgbProcName + "_pingpong_" +strPeerNodeId,
+		Name:	fmt.Sprintf("%s%d_pingpong_%s", NgbProcName, ppInstSeq, strPeerNodeId),
 		MbSize:	ngbProcMailboxSize,
 		Ep:		NgbProtoProc,
 		Wd:		&noDog,

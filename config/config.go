@@ -310,14 +310,10 @@ func P2pConfig(cfg *Config) P2pCfgErrno {
 }
 
 //
-// Node identity to string
+// Node identity to hex string
 //
 func P2pNodeId2HexString(id NodeID) string {
-	var str = ""
-	for _, b := range id {
-		str = str + fmt.Sprintf("%02x", b)
-	}
-	return str
+	return fmt.Sprintf("%X", id[:])
 }
 
 //
@@ -337,9 +333,9 @@ func P2pHexString2NodeId(hex string) *NodeID {
 		if c >= '0' && c <= '9' {
 			c = c - '0'
 		} else if c >= 'a' && c <= 'f' {
-			c = c - 'a'
+			c = c - 'a' + 10
 		} else if c >= 'A' && c <= 'F' {
-			c = c - 'A'
+			c = c - 'A' + 10
 		} else {
 			yclog.LogCallerFileLine("P2pHexString2NodeId: invalid string: %s", hex)
 			return nil
@@ -542,7 +538,7 @@ func P2pSetupDefaultBootstrapNodes() []*Node {
 		strUdpPort := strs[1]
 		strTcpPort := strs[2]
 
-		pid := P2pHexString2NodeId(strNodeId);
+		pid := P2pHexString2NodeId(strNodeId)
 		if pid == nil {
 			yclog.LogCallerFileLine("P2pSetupDefaultBootstrapNodes: P2pHexString2NodeId failed, strNodeId: %s", strNodeId)
 			return nil
