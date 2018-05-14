@@ -538,7 +538,7 @@ func peMgrLsnConnAcceptedInd(msg interface{}) PeMgrErrno {
 	//
 	ibInstSeq++
 	var tskDesc  = sch.SchTaskDescription {
-		Name:		PeerAccepterName + fmt.Sprintf("%s", ibInstSeq) + peInst.raddr.String(),
+		Name:		"inbound_" + fmt.Sprintf("%d_", ibInstSeq) + peInst.raddr.String(),
 		MbSize:		PeInstMailboxSize,
 		Ep:			PeerInstProc,
 		Wd:			&sch.SchWatchDog{HaveDog:false,},
@@ -756,10 +756,12 @@ func peMgrHandshakeRsp(msg interface{}) PeMgrErrno {
 
 	var rsp = msg.(*msgHandshakeRsp)
 
-	// Check result
+	//
+	// Check result, if failed, kill the instance
+	//
+
 	if rsp.result != PeMgrEnoNone {
 
-		// failed, kill instance
 		yclog.LogCallerFileLine("peMgrHandshakeRsp: " +
 			"outbound failed, result: %d, node: %s",
 			rsp.result, ycfg.P2pNodeId2HexString(rsp.peNode.ID))
@@ -767,10 +769,14 @@ func peMgrHandshakeRsp(msg interface{}) PeMgrErrno {
 		if eno := peMgrKillInst(rsp.ptn, rsp.peNode); eno != PeMgrEnoNone {
 			yclog.LogCallerFileLine("")
 		}
+
 		return PeMgrEnoNone
 	}
 
+	//
 	// Send EvPeEstablishedInd to instance
+	//
+
 	var schMsg = sch.SchMessage{}
 	var eno sch.SchErrno
 
@@ -789,8 +795,11 @@ func peMgrHandshakeRsp(msg interface{}) PeMgrErrno {
 		return PeMgrEnoScheduler
 	}
 
+	//
 	// Map the instance, notice that, only in this moment we can know the node
 	// identity for a inbound connection.
+	//
+
 	var inst = peMgr.peers[rsp.ptn]
 	peMgr.workers[rsp.peNode.ID] = inst
 	peMgr.wrkNum++
@@ -1006,7 +1015,7 @@ func peMgrCreateOutboundInst(node *ycfg.Node) PeMgrErrno {
 	//
 	obInstSeq++
 	var tskDesc  = sch.SchTaskDescription {
-		Name:		"Outbound" + fmt.Sprintf("%s", obInstSeq),
+		Name:		"Outbound_" + fmt.Sprintf("%s", obInstSeq),
 		MbSize:		PeInstMailboxSize,
 		Ep:			PeerInstProc,
 		Wd:			&sch.SchWatchDog{HaveDog:false,},
@@ -1158,7 +1167,7 @@ func peMgrAsk4More() PeMgrErrno {
 	}
 
 	var td = sch.TimerDescription {
-		Name:	"",
+		Name:	PeerMgrName + "_DcvFindNode",
 		Utid:	sch.PeDcvFindNodeTimerId,
 		Tmt:	sch.SchTmTypeAbsolute,
 		Dur:	durDcvFindNodeTimer,
@@ -1595,10 +1604,13 @@ func piEstablishedInd(inst *peerInstance, msg interface{}) PeMgrErrno {
 	var schEno sch.SchErrno
 	_ = msg
 
+	//
 	// setup pingpong timer
+	//
+
 	var tid int
 	var tmDesc = sch.TimerDescription {
-		Name:	"",
+		Name:	PeerMgrName + "_PePingpong",
 		Utid:	sch.PePingpongTimerId,
 		Tmt:	sch.SchTmTypePeriod,
 		Dur:	time.Second * 10,
@@ -1613,12 +1625,13 @@ func piEstablishedInd(inst *peerInstance, msg interface{}) PeMgrErrno {
 
 	inst.ppTid = tid
 
+	//
 	// modify deadline of peer connection for we had set specific value while
 	// handshake procedure. we set deadline to value 0, so action on connection
 	// would be blocked until it's completed.
-	inst.conn.SetDeadline(time.Time{})
+	//
 
-	// update peer instance state
+	inst.conn.SetDeadline(time.Time{})
 	inst.state = peInstStateActivated
 
 	return PeMgrEnoNone

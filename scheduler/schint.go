@@ -87,7 +87,7 @@ type schTimerCtrlBlock struct {
 	stop		chan bool		// should be stop
 	stopped		chan bool		// had been stopped
 	taskNode	*schTaskNode	// pointer to owner task node
-	extra		interface{}	// extra data return to timer owner when expired
+	extra		interface{}		// extra data return to timer owner when expired
 }
 
 //
@@ -108,7 +108,7 @@ var schTimerNodePool [schTimerNodePoolSize]schTmcbNode	// timer node pool
 //
 // Task struct
 //
-const schMaxTaskTimer	= SchMaxTaskTimer				// max timers can be held by one user task
+const schMaxTaskTimer	= SchMaxTaskTimer		// max timers can be held by one user task
 const schInvalidTid		= SchInvalidTid			// invalid timer identity
 
 type schTask struct {

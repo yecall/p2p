@@ -610,12 +610,12 @@ func sendUdpMsg(buf []byte, toAddr *net.UDPAddr) sch.SchErrno {
 
 	if err := udpReader.conn.SetDeadline(time.Now().Add(NgbProtoWriteTimeout)); err != nil {
 		yclog.LogCallerFileLine("sendUdpMsg: SetDeadline failed, err: %s", err.Error())
-		return sch.SchEnoUserTask
+		return sch.SchEnoOS
 	}
 
 	if _, err := udpReader.conn.WriteToUDP(buf, toAddr); err != nil {
 		yclog.LogCallerFileLine("sendUdpMsg: WriteToUDP failed, err: %s", err.Error())
-		return sch.SchEnoUserTask
+		return sch.SchEnoOS
 	}
 
 	return sch.SchEnoNone

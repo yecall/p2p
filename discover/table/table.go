@@ -173,7 +173,7 @@ type tableManager struct {
 	boundIcb		[]*instCtrlBlock	// active bound instance table
 	queryPending	[]*queryPendingEntry// pending to be queried
 	boundPending	[]*Node				// pending to be bound
-	dlkTab			[]int				// log2 distance lookup table for a byte
+	dlkTab			[]int				// log2 distance lookup table for a xor byte
 	refreshing		bool				// busy in refreshing now
 	dataDir			string				// data directory
 	nodeDb			*nodeDB				// node database object pointer
@@ -494,10 +494,10 @@ func TabMgrRefreshReq(msg *sch.MsgTabRefreshReq)TabMgrErrno {
 //
 func TabMgrFindNodeRsp(msg *sch.NblFindNodeRsp)TabMgrErrno {
 
-	yclog.LogCallerFileLine("TabMgrRefreshReq: FindNode response received")
+	yclog.LogCallerFileLine("TabMgrFindNodeRsp: FindNode response received")
 
 	if msg == nil {
-		yclog.LogCallerFileLine("TabMgrRefreshReq: invalid parameters")
+		yclog.LogCallerFileLine("TabMgrFindNodeRsp: invalid parameters")
 		return TabMgrEnoParameter
 	}
 
@@ -507,7 +507,7 @@ func TabMgrFindNodeRsp(msg *sch.NblFindNodeRsp)TabMgrErrno {
 
 	var inst *instCtrlBlock = nil
 
-	inst = tabFindInst(&msg.FindNode.To, TabInstStateBonding)
+	inst = tabFindInst(&msg.FindNode.To, TabInstStateQuering)
 	if inst == nil {
 		yclog.LogCallerFileLine("TabMgrFindNodeRsp: instance not found")
 		return TabMgrEnoNotFound
@@ -521,21 +521,22 @@ func TabMgrFindNodeRsp(msg *sch.NblFindNodeRsp)TabMgrErrno {
 	if result != 0 { result = TabMgrEnoFindNodeFailed }
 
 	//
-	// update database for the neighbor node
+	// update database for the neighbor node.
+	// DON'T care the result, we must go ahead to remove the instance,
+	// see bellow.
 	//
 
 	if eno := tabUpdateNodeDb(inst, result); eno != TabMgrEnoNone {
 		yclog.LogCallerFileLine("TabMgrFindNodeRsp: tabUpdateNodeDb failed, eno: %d", eno)
-		return eno
 	}
 
 	//
-	// update buckets
+	// update buckets：DON'T care the result, we must go ahead to remove the instance,
+	// see bellow.
 	//
 
 	if eno := tabUpdateBucket(inst, result); eno != TabMgrEnoNone {
 		yclog.LogCallerFileLine("TabMgrFindNodeRsp: tabUpdateBucket failed, eno: %d", eno)
-		return eno
 	}
 
 	//
@@ -761,7 +762,7 @@ func NdbcPoweron(ptn interface{}) TabMgrErrno {
 	}
 
 	var tmd  = sch.TimerDescription {
-		Name:	"",
+		Name:	NdbcName + "_autoclean",
 		Utid:	0,
 		Tmt:	sch.SchTmTypeAbsolute,
 		Dur:	nodeCleanupCycle,
@@ -1332,7 +1333,8 @@ func tabUpdateNodeDb(inst *instCtrlBlock, result int) TabMgrErrno {
 	case inst.state == TabInstStateQuering && result == TabMgrEnoFindNodeFailed:
 		return fnFailUpdate()
 
-	case inst.state == TabInstStateQuering && result == TabMgrEnoTimeout:
+	case (inst.state == TabInstStateQuering || inst.state == TabInstStateQTimeout) &&
+		result == TabMgrEnoTimeout:
 		return fnFailUpdate()
 
 	case inst.state == TabInstStateBonding && result == TabMgrEnoNone:
@@ -1341,7 +1343,8 @@ func tabUpdateNodeDb(inst *instCtrlBlock, result int) TabMgrErrno {
 	case inst.state == TabInstStateBonding && result == TabMgrEnoPingpongFailed:
 		return fnFailClear()
 
-	case inst.state == TabInstStateBonding && result == TabMgrEnoTimeout:
+	case (inst.state == TabInstStateBonding || inst.state == TabInstStateBTimeout) &&
+		result == TabMgrEnoTimeout:
 		return fnFailClear()
 
 	default:
@@ -1384,7 +1387,7 @@ func tabUpdateBucket(inst *instCtrlBlock, result int) TabMgrErrno {
 		}
 		if eno := tabBucketUpdateFailCounter(id, +1); eno != TabMgrEnoNone {
 			yclog.LogCallerFileLine("tabUpdateBucket: " +
-				"update FindNode failed counter failed, eno",
+				"update FindNode failed counter failed, eno: %d",
 				eno)
 			return eno
 		}
@@ -1397,7 +1400,7 @@ func tabUpdateBucket(inst *instCtrlBlock, result int) TabMgrErrno {
 		}
 		if eno := tabBucketUpdateFailCounter(id, +1); eno != TabMgrEnoNone {
 			yclog.LogCallerFileLine("tabUpdateBucket: " +
-				"update FindNode failed counter failed, eno",
+				"update FindNode failed counter failed, eno: %d",
 				eno)
 			return eno
 		}
@@ -1482,7 +1485,7 @@ func tabStartTimer(inst *instCtrlBlock, tmt int, dur time.Duration) TabMgrErrno 
 	}
 
 	var td = sch.TimerDescription {
-		Name:	"",
+		Name:	TabMgrName,
 		Utid:	tmt,
 		Dur:	dur,
 		Extra:	inst,
@@ -1491,12 +1494,15 @@ func tabStartTimer(inst *instCtrlBlock, tmt int, dur time.Duration) TabMgrErrno 
 	switch tmt {
 	case sch.TabRefreshTimerId:
 		td.Tmt = sch.SchTmTypePeriod
+		td.Name = td.Name + "_AutoRefresh"
 
 	case sch.TabFindNodeTimerId:
 		td.Tmt = sch.SchTmTypeAbsolute
+		td.Name = td.Name + "_FindNode"
 
 	case sch.TabPingpongTimerId:
 		td.Tmt = sch.SchTmTypeAbsolute
+		td.Name = td.Name + "_Pingpong"
 
 	default:
 		yclog.LogCallerFileLine("tabStartTimer: invalid time type, type: %d", tmt)
@@ -1828,6 +1834,7 @@ func tabDeleteActiveQueryInst(inst *instCtrlBlock) TabMgrErrno {
 				inst.tid = sch.SchInvalidTid
 			}
 			tabMgr.queryIcb = append(tabMgr.queryIcb[0:idx], tabMgr.queryIcb[idx+1:]...)
+			return TabMgrEnoNone
 		}
 	}
 

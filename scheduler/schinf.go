@@ -47,8 +47,9 @@ const (
 	SchEnoNotImpl		SchErrno = 11	// not implemented
 	SchEnoUserTask		SchErrno = 12	// internal user task application
 	SchEnoDuplicated	SchErrno = 13	// duplicated
-	SchEnoUnknown		SchErrno = 14	// unknowns
-	SchEnoMax			SchErrno = 15	// just for bound checking
+	SchEnoSuspended		SchErrno = 14	// user task is suspended for some reasons
+	SchEnoUnknown		SchErrno = 15	// unknowns
+	SchEnoMax			SchErrno = 16	// just for bound checking
 )
 
 var SchErrnoDescription = []string {
@@ -230,6 +231,13 @@ func SchinfStartTask(name string) SchErrno {
 }
 
 //
+// Start task by task node pointer
+//
+func SchinfStartTaskEx(ptn interface{}) SchErrno {
+	return schimplStartTaskEx(ptn.(*schTaskNode))
+}
+
+//
 // Start a task group
 //
 func SchinfStartTaskGroup(grp string) (SchErrno, int) {
@@ -304,7 +312,7 @@ func SchinfSendMessageByName(dstTask string, srcTask string, msg *SchMessage) Sc
 }
 
 func SchinfSendMessage(msg *SchMessage) SchErrno {
-	return schimplSendMsg2Task((*schMessage)(msg))
+	return schimplSendMsg((*schMessage)(msg))
 }
 
 //

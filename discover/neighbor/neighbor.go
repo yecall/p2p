@@ -50,10 +50,10 @@ type NgbMgrErrno int
 
 //
 // Neighbor task name: since this type of instance is created dynamic, no fixed name defined,
-// instead, peer node id string is applied as the task name. Please see how this type of task
-// instance is created for more.
+// instead, peer node id string is applied as the task name, and this is prefixxed, Please see
+// how this type of task instance is created for more.
 //
-const NgbProcName = ""
+const NgbProcName = "ngbproto"
 
 //
 // Mailbox size of a ngighbor instance
@@ -189,7 +189,7 @@ func (inst *neighborInst) NgbProtoFindNodeReq(ptn interface{}, fn *um.FindNode) 
 	 //
 
 	 var tmd  = sch.TimerDescription {
-		 Name:	"",
+		 Name:	NgbProcName + "_timer_findnode",
 		 Utid:	sch.NblFindNodeTimerId,
 		 Tmt:	sch.SchTmTypeAbsolute,
 		 Dur:	NgbProtoFindNodeResponseTimeout,
@@ -257,7 +257,7 @@ func (inst *neighborInst) NgbProtoPingReq(ptn interface{}, ping *um.Ping) NgbPro
 	//
 
 	var tmd  = sch.TimerDescription {
-		Name:	"",
+		Name:	NgbProcName + "_timer_pingpong",
 		Utid:	sch.NblPingpongTimerId,
 		Tmt:	sch.SchTmTypeAbsolute,
 		Dur:	NgbProtoPingResponseTimeout,
@@ -395,17 +395,17 @@ func (inst *neighborInst) NgbProtoFindNodeRsp(msg *um.Neighbors) NgbProtoErrno {
 	}
 
 	//
-	// kill pingpong timer if needed
+	// kill findnode timer if needed
 	//
 
-	if inst.tidPP != sch.SchInvalidTid {
-		if eno := sch.SchinfKillTimer(inst.ptn, inst.tidPP); eno != sch.SchEnoNone {
+	if inst.tidFN != sch.SchInvalidTid {
+		if eno := sch.SchinfKillTimer(inst.ptn, inst.tidFN); eno != sch.SchEnoNone {
 			yclog.LogCallerFileLine("NgbProtoFindNodeRsp: " +
 				"SchinfKillTimer failed, tid: %d, eno: %d",
-				inst.tidPP, eno)
+				inst.tidFN, eno)
 			return NgbProtoEnoScheduler
 		}
-		inst.tidPP = sch.SchInvalidTid
+		inst.tidFN = sch.SchInvalidTid
 	}
 
 	//
@@ -433,6 +433,10 @@ func (inst *neighborInst) NgbProtoFindNodeRsp(msg *um.Neighbors) NgbProtoErrno {
 			sch.SchinfGetMessageRecver(&schMsg))
 		return NgbMgrEnoScheduler
 	}
+
+	yclog.LogCallerFileLine("NgbProtoFindNodeRsp: " +
+		"EvNblFindNodeRsp sent ok, target: %s",
+		sch.SchinfGetTaskName(ngbMgr.ptnTab))
 
 	//
 	// remove ourself from map in manager. notice: since we had setup the calback
@@ -485,6 +489,10 @@ func (inst *neighborInst) NgbProtoFindNodeTimeout() NgbProtoErrno {
 			sch.SchinfGetMessageRecver(&schMsg))
 		return NgbMgrEnoScheduler
 	}
+
+	yclog.LogCallerFileLine("NgbProtoFindNodeTimeout: " +
+		"EvNblFindNodeRsp sent ok, target: %s",
+		sch.SchinfGetTaskName(ngbMgr.ptnTab))
 
 	//
 	// remove ourself from map in manager. notice: since we had setup the calback
@@ -998,6 +1006,10 @@ func (ngbMgr *neighborManager)NeighborsHandler(nbs *um.Neighbors) NgbMgrErrno {
 		return NgbMgrEnoScheduler
 	}
 
+	yclog.LogCallerFileLine("NeighborsHandler: " +
+		"EvNblFindNodeRsp sent ok, target: %s",
+		sch.SchinfGetTaskName(ptnNgb))
+
 	return NgbMgrEnoNone
 }
 
@@ -1016,17 +1028,21 @@ func (ngbMgr *neighborManager)FindNodeReq(findNode *um.FindNode) NgbMgrErrno {
 	var schMsg  = sch.SchMessage{}
 
 	var funcRsp2Tab = func () NgbMgrErrno {
-		if eno := sch.SchinfMakeMessage(&schMsg, ngbMgr.ptnMe, ngbMgr.ptnTab, sch.EvNblFindNodeRsp, &rsp); eno != sch.SchEnoNone {
+
+		if eno := sch.SchinfMakeMessage(&schMsg, ngbMgr.ptnMe, ngbMgr.ptnTab, sch.EvNblFindNodeRsp, &rsp);
+		eno != sch.SchEnoNone {
 			yclog.LogCallerFileLine("FindNodeReq: SchinfMakeMessage failed, eno: %d", eno)
 			return NgbMgrEnoScheduler
 		}
 
 		if eno := sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
+
 			yclog.LogCallerFileLine("FindNodeReq: "+
 				"SchinfSendMessage failed, eno: %d, sender: %s, recver: %s",
 				eno,
 				sch.SchinfGetMessageSender(&schMsg),
 				sch.SchinfGetMessageRecver(&schMsg))
+
 			return NgbMgrEnoScheduler
 		}
 		return NgbMgrEnoNone
@@ -1039,7 +1055,9 @@ func (ngbMgr *neighborManager)FindNodeReq(findNode *um.FindNode) NgbMgrErrno {
 	strPeerNodeId := ycfg.P2pNodeId2HexString(findNode.To.NodeId)
 
 	if ngbMgr.checkMap(strPeerNodeId) {
+
 		yclog.LogCallerFileLine("FindNodeReq: duplicated neighbor instance: %s", strPeerNodeId)
+
 		rsp.Result = NgbMgrEnoDuplicated
 		rsp.FindNode = findNode
 		return funcRsp2Tab()
@@ -1060,50 +1078,66 @@ func (ngbMgr *neighborManager)FindNodeReq(findNode *um.FindNode) NgbMgrErrno {
 		HaveDog:false,
 	}
 
+	//
+	// notice: instance task created to be suspended, and it would be started
+	// when everything is ok, see bellow pls.
+	//
+
 	var dc = sch.SchTaskDescription {
-		Name:	strPeerNodeId,
+		Name:	NgbProcName + "_findnode_" +strPeerNodeId,
 		MbSize:	ngbProcMailboxSize,
 		Ep:		NgbProtoProc,
 		Wd:		&noDog,
-		Flag:	sch.SchCreatedGo,
+		Flag:	sch.SchCreatedSuspend,
 		DieCb:	ngbInst.NgbProtoDieCb,
 		UserDa: &ngbInst,
 	}
 
 	eno, ptn := sch.SchinfCreateTask(&dc)
 	if eno != sch.SchEnoNone {
+
 		yclog.LogCallerFileLine("FindNodeReq: SchinfCreateTask failed, eno: %d", eno)
+
 		rsp.Result = NgbMgrEnoScheduler
 		rsp.FindNode = findNode
 		return funcRsp2Tab()
 	}
-	ngbInst.ptn = ptn
-	ngbMgr.setupMap(strPeerNodeId, &ngbInst)
 
-	//
-	// following "getMap..." should have findNode got, since we had put it into
-	// the instance filed "msgBody", see aboved pls.
-	//
+	if eno := sch.SchinfMakeMessage(&schMsg, ngbMgr.ptnMe, ptn, sch.EvNblFindNodeReq, findNode);
+	eno != sch.SchEnoNone {
 
-	if eno := sch.SchinfMakeMessage(&schMsg, ngbMgr.ptnMe, ngbInst.ptn, sch.EvNblFindNodeReq, findNode);
-		eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("FindNodeReq: SchinfMakeMessage failed, eno: %d", eno)
+
 		rsp.Result = NgbMgrEnoScheduler
 		rsp.FindNode = findNode
 		return funcRsp2Tab()
 	}
 
 	rsp.Result = NgbMgrEnoNone
-	rsp.FindNode = ngbMgr.getMap(strPeerNodeId).msgBody.(*um.FindNode)
+	rsp.FindNode = findNode
 
 	if eno := sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
+
 		yclog.LogCallerFileLine("FindNodeReq: SchinfSendMessage failed, eno: %d", eno)
+
 		rsp.Result = NgbMgrEnoScheduler
 		rsp.FindNode = findNode
 		return funcRsp2Tab()
 	}
 
-	return funcRsp2Tab()
+	//
+	// backup task pointer; setup the map; start instance;
+	//
+
+	ngbInst.ptn = ptn
+	ngbMgr.setupMap(strPeerNodeId, &ngbInst)
+
+	if eno := sch.SchinfStartTaskEx(ngbInst.ptn); eno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("FindNodeReq: start instance failed, eno: %d", eno)
+		return NgbMgrEnoScheduler
+	}
+
+	return NgbMgrEnoNone
 }
 
 //
@@ -1169,7 +1203,7 @@ func (ngbMgr *neighborManager)PingpongReq(ping *um.Ping) NgbMgrErrno {
 		yclog.LogCallerFileLine("PingpongReq: duplicated neighbor instance: %s", strPeerNodeId)
 
 		rsp.Result = NgbMgrEnoDuplicated
-		rsp.Ping = ngbMgr.getMap(strPeerNodeId).msgBody.(*um.Ping)
+		rsp.Ping = ping
 		return funcRsp2Tab()
 	}
 
@@ -1189,31 +1223,47 @@ func (ngbMgr *neighborManager)PingpongReq(ping *um.Ping) NgbMgrErrno {
 	}
 
 	var dc = sch.SchTaskDescription {
-		Name:	strPeerNodeId,
+		Name:	NgbProcName + "_pingpong_" +strPeerNodeId,
 		MbSize:	ngbProcMailboxSize,
 		Ep:		NgbProtoProc,
 		Wd:		&noDog,
-		Flag:	sch.SchCreatedGo,
+		Flag:	sch.SchCreatedSuspend,
 		DieCb:	ngbInst.NgbProtoDieCb,
 		UserDa: &ngbInst,
 	}
 
 	eno, ptn := sch.SchinfCreateTask(&dc)
 	if eno != sch.SchEnoNone {
+
 		yclog.LogCallerFileLine("PingpongReq: SchinfCreateTask failed, eno: %d", eno)
-		return NgbMgrEnoScheduler
+
+		rsp.Result = NgbMgrEnoScheduler
+		rsp.Ping = ping
+		return funcRsp2Tab()
 	}
+
+	if eno := funcReq2Inst(ptn); eno != NgbMgrEnoNone {
+
+		yclog.LogCallerFileLine("PingpongReq: funcReq2Inst failed, eno: %d", eno)
+
+		rsp.Result = int(eno)
+		rsp.Ping = ping
+		return funcRsp2Tab()
+	}
+
+	//
+	// backup task pointer; setup the map; start instance;
+	//
+
 	ngbInst.ptn = ptn
 	ngbMgr.setupMap(strPeerNodeId, &ngbInst)
 
-	if eno := funcReq2Inst(ptn); eno != NgbMgrEnoNone {
-		yclog.LogCallerFileLine("PingpongReq: funcReq2Inst failed, eno: %d", eno)
-		return eno
+	if eno := sch.SchinfStartTaskEx(ngbInst.ptn); eno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("PingpongReq: start instance failed, eno: %d", eno)
+		return NgbMgrEnoScheduler
 	}
 
-	rsp.Result = NgbMgrEnoNone
-	rsp.Ping = ngbMgr.getMap(strPeerNodeId).msgBody.(*um.Ping)
-	return funcRsp2Tab()
+	return NgbMgrEnoNone
 }
 
 //
