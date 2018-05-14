@@ -88,7 +88,8 @@ const maxTcpmsgSize = 1024*1024*4				// max size of a tcpmsg package could be, c
 												// it's a fixed value here than can be configurated
 												// by other module.
 
-const durDcvFindNodeTimer = time.Second * 20	// duration to wait for find node response from discover task
+const durDcvFindNodeTimer = time.Second * 22	// duration to wait for find node response from discover task,
+												// should be (findNodeExpiration + delta).
 
 type peMgrConfig struct {
 	maxPeers		int				// max peers would be
@@ -1641,9 +1642,15 @@ func piEstablishedInd(inst *peerInstance, msg interface{}) PeMgrErrno {
 // Pingpong timer handler
 //
 func piPingpongTimerHandler(inst *peerInstance) PeMgrErrno {
-	yclog.LogCallerFileLine("piPingpongTimerHandler: pingpong timer expired")
+
+	//
+	// This timer is for pingpong after peer is established, as heartbit, but now
+	// it's not implemented.
+	//
+
+	yclog.LogCallerFileLine("piPingpongTimerHandler: pingpong timer expired, not implemented")
 	_ = inst
-	return PeMgrEnoNone
+	return PeMgrEnoUnsup
 }
 
 //

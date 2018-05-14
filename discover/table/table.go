@@ -949,10 +949,20 @@ func tabRefresh(tid *NodeID) TabMgrErrno {
 	// If the "tid"(target identity) passed in is nil, we get a random one;
 	//
 
+	//
+	// check if the active query instances table full. notice that if it's false,
+	// then the pending table must be empty in current implement logic.
+	//
+
+	tabMgr.refreshing = len(tabMgr.queryIcb) >= TabInstQueringMax
 	if tabMgr.refreshing == true {
 		yclog.LogCallerFileLine("tabRefresh: already in refreshing")
 		return TabMgrEnoNone
 	}
+
+	//
+	// if nil target passed in, we get a random one
+	//
 
 	var nodes []*Node
 	var target NodeID
