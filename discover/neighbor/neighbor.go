@@ -802,6 +802,7 @@ func (ngbMgr *neighborManager)UdpMsgHandler(msg *UdpMsgInd) NgbMgrErrno {
 	if eno != NgbMgrEnoNone {
 		yclog.LogCallerFileLine("NgbMgrProc: errors, eno: %d", eno)
 	}
+
 	return eno
 }
 

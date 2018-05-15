@@ -26,12 +26,12 @@ import (
 	"path"
 	"math/rand"
 	"fmt"
+	"sync"
 	"crypto/sha256"
 	sch		"ycp2p/scheduler"
 	ycfg	"ycp2p/config"
 	um		"ycp2p/discover/udpmsg"
 	yclog	"ycp2p/logger"
-	"sync"
 )
 
 
@@ -72,7 +72,7 @@ const (
 // Some constants about buckets, timers, ...
 //
 const (
-	bucketSize			= 16					// max nodes can be held for one bucket
+	bucketSize			= 32					// max nodes can be held for one bucket
 	nBuckets			= HashBits				// total number of buckets
 	maxBonding			= 16					// max concurrency bondings
 	maxFindnodeFailures	= 5						// max FindNode failures to remove a node
@@ -217,6 +217,11 @@ var tabMgr = tableManager{
 func init() {
 	tabMgr.tep = TabMgrProc
 	ndbCleaner.tep = NdbcProc
+	for loop := 0; loop < cap(tabMgr.buckets); loop++ {
+		b := new(bucket)
+		tabMgr.buckets[loop] = b
+		b.nodes = make([]*bucketEntry, 0, bucketSize)
+	}
 }
 
 //
@@ -1930,11 +1935,17 @@ func tabBucketAddNode(n *um.Node, lastPing *time.Time, lastPong *time.Time) TabM
 	// if bucket not full, append node
 	//
 
-	if len(b.nodes) != bucketSize {
+	if len(b.nodes) < bucketSize {
 
 		var be= new(bucketEntry)
 
-		be.Node = *interface{}(n).(*ycfg.Node)
+		be.Node = ycfg.Node{
+			IP:		n.IP,
+			UDP:	n.UDP,
+			TCP:	n.TCP,
+			ID:		n.NodeId,
+		}
+
 		be.sha = *tabNodeId2Hash(id)
 		be.addTime = time.Now()
 		be.lastPing = *lastPing

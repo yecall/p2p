@@ -141,7 +141,8 @@ type Config struct {
 //
 type Cfg4UdpListener struct {
 	IP		net.IP		// ip address
-	Port	uint16		// port numbers
+	UDP		uint16		// udp port numbers
+	TCP		uint16		// tcp port numbers
 	ID		NodeID		// the node's public key
 }
 
@@ -610,7 +611,8 @@ func P2pSetupDefaultBootstrapNodes() []*Node {
 func P2pConfig4UdpListener() *Cfg4UdpListener {
 	return &Cfg4UdpListener {
 		IP:		config.Local.IP,
-		Port:	config.Local.UDP,
+		UDP:	config.Local.UDP,
+		TCP:	config.Local.TCP,
 		ID:		config.Local.ID,
 	}
 }

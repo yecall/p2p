@@ -134,7 +134,8 @@ func (mgr *listenerManager) setupConfig() sch.SchErrno {
 	}
 
 	lsnMgr.cfg.IP	= ptCfg.IP
-	lsnMgr.cfg.UDP	= ptCfg.Port
+	lsnMgr.cfg.UDP	= ptCfg.UDP
+	lsnMgr.cfg.TCP	= ptCfg.TCP
 	lsnMgr.cfg.ID	= ptCfg.ID
 
 	return sch.SchEnoNone

@@ -25,6 +25,7 @@ import (
 	yclog	"ycp2p/logger"
 	ycfg	"ycp2p/config"
 	pb		"ycp2p/discover/udpmsg/pb"
+	"time"
 )
 
 //
@@ -51,8 +52,7 @@ type (
 	// Node: endpoint with node identity
 	Node struct {
 		IP			net.IP		// ip address
-		UDP			uint16		// udp port number
-		TCP			uint16		// tcp port number
+		UDP, TCP	uint16		// udp port number
 		NodeId		ycfg.NodeID	// node identity
 	}
 
@@ -606,6 +606,7 @@ func (pum *UdpMsg) EncodeFindNode(fn *FindNode) UdpMsgErrno {
 	pbFN.To.NodeId = append(pbFN.To.NodeId, fn.To.NodeId[:]...)
 	pbFN.Target = append(pbFN.Target, fn.Target[:]...)
 
+	*pbFN.Id = uint64(time.Now().UnixNano())
 	*pbFN.Expiration = fn.Expiration
 	pbFN.Extra = append(pbFN.Extra, fn.Extra...)
 
@@ -641,18 +642,30 @@ func (pum *UdpMsg) EncodeNeighbors(ngb *Neighbors) UdpMsgErrno {
 	pbm.Neighbors = pbNgb
 	pbm.XXX_unrecognized = nil
 
+	pbNgb.From = new(pb.UdpMessage_Node)
+	pbNgb.From.TCP = new(uint32)
+	pbNgb.From.UDP = new(uint32)
 
 	pbNgb.From.IP = append(pbNgb.From.IP, ngb.From.IP...)
 	*pbNgb.From.TCP = uint32(ngb.From.TCP)
 	*pbNgb.From.UDP = uint32(ngb.From.UDP)
 	pbNgb.From.NodeId = append(pbNgb.From.NodeId, ngb.From.NodeId[:]...)
 
+	pbNgb.To = new(pb.UdpMessage_Node)
+	pbNgb.To.TCP = new(uint32)
+	pbNgb.To.UDP = new(uint32)
+
 	pbNgb.To.IP = append(pbNgb.To.IP, ngb.To.IP...)
 	*pbNgb.To.TCP = uint32(ngb.To.TCP)
 	*pbNgb.To.UDP = uint32(ngb.To.UDP)
 	pbNgb.To.NodeId = append(pbNgb.To.NodeId, ngb.To.NodeId[:]...)
 
+	pbNgb.Id = new(uint64)
+	*pbNgb.Id = uint64(time.Now().UnixNano())
+
+	pbNgb.Expiration = new(uint64)
 	*pbNgb.Expiration = ngb.Expiration
+
 	pbNgb.Extra = append(pbNgb.Extra, ngb.Extra...)
 
 	pbNgb.Nodes = make([]*pb.UdpMessage_Node, len(ngb.Nodes))
@@ -660,12 +673,14 @@ func (pum *UdpMsg) EncodeNeighbors(ngb *Neighbors) UdpMsgErrno {
 	for idx, n := range ngb.Nodes {
 
 		nn := new(pb.UdpMessage_Node)
-		nn.IP = append(nn.IP, n.IP...)
 		nn.TCP = new(uint32)
-		*nn.TCP = uint32(n.TCP)
 		nn.UDP = new(uint32)
+
+		nn.IP = append(nn.IP, n.IP...)
+		*nn.TCP = uint32(n.TCP)
 		*nn.UDP = uint32(n.UDP)
 		nn.NodeId = append(nn.NodeId, n.NodeId[:]...)
+
 		pbNgb.Nodes[idx] = nn
 	}
 
