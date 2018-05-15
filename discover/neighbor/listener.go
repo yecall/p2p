@@ -535,7 +535,8 @@ _loop:
 			// deal with the message
 			//
 
-			udpReader.msgHandler(buf, bys, peer)
+			buf = buf[0:bys]
+			udpReader.msgHandler(&buf, bys, peer)
 		}
 	}
 
@@ -576,7 +577,7 @@ func (rd udpReaderTask) canErrIgnored(err error) bool {
 //
 // Decode message
 //
-func (rd udpReaderTask) msgHandler(buf []byte, len int, from *net.UDPAddr) sch.SchErrno {
+func (rd udpReaderTask) msgHandler(pbuf *[]byte, len int, from *net.UDPAddr) sch.SchErrno {
 
 	//
 	// We need not to interprete the message, we jsut decode it and
@@ -588,7 +589,7 @@ func (rd udpReaderTask) msgHandler(buf []byte, len int, from *net.UDPAddr) sch.S
 	var msg sch.SchMessage
 	var eno umsg.UdpMsgErrno
 
-	if eno := umsg.PtrUdpMsg.SetRawMessage(buf, len, from); eno != umsg.UdpMsgEnoNone {
+	if eno := umsg.PtrUdpMsg.SetRawMessage(pbuf, len, from); eno != umsg.UdpMsgEnoNone {
 		yclog.LogCallerFileLine("msgHandler: SetRawMessage failed, eno: %d", eno)
 		return sch.SchEnoUserTask
 	}
@@ -656,8 +657,17 @@ func sendUdpMsg(buf []byte, toAddr *net.UDPAddr) sch.SchErrno {
 		return sch.SchEnoOS
 	}
 
-	if _, err := udpReader.conn.WriteToUDP(buf, toAddr); err != nil {
+	sent, err := udpReader.conn.WriteToUDP(buf, toAddr)
+
+	if err != nil {
 		yclog.LogCallerFileLine("sendUdpMsg: WriteToUDP failed, err: %s", err.Error())
+		return sch.SchEnoOS
+	}
+
+	if sent != len(buf) {
+		yclog.LogCallerFileLine("sendUdpMsg: " +
+			"WriteToUDP failed, len: %d, sent: %d",
+			len(buf), sent)
 		return sch.SchEnoOS
 	}
 

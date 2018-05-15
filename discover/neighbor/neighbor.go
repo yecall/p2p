@@ -846,7 +846,7 @@ func (ngbMgr *neighborManager)PingHandler(ping *um.Ping) NgbMgrErrno {
 	}
 
 	if buf, bytes := pum.GetRawMessage(); buf != nil && bytes > 0 {
-		if eno := sendUdpMsg(pum.Buf, &toAddr); eno != sch.SchEnoNone {
+		if eno := sendUdpMsg(buf, &toAddr); eno != sch.SchEnoNone {
 			yclog.LogCallerFileLine("PingHandler: sendUdpMsg failed, eno: %d", eno)
 			return NgbMgrEnoUdp
 		}
