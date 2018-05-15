@@ -88,11 +88,11 @@ func init() {
 //
 func LsnMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 
-	var eno = sch.SchEnoUnknown
-
 	yclog.LogCallerFileLine("LsnMgrProc: " +
 		"scheduled, sender: %s, recver: %s, msg: %d",
 		sch.SchinfGetMessageSender(msg), sch.SchinfGetMessageRecver(msg), msg.Id)
+
+	var eno = sch.SchEnoUnknown
 
 	switch msg.Id {
 
@@ -215,6 +215,10 @@ func (mgr *listenerManager) start() sch.SchErrno {
 		return eno
 	}
 
+	yclog.LogCallerFileLine("start: " +
+		"send EvNblStart ok, target: %s",
+		sch.SchinfGetTaskName(mgr.ptnMe))
+
 	return sch.SchEnoNone
 }
 
@@ -262,7 +266,10 @@ func (mgr *listenerManager) procPoweron() sch.SchErrno {
 
 	var eno sch.SchErrno
 
+	//
 	// get pointer to myself
+	//
+
 	if eno, mgr.ptnMe = sch.SchinfGetTaskNodeByName(mgr.name); eno != sch.SchEnoNone || mgr.ptnMe == nil {
 		if eno == sch.SchEnoNone {
 			yclog.LogCallerFileLine("procPoweron: internal errors, eno mismatched")
@@ -274,25 +281,40 @@ func (mgr *listenerManager) procPoweron() sch.SchErrno {
 		return eno
 	}
 
+	//
 	// update state
+	//
+
 	mgr.nextState(LmsNull)
 
+	//
 	// fetch configurations
+	//
+
 	if eno = lsnMgr.setupConfig(); eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("procPoweron：setupConfig failed, eno: %d", eno)
 		return eno
 	}
 
+	//
 	// setup connection
+	//
+
 	if eno = lsnMgr.setupUdpConn(); eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("procPoweron：setupUdpConn failed, eno: %d", eno)
 		return eno
 	}
 
+	//
 	// update state
+	//
+
 	mgr.nextState(LmsInited)
 
-	// start listening(reading)
+	//
+	// start listening(reading on udp)
+	//
+
 	if eno = lsnMgr.start(); eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("procPoweron：start failed, eno: %d", eno)
 		return eno
@@ -319,7 +341,8 @@ func (mgr *listenerManager) procPoweroff() sch.SchErrno {
 func (mgr *listenerManager) procStart() sch.SchErrno {
 
 	//
-	// here we create a task for udp reading loop
+	// here we create a task for udp reading loop, notice that udp connection
+	// must have been established when coming here.
 	//
 
 	var eno = sch.SchEnoUnknown
@@ -327,13 +350,23 @@ func (mgr *listenerManager) procStart() sch.SchErrno {
 
 	udpReader.conn = mgr.conn
 	eno, ptnLoop = sch.SchinfCreateTask(&udpReader.desc)
+
 	if eno != sch.SchEnoNone || ptnLoop == nil {
+
+		yclog.LogCallerFileLine("procStart: " +
+			"SchinfCreateTask failed, eno: %d, ptn: %p",
+			eno, ptnLoop)
+
 		if eno == sch.SchEnoNone {
-			yclog.LogCallerFileLine("")
 			eno = sch.SchEnoMismatched
 		}
+
 		return eno
 	}
+
+	yclog.LogCallerFileLine("procStart: " +
+		"udp reader task created ok, task: %s",
+		sch.SchinfGetTaskName(ptnLoop))
 
 	//
 	// we believe reader is working, update the state. more better is to
@@ -430,6 +463,8 @@ type UdpMsgInd struct {
 //
 func udpReaderLoop(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 
+	yclog.LogCallerFileLine("udpReaderLoop: the reader loop entered")
+
 	//
 	// should never not be scheduled for any messages
 	//
@@ -445,10 +480,13 @@ func udpReaderLoop(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 
 	udpReader.ptnMe = ptn
 	eno, udpReader.ptnNgbMgr = sch.SchinfGetTaskNodeByName(NgbMgrName)
+
 	if eno != sch.SchEnoNone {
+
 		yclog.LogCallerFileLine("udpReaderLoop: " +
 			"SchinfGetTaskNodeByName failed, name: %s, eno: %d",
 			NgbMgrName, eno)
+
 		return eno
 	}
 
@@ -461,6 +499,8 @@ func udpReaderLoop(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	// discover protocol message, it than create a protocol task to
 	// deal with the message received.
 	//
+
+	yclog.LogCallerFileLine("udpReaderLoop: going into a longlong loop for reading ...")
 
 _loop:
 
@@ -485,6 +525,7 @@ _loop:
 				//
 
 				yclog.LogCallerFileLine("udpReaderLoop: broken, err: %s", err.Error())
+
 				break _loop
 			}
 		} else {
@@ -512,6 +553,7 @@ _loop:
 		eno = sch.SchinfTaskDone(ptn, sch.SchEnoOS)
 
 		if eno != sch.SchEnoNone {
+
 			yclog.LogCallerFileLine("udpReaderLoop: DONE failed, eno: %d", eno)
 		}
 	}

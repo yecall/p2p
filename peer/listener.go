@@ -64,7 +64,9 @@ func init() {
 //
 func LsnMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 
-	yclog.LogCallerFileLine("LsnMgrProc: scheduled, msg: %d", msg.Id)
+	yclog.LogCallerFileLine("LsnMgrProc: " +
+		"scheduled, sender: %s, recver: %s, msg: %d",
+		sch.SchinfGetMessageSender(msg), sch.SchinfGetMessageRecver(msg), msg.Id)
 
 	var eno sch.SchErrno
 

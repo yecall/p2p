@@ -216,8 +216,8 @@ var config = Config {
 	StaticNodes:		nil,
 	NodeDataDir:		P2pDefaultDataDir(true),
 	NodeDatabase:		datadirNodeDatabase,
-	NoDial:				false,
-	BootstrapNode:		false,
+	NoDial:				true,
+	BootstrapNode:		true,
 	Local:				dftLocal,
 }
 

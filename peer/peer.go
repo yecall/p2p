@@ -175,7 +175,9 @@ func init() {
 //
 func PeerMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 
-	yclog.LogCallerFileLine("PeerMgrProc: scheduled, msg: %d", msg.Id)
+	yclog.LogCallerFileLine("PeerMgrProc: " +
+		"scheduled, sender: %s, recver: %s, msg: %d",
+		sch.SchinfGetMessageSender(msg), sch.SchinfGetMessageRecver(msg), msg.Id)
 
 	var schEno = sch.SchEnoNone
 	var eno PeMgrErrno = PeMgrEnoNone
@@ -1330,7 +1332,9 @@ type MsgCloseInd struct {
 //
 func PeerInstProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 
-	yclog.LogCallerFileLine("PeerInstProc: scheduled, msg: %d", msg.Id)
+	yclog.LogCallerFileLine("PeerInstProc: " +
+		"scheduled, sender: %s, recver: %s, msg: %d",
+		sch.SchinfGetMessageSender(msg), sch.SchinfGetMessageRecver(msg), msg.Id)
 
 	var eno PeMgrErrno
 

@@ -102,7 +102,9 @@ const (
 //
 func NgbProtoProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 
-	yclog.LogCallerFileLine("NgbProtoProc: scheduled, msg: %d", msg.Id)
+	yclog.LogCallerFileLine("NgbProtoProc: " +
+		"scheduled, sender: %s, recver: %s, msg: %d",
+		sch.SchinfGetMessageSender(msg), sch.SchinfGetMessageRecver(msg), msg.Id)
 
 	var protoEno NgbProtoErrno
 	var inst *neighborInst
