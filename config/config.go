@@ -225,6 +225,8 @@ var config = Config {
 	Local:				dftLocal,
 }
 
+var PtrConfig = &config
+
 //
 // Get default config
 //

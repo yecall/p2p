@@ -10,7 +10,8 @@ import 	"crypto/sha256"
 //		github.com/ethereum/go-ethereum/p2p/discover/database.go
 //		~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 //
-// And the following is the Ethereum Claim (the header of the source):
+// And the following is the Ethereums' Claims (header of Ethereums' source):
+//
 //
 //
 // Copyright 2015 The go-ethereum Authors
@@ -31,6 +32,8 @@ import 	"crypto/sha256"
 
 // Contains the node database, storing previously seen nodes and any collected
 // metadata about them for QoS purposes.
+
+
 
 //
 // We had modified some source codes (mainly to pass the compiler).

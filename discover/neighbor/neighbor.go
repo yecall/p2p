@@ -29,6 +29,7 @@ import (
 	um		"ycp2p/discover/udpmsg"
 	ycfg	"ycp2p/config"
 	yclog	"ycp2p/logger"
+	tab		"ycp2p/discover/table"
 )
 
 
@@ -45,6 +46,7 @@ const (
 	NgbMgrEnoDuplicated
 	NgbMgrEnoMismatched
 	NgbMgrEnoScheduler
+	NgbMgrEnoTable
 )
 
 type NgbMgrErrno int
@@ -740,6 +742,7 @@ func NgbMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 // Poweron handler
 //
 func (ngbMgr *neighborManager)PoweronHandler(ptn interface{}) sch.SchErrno {
+
 	ngbMgr.ptnMe = ptn
 	eno, ptnTab := sch.SchinfGetTaskNodeByName(sch.TabMgrName)
 
@@ -751,12 +754,14 @@ func (ngbMgr *neighborManager)PoweronHandler(ptn interface{}) sch.SchErrno {
 	}
 
 	if ptnTab == nil {
-		yclog.LogCallerFileLine("PoweronHandler: invalid table task node pointer")
+		yclog.LogCallerFileLine("PoweronHandler: " +
+			"invalid table task node pointer")
 		return sch.SchEnoUnknown
 	}
 
 	ngbMgr.ptnMe = ptn
 	ngbMgr.ptnTab = ptnTab
+
 	return sch.SchEnoNone
 }
 
@@ -963,7 +968,12 @@ func (ngbMgr *neighborManager)FindNodeHandler(findNode *um.FindNode) NgbMgrErrno
 	// to response the peer node with our neighbors, but we do not start neighbor task
 	// instance to init a procedure of finding nodes(notice that, this is defferent from
 	// that when we receiving Ping or Pong from peers, if the instances for peers are not
-	// exist, we do start instances to init Ping procedures).
+	// exist, we do start instances to init Ping procedures). This is saying that: if a
+	// node send FindNode message to us, then our node must be known to the sender, so we
+	// need not to carry a bounding procedure for this sender.
+	//
+	// For the reason described aboved, We just call interface exported by table module
+	// to add the sender node to bucket and node database.
 	//
 
 	if findNode.To.NodeId != lsnMgr.cfg.ID {
@@ -977,8 +987,112 @@ func (ngbMgr *neighborManager)FindNodeHandler(findNode *um.FindNode) NgbMgrErrno
 		return NgbMgrEnoTimeout
 	}
 
+	//
+	// Response the sender with our neighbors closest to it.
+	// Notice: if the target of this FindNode message is same as the sender
+	// node identity, then the buckets of the sender might be all empty, in
+	// such case, if the closest set is empty, we then append our local node
+	// as a neighbor for the sender, see bellow pls.
+	//
 
-	return NgbMgrEnoNotImpl
+	var eno tab.TabMgrErrno
+	var nodes = make([]*tab.Node, 0)
+	var umNodes = make([]*um.Node, 0)
+
+	local := ngbMgr.localNode()
+	nodes = append(nodes, tab.TabClosest(tab.NodeID(findNode.From.NodeId), tab.TabInstQPendingMax)...)
+
+	if len(nodes) == 0 {
+		if findNode.From.NodeId == findNode.Target {
+			nodes = append(nodes, tab.TabBuildNode(&ycfg.PtrConfig.Local))
+		}
+	}
+
+	for _, n := range nodes {
+		umn := um.Node {
+			IP:		n.IP,
+			UDP:	n.UDP,
+			TCP:	n.TCP,
+			NodeId:	n.ID,
+		}
+		umNodes = append(umNodes, &umn)
+	}
+
+	neighbors := um.Neighbors{
+		From: 		*local,
+		To:			findNode.From,
+		Id:			uint64(time.Now().UnixNano()),
+		Nodes:		umNodes,
+		Expiration:	0,
+		Extra:		nil,
+
+	}
+
+	toAddr := net.UDPAddr {
+		IP: 	findNode.From.IP,
+		Port:	int(findNode.From.UDP),
+		Zone:	"",
+	}
+
+	pum := new(um.UdpMsg)
+	if eno := pum.Encode(um.UdpMsgTypeNeighbors, &neighbors); eno != um.UdpMsgEnoNone {
+
+		yclog.LogCallerFileLine("FindNodeHandler: " +
+			"Encode failed, eno: %d", eno)
+
+		return NgbMgrEnoEncode
+	}
+
+	if buf, bytes := pum.GetRawMessage(); buf != nil && bytes > 0 {
+
+		if eno := sendUdpMsg(buf, &toAddr); eno != sch.SchEnoNone {
+
+			yclog.LogCallerFileLine("FindNodeHandler: " +
+				"sendUdpMsg failed, eno: %d", eno)
+
+			return NgbMgrEnoUdp
+		}
+	} else {
+
+		yclog.LogCallerFileLine("FindNodeHandler: " +
+			"invalid buffer, buf: %p, length: %d",
+			interface{}(buf), bytes)
+
+		return NgbMgrEnoEncode
+	}
+
+	//
+	// Add sender node to bucket
+	//
+
+	lastPing := time.Now()
+	lastPong := time.Now()
+
+	eno = tab.TabBucketAddNode(&findNode.From, &lastPing, &lastPong)
+	if eno != tab.TabMgrEnoNone {
+
+		yclog.LogCallerFileLine("FindNodeHandler: " +
+			"TabBucketAddNode failed, eno: %d",
+			eno)
+
+		return NgbMgrEnoTable
+	}
+
+	//
+	// Backup sender node to node database
+	//
+
+	eno = tab.TabUpdateNode(&findNode.From)
+	if eno != tab.TabMgrEnoNone {
+
+		yclog.LogCallerFileLine("FindNodeHandler: " +
+			"TabUpdateNode failed, eno: %d",
+			eno)
+
+		return NgbMgrEnoTable
+	}
+
+	return NgbMgrEnoNone
 }
 
 //
@@ -1351,5 +1465,13 @@ func (ngbMgr *neighborManager) localNode() *um.Node {
 // Check if request or response timeout
 //
 func expired(ts uint64) bool {
+
+	//
+	// If ts is zero, it would be never expired; but notice
+	// if (ts < 0) is true, it would be always expired.
+	//
+
+	if ts == 0 { return false }
+
 	return time.Unix(int64(ts), 0).Before(time.Now())
 }

@@ -25,12 +25,13 @@ import (
 	"time"
 	"path"
 	"math/rand"
+	"fmt"
 	"crypto/sha256"
 	sch		"ycp2p/scheduler"
 	ycfg	"ycp2p/config"
 	um		"ycp2p/discover/udpmsg"
 	yclog	"ycp2p/logger"
-	"fmt"
+	"sync"
 )
 
 
@@ -141,20 +142,20 @@ const (
 )
 
 type instCtrlBlock struct {
-	state	int				// instance state, see aboved consts about state pls
-	req		interface{}		// request message pointer which inited this instance
-	rsp		interface{}		// pointer to response message received
-	tid		int				// identity of timer for response
-	pit		time.Time		// ping sent time
-	pot		time.Time		// pong received time
+	state	int					// instance state, see aboved consts about state pls
+	req		interface{}			// request message pointer which inited this instance
+	rsp		interface{}			// pointer to response message received
+	tid		int					// identity of timer for response
+	pit		time.Time			// ping sent time
+	pot		time.Time			// pong received time
 }
 
 //
 // FindNode pending item
 //
 type queryPendingEntry struct {
-	node	*Node	// peer node to be queried
-	target	*NodeID	// target looking for
+	node	*Node				// peer node to be queried
+	target	*NodeID				// target looking for
 }
 
 //
@@ -163,6 +164,7 @@ type queryPendingEntry struct {
 const TabMgrName = sch.TabMgrName
 
 type tableManager struct {
+	lock			sync.Mutex			// lock for sync
 	name			string				// name
 	tep				sch.SchUserTaskEp	// entry
 	cfg				tabConfig			// configuration
@@ -178,8 +180,15 @@ type tableManager struct {
 	dlkTab			[]int				// log2 distance lookup table for a xor byte
 	refreshing		bool				// busy in refreshing now
 	dataDir			string				// data directory
-	nodeDb			*nodeDB				// node database object pointer
 	arfTid			int					// auto refresh timer identity
+
+	//
+	// Notice: currently Ethereum's database interface is introduced, and
+	// we had make some modification on it, see file nodedb.go for details
+	// please.
+	//
+
+	nodeDb			*nodeDB				// node database object pointer
 }
 
 var tabMgr = tableManager{
@@ -221,6 +230,18 @@ func TabMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 		yclog.LogCallerFileLine("TabMgrProc: invalid parameters")
 		return TabMgrEnoParameter
 	}
+
+	//
+	// Notice: this table module had exported some functions to access the bucket
+	// and the node database, such as function TabBucketAddNode, and so on. The
+	// other tasks, for example, the neighbor manager "NgbMgr"(sch.NgbMgrName),
+	// would call those shared functions. To sync the accessing, here we apply a
+	// simple(but not a good) method: obtain the lock at the task entry and free
+	// it until leaving.
+	//
+
+	tabMgr.lock.Lock()
+	defer tabMgr.lock.Unlock()
 
 	var eno TabMgrErrno = TabMgrEnoNone
 
@@ -1369,7 +1390,8 @@ func tabUpdateNodeDb(inst *instCtrlBlock, result int) TabMgrErrno {
 		id := NodeID(inst.req.(*um.FindNode).To.NodeId)
 
 		if node := tabMgr.nodeDb.node(id); node == nil {
-			yclog.LogCallerFileLine("tabUpdateNodeDb: fnFailUpdate: node not exist, do nothing")
+			yclog.LogCallerFileLine("tabUpdateNodeDb: " +
+				"fnFailUpdate: node not exist, do nothing")
 			return TabMgrEnoNone
 		}
 
@@ -1392,7 +1414,8 @@ func tabUpdateNodeDb(inst *instCtrlBlock, result int) TabMgrErrno {
 		id := NodeID(inst.req.(*um.FindNode).To.NodeId)
 
 		if node := tabMgr.nodeDb.node(id); node == nil {
-			yclog.LogCallerFileLine("tabUpdateNodeDb: fnFailClear: node not exist, do nothing")
+			yclog.LogCallerFileLine("tabUpdateNodeDb: " +
+				"fnFailClear: node not exist, do nothing")
 			return TabMgrEnoNone
 		}
 
@@ -1423,7 +1446,11 @@ func tabUpdateNodeDb(inst *instCtrlBlock, result int) TabMgrErrno {
 		}
 
 		if err := tabMgr.nodeDb.updateNode(&n); err != nil {
-			yclog.LogCallerFileLine("tabUpdateNodeDb: update: updateNode failed, err: %s", err.Error())
+
+			yclog.LogCallerFileLine("tabUpdateNodeDb: " +
+				"update: updateNode failed, err: %s",
+					err.Error())
+
 			return TabMgrEnoDatabase
 		}
 
@@ -1807,11 +1834,15 @@ func (b *bucket) latestAdd(src []*bucketEntry) ([]*bucketEntry) {
 	var beLatest = make([]*bucketEntry, 0)
 
 	for _, be := range src {
+
 		if be.addTime.After(latest) {
+
 			latest = be.addTime
 			beLatest = []*bucketEntry{}
 			beLatest = append(beLatest, be)
+
 		} else if be.addTime.Equal(latest) {
+
 			beLatest = append(beLatest, be)
 		}
 	}
@@ -1840,11 +1871,15 @@ func (b *bucket) eldestPong(src []*bucketEntry) ([]*bucketEntry) {
 	var beEldest = make([]*bucketEntry, 0)
 
 	for _, be := range src {
+
 		if be.lastPong.Before(eldest) {
+
 			eldest = be.lastPong
 			beEldest = []*bucketEntry{}
 			beEldest = append(beEldest, be)
+
 		} else if be.lastPong.Equal(eldest) {
+
 			beEldest = append(beEldest, be)
 		}
 	}
@@ -2254,4 +2289,100 @@ func tabShouldBound(id NodeID) bool {
 		needed, failCnt, age)
 
 	return needed
+}
+
+//
+// Upate node for the bucket
+//
+func TabBucketAddNode(n *um.Node, lastPing *time.Time, lastPong *time.Time) TabMgrErrno {
+
+	//
+	// We would be called by other task, we need to lock and
+	// defer unlock.
+	//
+
+	tabMgr.lock.Lock()
+	defer tabMgr.lock.Unlock()
+
+	return tabBucketAddNode(n, lastPong, lastPong)
+}
+
+
+//
+// Upate a node for node database
+//
+func TabUpdateNode(umn *um.Node) TabMgrErrno {
+
+	//
+	// We would be called by other task, we need to lock and
+	// defer unlock. Also notice that: calling this function
+	// for a node would append new node or overwrite the exist
+	// one, the FindNode fail counter would be set to zero.
+	// See function tabMgr.nodeDb.updateNode for more please.
+	//
+
+	if umn == nil {
+		yclog.LogCallerFileLine("TabUpdateNode: invalid parameter")
+		return TabMgrEnoParameter
+	}
+
+	tabMgr.lock.Lock()
+	defer tabMgr.lock.Unlock()
+
+	n := Node {
+		sha: *tabNodeId2Hash(NodeID(umn.NodeId)),
+		Node: ycfg.Node{
+			IP:  umn.IP,
+			UDP: umn.UDP,
+			TCP: umn.TCP,
+			ID:  ycfg.NodeID(umn.NodeId),
+		},
+	}
+
+	if err := tabMgr.nodeDb.updateNode(&n); err != nil {
+
+		yclog.LogCallerFileLine("TabUpdateNode: " +
+			"update: updateNode failed, err: %s",
+				err.Error())
+
+		return TabMgrEnoDatabase
+	}
+
+	return TabMgrEnoNone
+}
+
+//
+// Fetch closest nodes for target
+//
+func TabClosest(target NodeID, size int) []*Node {
+
+	//
+	// We would be called by other task, we need to lock and
+	// defer unlock.
+	//
+
+	tabMgr.lock.Lock()
+	defer tabMgr.lock.Unlock()
+
+	return tabClosest(target, size)
+}
+
+//
+// Build a table node for ycfg.Node
+//
+func TabBuildNode(pn *ycfg.Node) *Node {
+
+	//
+	// Need not to lock
+	//
+
+	return &Node{
+		sha: *tabNodeId2Hash(NodeID(pn.ID)),
+		Node: ycfg.Node{
+			IP:  pn.IP,
+			UDP: pn.UDP,
+			TCP: pn.TCP,
+			ID:  ycfg.NodeID(pn.ID),
+		},
+	}
 }
