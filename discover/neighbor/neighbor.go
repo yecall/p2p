@@ -79,7 +79,7 @@ type neighborInst struct {
 const (
 	NgbProtoEnoNone	= 0
 	NgbProtoEnoParameter = iota + 100	// +100, an offset is necessary to distinct this errno from
-										// those NgbMgrEnoxxx.
+	// those NgbMgrEnoxxx.
 	NgbProtoEnoScheduler
 	NgbProtoEnoOs
 	NgbProtoEnoEncode
@@ -168,7 +168,7 @@ func (inst *neighborInst) NgbProtoFindNodeReq(ptn interface{}, fn *um.FindNode) 
 		return NgbProtoEnoEncode
 	}
 
-	buf, bytes := um.PtrUdpMsg.GetRawMessage()
+	buf, bytes := pum.GetRawMessage()
 	if buf == nil || bytes == 0 {
 		yclog.LogCallerFileLine("NgbProtoFindNodeReq: invalid encoded  message")
 		return NgbProtoEnoEncode
@@ -237,7 +237,7 @@ func (inst *neighborInst) NgbProtoPingReq(ptn interface{}, ping *um.Ping) NgbPro
 		return NgbProtoEnoEncode
 	}
 
-	buf, bytes := um.PtrUdpMsg.GetRawMessage()
+	buf, bytes := pum.GetRawMessage()
 	if buf == nil || bytes == 0 {
 		yclog.LogCallerFileLine("NgbProtoPingReq: invalid encoded  message")
 		return NgbProtoEnoEncode
@@ -845,9 +845,16 @@ func (ngbMgr *neighborManager)PingHandler(ping *um.Ping) NgbMgrErrno {
 		return NgbMgrEnoEncode
 	}
 
-	if eno := sendUdpMsg(pum.Buf, &toAddr); eno != sch.SchEnoNone {
-		yclog.LogCallerFileLine("PingHandler: sendUdpMsg failed, eno: %d", eno)
-		return NgbMgrEnoUdp
+	if buf, bytes := pum.GetRawMessage(); buf != nil && bytes > 0 {
+		if eno := sendUdpMsg(pum.Buf, &toAddr); eno != sch.SchEnoNone {
+			yclog.LogCallerFileLine("PingHandler: sendUdpMsg failed, eno: %d", eno)
+			return NgbMgrEnoUdp
+		}
+	} else {
+		yclog.LogCallerFileLine("PingHandler: " +
+			"invalid buffer, buf: %p, length: %d",
+			interface{}(buf), bytes)
+		return NgbMgrEnoEncode
 	}
 
 	//
