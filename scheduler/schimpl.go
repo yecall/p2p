@@ -459,8 +459,8 @@ func schimplGetTimerNode() (SchErrno, *schTmcbNode) {
 	}
 
 	yclog.LogCallerFileLine("schimplGetTimerNode: " +
-		"entered, free size: %d, busy size: %d, free_ptr: %p, busy_ptr: %p",
-		p2pSDL.tmFreeSize, p2pSDL.tmBusySize, p2pSDL.tmFree, p2pSDL.tmBusy)
+		"entered, free size: %d, free_ptr: %p",
+		p2pSDL.tmFreeSize, p2pSDL.tmFree)
 
 	//
 	// dequeue one node
@@ -496,8 +496,8 @@ func schimplGetTimerNode() (SchErrno, *schTmcbNode) {
 	tmn.last = tmn
 
 	yclog.LogCallerFileLine("schimplGetTimerNode: " +
-		"exit, free size: %d, busy size: %d, free_ptr: %p, busy_ptr: %p",
-		p2pSDL.tmFreeSize, p2pSDL.tmBusySize, p2pSDL.tmFree, p2pSDL.tmBusy)
+		"exit, free size: %d, free_ptr: %p",
+		p2pSDL.tmFreeSize, p2pSDL.tmFree)
 
 	return SchEnoNone, tmn
 }
@@ -520,8 +520,8 @@ func schimplRetTimerNode(ptm *schTmcbNode) SchErrno {
 	defer  p2pSDL.lock.Unlock()
 
 	yclog.LogCallerFileLine("schimplRetTimerNode: " +
-		"entered, free size: %d, busy size: %d, free_ptr: %p, busy_ptr: %p",
-		p2pSDL.tmFreeSize, p2pSDL.tmBusySize, p2pSDL.tmFree, p2pSDL.tmBusy)
+		"entered, free size: %d, free_ptr: %p",
+		p2pSDL.tmFreeSize, p2pSDL.tmFree)
 
 	//
 	// enqueue a node
@@ -541,8 +541,8 @@ func schimplRetTimerNode(ptm *schTmcbNode) SchErrno {
 	p2pSDL.tmFreeSize++
 
 	yclog.LogCallerFileLine("schimplRetTimerNode: " +
-		"exit, free size: %d, busy size: %d, free_ptr: %p, busy_ptr: %p",
-		p2pSDL.tmFreeSize, p2pSDL.tmBusySize, p2pSDL.tmFree, p2pSDL.tmBusy)
+		"exit, free size: %d, free_ptr: %p",
+		p2pSDL.tmFreeSize, p2pSDL.tmFree)
 
 	return SchEnoNone
 }

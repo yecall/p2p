@@ -67,6 +67,7 @@ const (
 //	node-identity-hex-string@ip:udp-port:tcp-port
 //
 const P2pMaxBootstrapNodes = 32
+
 var BootstrapNodeUrl = []string {
 	"a979fb575495b8d6db44f750317d0f4622bf4c2aa3365d6af7c284339968eef29b69ad0dce72a4d8db5ebb4968de0e3bec910127f134779fbcb0cb6d3331163c@52.16.188.185:30303:30303",
 }
@@ -139,9 +140,9 @@ type Config struct {
 // Configuration about neighbor listener on UDP
 //
 type Cfg4UdpListener struct {
-	IP		net.IP	// ip address
-	Port	uint16	// port numbers
-	ID		NodeID	// the node's public key
+	IP		net.IP		// ip address
+	Port	uint16		// port numbers
+	ID		NodeID		// the node's public key
 }
 
 //
@@ -285,6 +286,10 @@ func P2pConfig(cfg *Config) P2pCfgErrno {
 		yclog.LogCallerFileLine("P2pConfig: StaticNodes is empty")
 	}
 
+	//
+	// Seems path.IsAbs does not work under Windows
+	//
+
 	if len(config.NodeDataDir) == 0 /*|| path.IsAbs(config.NodeDataDir) == false*/ {
 		yclog.LogCallerFileLine("P2pConfig: invaid data directory")
 		return PcfgEnoDataDir
@@ -327,7 +332,9 @@ func P2pHexString2NodeId(hex string) *NodeID {
 	var nid = NodeID{byte(0)}
 
 	if len(hex) != NodeIDBytes * 2 {
-		yclog.LogCallerFileLine("P2pHexString2NodeId: invalid length: %d", len(hex))
+		yclog.LogCallerFileLine("P2pHexString2NodeId: " +
+			"invalid length: %d",
+			len(hex))
 		return nil
 	}
 
@@ -340,7 +347,9 @@ func P2pHexString2NodeId(hex string) *NodeID {
 		} else if c >= 'A' && c <= 'F' {
 			c = c - 'A' + 10
 		} else {
-			yclog.LogCallerFileLine("P2pHexString2NodeId: invalid string: %s", hex)
+			yclog.LogCallerFileLine("P2pHexString2NodeId: " +
+				"invalid string: %s",
+				hex)
 			return nil
 		}
 
@@ -424,7 +433,9 @@ func p2pBuildPrivateKey() *ecdsa.PrivateKey {
 	if config.NodeDataDir == "" {
 		key, err := ethereum.GenerateKey()
 		if err != nil {
-			yclog.LogCallerFileLine("p2pBuildPrivateKey: GenerateKey failed, err: %s", err.Error())
+			yclog.LogCallerFileLine("p2pBuildPrivateKey: " +
+				"GenerateKey failed, err: %s",
+				err.Error())
 			return nil
 		}
 		return key
@@ -432,13 +443,17 @@ func p2pBuildPrivateKey() *ecdsa.PrivateKey {
 
 	keyfile := filepath.Join(config.NodeDataDir, config.Name, PcfgEnoIpAddrivateKey)
 	if key, err := ethereum.LoadECDSA(keyfile); err == nil {
-		yclog.LogCallerFileLine("p2pBuildPrivateKey: private key loaded ok from file: %s", keyfile)
+		yclog.LogCallerFileLine("p2pBuildPrivateKey: " +
+			"private key loaded ok from file: %s",
+			keyfile)
 		return key
 	}
 
 	key, err := ethereum.GenerateKey()
 	if err != nil {
-		yclog.LogCallerFileLine("p2pBuildPrivateKey: GenerateKey failed, err: %s", err.Error())
+		yclog.LogCallerFileLine("p2pBuildPrivateKey: " +
+			"GenerateKey failed, err: %s",
+			err.Error())
 		return nil
 	}
 
@@ -453,9 +468,14 @@ func p2pBuildPrivateKey() *ecdsa.PrivateKey {
 	}
 
 	if err := ethereum.SaveECDSA(keyfile, key); err != nil {
-		yclog.LogCallerFileLine("p2pBuildPrivateKey: SaveECDSA failed, err: %s", err.Error())
+		yclog.LogCallerFileLine("p2pBuildPrivateKey: " +
+			"SaveECDSA failed, err: %s",
+			err.Error())
 	}
-	yclog.LogCallerFileLine("p2pBuildPrivateKey: key save ok to file: %s", keyfile)
+
+	yclog.LogCallerFileLine("p2pBuildPrivateKey: " +
+		"key save ok to file: %s",
+		keyfile)
 
 	return key
 }
@@ -470,7 +490,8 @@ func p2pPubkey2NodeId(pub *ecdsa.PublicKey) *NodeID {
 	pbytes := elliptic.Marshal(pub.Curve, pub.X, pub.Y)
 
 	if len(pbytes)-1 != len(id) {
-		yclog.LogCallerFileLine("p2pPubkey2NodeId: invalid public key for node identity")
+		yclog.LogCallerFileLine("p2pPubkey2NodeId: " +
+			"invalid public key for node identity")
 		return nil
 	}
 	copy(id[:], pbytes[1:])
@@ -492,7 +513,8 @@ func p2pSetupLocalNodeId() P2pCfgErrno {
 		config.PrivateKey = p2pBuildPrivateKey()
 
 		if config.PrivateKey == nil {
-			yclog.LogCallerFileLine("p2pSetupLocalNodeId: p2pBuildPrivateKey failed")
+			yclog.LogCallerFileLine("p2pSetupLocalNodeId: " +
+				"p2pBuildPrivateKey failed")
 			return PcfgEnoPrivateKye
 		}
 
@@ -503,7 +525,8 @@ func p2pSetupLocalNodeId() P2pCfgErrno {
 
 	if pnid == nil {
 
-		yclog.LogCallerFileLine("p2pSetupLocalNodeId: p2pPubkey2NodeId failed")
+		yclog.LogCallerFileLine("p2pSetupLocalNodeId: " +
+			"p2pPubkey2NodeId failed")
 		return PcfgEnoPublicKye
 	}
 	config.Local.ID = *pnid
@@ -526,14 +549,18 @@ func P2pSetupDefaultBootstrapNodes() []*Node {
 
 		strs := strings.Split(url,"@")
 		if len(strs) != 2 {
-			yclog.LogCallerFileLine("P2pSetupDefaultBootstrapNodes: invalid bootstrap url: %s", url)
+			yclog.LogCallerFileLine("P2pSetupDefaultBootstrapNodes: " +
+				"invalid bootstrap url: %s",
+				url)
 			return nil
 		}
 
 		strNodeId := strs[0]
 		strs = strings.Split(strs[1],":")
 		if len(strs) != 3 {
-			yclog.LogCallerFileLine("P2pSetupDefaultBootstrapNodes: invalid bootstrap url: %s", url)
+			yclog.LogCallerFileLine("P2pSetupDefaultBootstrapNodes: " +
+				"invalid bootstrap url: %s",
+				url)
 			return nil
 		}
 
@@ -543,7 +570,9 @@ func P2pSetupDefaultBootstrapNodes() []*Node {
 
 		pid := P2pHexString2NodeId(strNodeId)
 		if pid == nil {
-			yclog.LogCallerFileLine("P2pSetupDefaultBootstrapNodes: P2pHexString2NodeId failed, strNodeId: %s", strNodeId)
+			yclog.LogCallerFileLine("P2pSetupDefaultBootstrapNodes: " +
+				"P2pHexString2NodeId failed, strNodeId: %s",
+				strNodeId)
 			return nil
 		}
 
@@ -552,14 +581,18 @@ func P2pSetupDefaultBootstrapNodes() []*Node {
 		bsn[idx].IP = net.ParseIP(strIp)
 
 		if port, err := strconv.Atoi(strUdpPort); err != nil {
-			yclog.LogCallerFileLine("P2pSetupDefaultBootstrapNodes: Atoi for UDP port failed, err: %s", err.Error())
+			yclog.LogCallerFileLine("P2pSetupDefaultBootstrapNodes: " +
+				"Atoi for UDP port failed, err: %s",
+				err.Error())
 			return nil
 		} else {
 			bsn[idx].UDP = uint16(port)
 		}
 
 		if port, err := strconv.Atoi(strTcpPort); err != nil {
-			yclog.LogCallerFileLine("P2pSetupDefaultBootstrapNodes: Atoi for TCP port failed, err: %s", err.Error())
+			yclog.LogCallerFileLine("P2pSetupDefaultBootstrapNodes: " +
+				"Atoi for TCP port failed, err: %s",
+				err.Error())
 			return nil
 		} else {
 			bsn[idx].TCP = uint16(port)

@@ -169,9 +169,7 @@ type scheduler struct {
 	busySize	int								// number of nodes in busy
 	tmFree		*schTmcbNode					// free timer node queue
 	tmFreeSize	int								// free timer node queue size
-	tmBusy		*schTmcbNode					// busy timer node queue
 	tmMap		map[*schTmcbNode] *schTaskNode	// map busy timer node pointer to its' owner task node pointer
-	tmBusySize	int								// busy timer node queue size
 	grpMap		schTaskGroup					// group name to group member map
 	grpCnt		int								// group counter
 }

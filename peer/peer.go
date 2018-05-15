@@ -418,13 +418,18 @@ func peMgrDcvFindNodeRsp(msg interface{}) PeMgrErrno {
 	//
 
 	var rsp = msg.(*sch.MsgDcvFindNodeRsp)
+
 	if rsp == nil {
 		yclog.LogCallerFileLine("peMgrDcvFindNodeRsp: invalid FindNode response")
 		return PeMgrEnoParameter
 	}
 
+	//
 	// Deal with each node responsed
+	//
+
 	var appended = 0
+
 	for _, n := range rsp.Nodes {
 
 		// Check if duplicated instances
@@ -491,7 +496,9 @@ func peMgrDcvFindNodeTimerHandler() PeMgrErrno {
 	// calling function peMgrAsk4More, see it for details pls.
 	//
 
-	yclog.LogCallerFileLine("peMgrDcvFindNodeTimerHandler: find node expired, try it again")
+	yclog.LogCallerFileLine("peMgrDcvFindNodeTimerHandler: " +
+		"find node expired, try it again")
+
 	return peMgrAsk4More()
 }
 
@@ -511,19 +518,26 @@ func peMgrLsnConnAcceptedInd(msg interface{}) PeMgrErrno {
 	var eno = sch.SchEnoNone
 	var ptnInst interface{} = nil
 
+	//
 	// Check if more inbound allowed
+	//
+
 	if peMgr.ibpNum >= peMgr.cfg.maxInBounds {
+
 		yclog.LogCallerFileLine("peMgrLsnConnAcceptedInd: " +
 			"no more resources, ibpNum: %d, max: %d",
 			peMgr.ibpNum, peMgr.cfg.maxInBounds)
+
 		return PeMgrEnoResource
 	}
 
 	//
 	// Init peer instance control block
 	//
+
 	var ibInd = msg.(*msgConnAcceptedInd)
 	var peInst = new(peerInstance)
+
 	*peInst				= peerInstDefault
 	peInst.ptnMgr		= peMgr.ptnMe
 	peInst.state		= peInstStateAccepted
@@ -539,7 +553,9 @@ func peMgrLsnConnAcceptedInd(msg interface{}) PeMgrErrno {
 	//
 	// Create peer instance task
 	//
+
 	ibInstSeq++
+
 	var tskDesc  = sch.SchTaskDescription {
 		Name:		"inbound_" + fmt.Sprintf("%d_", ibInstSeq) + peInst.raddr.String(),
 		MbSize:		PeInstMailboxSize,
@@ -551,39 +567,51 @@ func peMgrLsnConnAcceptedInd(msg interface{}) PeMgrErrno {
 	}
 
 	if eno, ptnInst = sch.SchinfCreateTask(&tskDesc);
-		eno != sch.SchEnoNone || ptnInst == nil {
+	eno != sch.SchEnoNone || ptnInst == nil {
+
 		yclog.LogCallerFileLine("peMgrLsnConnAcceptedInd: " +
 			"SchinfCreateTask failed, eno: %d",
 			eno)
+
 		return PeMgrEnoScheduler
 	}
+
 	peInst.ptnMe = ptnInst
 
 	//
 	// Check the map
 	//
+
 	if _, dup := peMgr.peers[peInst]; dup {
+
 		yclog.LogCallerFileLine("peMgrLsnConnAcceptedInd: " +
 			"impossible duplicated peer instance")
+
 		return PeMgrEnoInternal
 	}
 
 	//
 	// Send handshake request to the instance created aboved
 	//
+
 	var schMsg = sch.SchMessage{}
 	eno = sch.SchinfMakeMessage(&schMsg, peMgr.ptnMe, peInst.ptnMe, sch.EvPeHandshakeReq, nil)
+
 	if eno != sch.SchEnoNone {
+
 		yclog.LogCallerFileLine("peMgrLsnConnAcceptedInd: " +
 			"SchinfMakeMessage failed, eno: %d",
 			eno)
+
 		return PeMgrEnoScheduler
 	}
 
 	if eno = sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
+
 		yclog.LogCallerFileLine("peMgrLsnConnAcceptedInd: " +
 			"SchinfSendMessage EvPeHandshakeReq failed, eno: %d, target: %s",
 			eno, sch.SchinfGetTaskName(peInst.ptnMe))
+
 		return PeMgrEnoScheduler
 	}
 
@@ -591,11 +619,13 @@ func peMgrLsnConnAcceptedInd(msg interface{}) PeMgrErrno {
 	// Map the instance, notice that we do not konw the node identity yet since
 	// this is an inbound connection just accepted at this moment.
 	//
+
 	peMgr.peers[peInst.ptnMe] = peInst
 
 	//
 	// Check if the accept task needs to be paused
 	//
+
 	if peMgr.ibpNum += 1;  peMgr.ibpNum >= peMgr.cfg.maxInBounds {
 
 		yclog.LogCallerFileLine("peMgrLsnConnAcceptedInd: " +
@@ -628,19 +658,28 @@ func peMgrOutboundReq(msg interface{}) PeMgrErrno {
 
 	_ = msg
 
+	//
 	// Check workers number
+	//
+
 	if peMgr.wrkNum >= peMgr.cfg.maxPeers {
 		yclog.LogCallerFileLine("peMgrOutboundReq: it's good, peers full")
 		return PeMgrEnoNone
 	}
 
+	//
 	// Check outbounds number
+	//
+
 	if peMgr.obpNum >= peMgr.cfg.maxOutbounds {
 		yclog.LogCallerFileLine("peMgrOutboundReq: it's good, outbounds full")
 		return PeMgrEnoNone
 	}
 
+	//
 	// Collect all possible candidates
+	//
+
 	var candidates []*ycfg.Node
 	var count = 0
 
@@ -652,6 +691,7 @@ func peMgrOutboundReq(msg interface{}) PeMgrErrno {
 	}
 
 	var rdCnt = 0
+
 	for _, n := range peMgr.randoms {
 		if _, ok := peMgr.nodes[n.ID]; !ok {
 			candidates[count] = n
@@ -659,27 +699,38 @@ func peMgrOutboundReq(msg interface{}) PeMgrErrno {
 		}
 		rdCnt++
 	}
+
 	peMgr.randoms = peMgr.randoms[rdCnt:]
 
 	yclog.LogCallerFileLine("peMgrOutboundReq: " +
 		"total number of candidates: %d", len(candidates))
 
-	// it might be excceeded, truncate candidates if needed
+	//
+	// It might be too much, truncate candidates if needed
+	//
+
 	if len(candidates) > peMgr.cfg.maxOutbounds - peMgr.obpNum {
 		candidates = candidates[:peMgr.cfg.maxOutbounds - peMgr.obpNum]
 	}
 
-	// create outbound instances for candidates if any
+	//
+	// Create outbound instances for candidates if any
+	//
+
 	var failed = 0
 	var ok = 0
 
 	for _, n := range candidates {
+
 		if eno := peMgrCreateOutboundInst(n); eno != PeMgrEnoNone {
+
 			yclog.LogCallerFileLine("peMgrOutboundReq: " +
 				"create outbound instance failed, eno: %d", eno)
+
 			failed++
 			continue
 		}
+
 		ok++
 	}
 
@@ -687,11 +738,17 @@ func peMgrOutboundReq(msg interface{}) PeMgrErrno {
 		"create outbound intances end, failed: %d, ok: %d",
 		failed, ok)
 
-	// if outbounds are not enougth, ask discover to find more
+	//
+	// If outbounds are not enougth, ask discover to find more
+	//
+
 	if peMgr.obpNum < peMgr.cfg.maxOutbounds {
+
 		if eno := peMgrAsk4More(); eno != PeMgrEnoNone {
+
 			yclog.LogCallerFileLine("peMgrOutboundReq: " +
-				"ask discover for more nodes failed, eno: %d", eno)
+				"peMgrAsk4More failed, eno: %d", eno)
+
 			return eno
 		}
 	}
@@ -711,36 +768,55 @@ func peMgrConnOutRsp(msg interface{}) PeMgrErrno {
 
 	var rsp = msg.(*msgConnOutRsp)
 
+	//
 	// Check result
+	//
+
 	if rsp.result != PeMgrEnoNone {
 
+		//
 		// failed, kill instance
+		//
+
 		yclog.LogCallerFileLine("peMgrConnOutRsp: " +
 			"outbound failed, result: %d, node: %s",
 			rsp.result, ycfg.P2pNodeId2HexString(rsp.peNode.ID))
 
 		if eno := peMgrKillInst(rsp.ptn, rsp.peNode); eno != PeMgrEnoNone {
-			yclog.LogCallerFileLine("")
+
+			yclog.LogCallerFileLine("peMgrConnOutRsp: " +
+				"peMgrKillInst failed, eno: %d",
+				eno)
+
+			return eno
 		}
+
 		return PeMgrEnoNone
 	}
 
+	//
 	// Send EvPeHandshakeReq to instance
+	//
+
 	var schMsg = sch.SchMessage{}
 	var eno sch.SchErrno
 
 	eno = sch.SchinfMakeMessage(&schMsg, peMgr.ptnMe, rsp.ptn, sch.EvPeHandshakeReq, nil)
 	if eno != sch.SchEnoNone {
+
 		yclog.LogCallerFileLine("peMgrConnOutRsp: " +
 			"SchinfMakeMessage failed, eno: %d",
 			eno)
+
 		return PeMgrEnoScheduler
 	}
 
 	if eno = sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
+
 		yclog.LogCallerFileLine("peMgrConnOutRsp: " +
 			"SchinfSendMessage EvPeHandshakeReq failed, eno: %d, target: %s",
 			eno, sch.SchinfGetTaskName(rsp.ptn))
+
 		return PeMgrEnoScheduler
 	}
 

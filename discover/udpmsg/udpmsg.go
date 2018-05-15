@@ -25,8 +25,6 @@ import (
 	yclog	"ycp2p/logger"
 	ycfg	"ycp2p/config"
 	pb		"ycp2p/discover/udpmsg/pb"
-	"github.com/libp2p/go-libp2p/p2p/protocol/ping"
-	"image/png"
 )
 
 //

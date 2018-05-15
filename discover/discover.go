@@ -193,15 +193,18 @@ func DcvMgrTabRefreshRsp(rsp *sch.MsgTabRefreshRsp) DcvMgrErrno {
 	var schMsg = sch.SchMessage{}
 
 	if eno := sch.SchinfMakeMessage(&schMsg, dcvMgr.ptnMe, dcvMgr.ptnPeMgr, sch.EvDcvFindNodeRsp, &r);
-		eno != sch.SchEnoNone {
+	eno != sch.SchEnoNone {
+
 		yclog.LogCallerFileLine("DcvMgrTabRefreshRsp: SchinfMakeMessage failed, eno: %d", eno)
 		return DcvMgrEnoScheduler
 	}
 
 	if eno := sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
+
 		yclog.LogCallerFileLine("DcvMgrTabRefreshRsp: " +
 			"SchinfSendMessage failed, eno: %d, target: %s",
 			eno, sch.SchinfGetTaskName(dcvMgr.ptnTab))
+
 		return DcvMgrEnoScheduler
 	}
 
