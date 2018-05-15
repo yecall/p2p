@@ -510,6 +510,7 @@ _loop:
 		// try reading
 		//
 
+		udpReader.conn.SetDeadline(time.Now().Add(NgbProtoReadTimeout))
 		bys, peer, err := udpReader.conn.ReadFromUDP(buf)
 
 		//

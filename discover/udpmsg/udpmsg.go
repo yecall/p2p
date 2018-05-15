@@ -101,7 +101,9 @@ type (
 // the raw one; for encoding, bytes will be wriiten into raw buffer.
 //
 // Notice: since we would only one UDP reader for descovering, we can put
-// an UdpMsg instance here.
+// an UdpMsg instance here for income messages decoding, but for outcome
+// message decoding, since multiple instances might be activated, each
+// should obtain its' own encoder.
 //
 type UdpMsg struct {
 	Buf		[]byte
@@ -405,6 +407,7 @@ func (pum *UdpMsg) Encode(t int, msg interface{}) UdpMsgErrno {
 	}
 
 	pum.Eno = eno
+
 	return eno
 }
 
@@ -416,8 +419,13 @@ func (pum *UdpMsg) EncodePing(ping *Ping) UdpMsgErrno {
 	var pbPing *pb.UdpMessage_Ping
 
 	pbm.MsgType = new(pb.UdpMessage_MessageType)
-	*pbm.MsgType = pb.UdpMessage_PING
 	pbPing = new(pb.UdpMessage_Ping)
+	*pbm.MsgType = pb.UdpMessage_PING
+	pbm.Ping = pbPing
+	pbm.Pong = nil
+	pbm.FindNode = nil
+	pbm.Neighbors = nil
+	pbm.XXX_unrecognized = nil
 
 	pbPing.From.IP =  append(pbPing.From.IP, ping.From.IP...)
 	*pbPing.From.TCP = uint32(ping.From.TCP)
@@ -434,14 +442,13 @@ func (pum *UdpMsg) EncodePing(ping *Ping) UdpMsgErrno {
 
 	var err error
 	var buf []byte
-	if buf, err = pbPing.Marshal(); err != nil {
+	if buf, err = pbm.Marshal(); err != nil {
 		yclog.LogCallerFileLine("EncodePing: fialed, err: %s", err.Error())
 		return UdpMsgEnoEncodeFailed
 	}
 
 	pum.Buf = append(pum.Buf, buf...)
 	pum.Len = len(buf)
-	pum.Msg.Ping = pbPing
 
 	return UdpMsgEnoNone
 }
@@ -456,6 +463,12 @@ func (pum *UdpMsg) EncodePong(pong *Pong) UdpMsgErrno {
 	pbm.MsgType = new(pb.UdpMessage_MessageType)
 	*pbm.MsgType = pb.UdpMessage_PONG
 	pbPong = new(pb.UdpMessage_Pong)
+	pbm.Ping = nil
+	pbm.Pong = pbPong
+	pbm.FindNode = nil
+	pbm.Neighbors = nil
+	pbm.XXX_unrecognized = nil
+
 
 	pbPong.From.IP = append(pbPong.From.IP, pong.From.IP...)
 	*pbPong.From.TCP = uint32(pong.From.TCP)
@@ -472,14 +485,13 @@ func (pum *UdpMsg) EncodePong(pong *Pong) UdpMsgErrno {
 
 	var err error
 	var buf []byte
-	if buf, err = pbPong.Marshal(); err != nil {
+	if buf, err = pbm.Marshal(); err != nil {
 		yclog.LogCallerFileLine("EncodePong: fialed, err: %s", err.Error())
 		return UdpMsgEnoEncodeFailed
 	}
 
 	pum.Buf = append(pum.Buf, buf...)
 	pum.Len = len(buf)
-	pum.Msg.Pong = pbPong
 
 	return UdpMsgEnoNone
 }
@@ -491,9 +503,7 @@ func (pum *UdpMsg) EncodeFindNode(fn *FindNode) UdpMsgErrno {
 	var pbm = &pum.Msg
 	var pbFN *pb.UdpMessage_FindNode
 
-	pbm.MsgType		= new(pb.UdpMessage_MessageType)
-	*pbm.MsgType	= pb.UdpMessage_PONG
-
+	pbm.MsgType = new(pb.UdpMessage_MessageType)
 	pbFN = &pb.UdpMessage_FindNode {
 		From: &pb.UdpMessage_Node {
 			IP:					make([]byte,0),
@@ -516,6 +526,13 @@ func (pum *UdpMsg) EncodeFindNode(fn *FindNode) UdpMsgErrno {
 		XXX_unrecognized:	make([]byte, 0),
 	}
 
+	*pbm.MsgType = pb.UdpMessage_FINDNODE
+	pbm.Ping = nil
+	pbm.Pong = nil
+	pbm.FindNode = pbFN
+	pbm.Neighbors = nil
+	pbm.XXX_unrecognized = nil
+
 	pbFN.From.IP = append(pbFN.From.IP, fn.From.IP...)
 	*pbFN.From.TCP = uint32(fn.From.TCP)
 	*pbFN.From.UDP = uint32(fn.From.UDP)
@@ -532,14 +549,13 @@ func (pum *UdpMsg) EncodeFindNode(fn *FindNode) UdpMsgErrno {
 
 	var err error
 	var buf []byte
-	if buf, err = pbFN.Marshal(); err != nil {
+	if buf, err = pbm.Marshal(); err != nil {
 		yclog.LogCallerFileLine("EncodeFindNode: fialed, err: %s", err.Error())
 		return UdpMsgEnoEncodeFailed
 	}
 
 	pum.Buf = append(pum.Buf, buf...)
 	pum.Len = len(buf)
-	pum.Msg.FindNode = pbFN
 
 	return UdpMsgEnoNone
 }
@@ -552,8 +568,14 @@ func (pum *UdpMsg) EncodeNeighbors(ngb *Neighbors) UdpMsgErrno {
 	var pbNgb *pb.UdpMessage_Neighbors
 
 	pbm.MsgType = new(pb.UdpMessage_MessageType)
-	*pbm.MsgType = pb.UdpMessage_NEIGHBORS
 	pbNgb = new(pb.UdpMessage_Neighbors)
+	*pbm.MsgType = pb.UdpMessage_NEIGHBORS
+	pbm.Ping = nil
+	pbm.Pong = nil
+	pbm.FindNode = nil
+	pbm.Neighbors = pbNgb
+	pbm.XXX_unrecognized = nil
+
 
 	pbNgb.From.IP = append(pbNgb.From.IP, ngb.From.IP...)
 	*pbNgb.From.TCP = uint32(ngb.From.TCP)
@@ -582,14 +604,13 @@ func (pum *UdpMsg) EncodeNeighbors(ngb *Neighbors) UdpMsgErrno {
 
 	var err error
 	var buf []byte
-	if buf, err = pbNgb.Marshal(); err != nil {
+	if buf, err = pbm.Marshal(); err != nil {
 		yclog.LogCallerFileLine("EncodeNeighbors: fialed, err: %s", err.Error())
 		return UdpMsgEnoEncodeFailed
 	}
 
 	pum.Buf = append(pum.Buf, buf...)
 	pum.Len = len(buf)
-	pum.Msg.Neighbors = pbNgb
 
 	return UdpMsgEnoNone
 }

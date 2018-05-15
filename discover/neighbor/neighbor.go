@@ -93,6 +93,7 @@ type NgbProtoErrno int
 //
 const (
 	NgbProtoWriteTimeout		= 1 * time.Second
+	NgbProtoReadTimeout			= NgbProtoWriteTimeout
 	NgbProtoPingResponseTimeout	= 20 * time.Second
 	NgbProtoFindNodeResponseTimeout = 20 * time.Second
 )
@@ -161,7 +162,8 @@ func (inst *neighborInst) NgbProtoFindNodeReq(ptn interface{}, fn *um.FindNode) 
 	// encode request
 	//
 
-	if eno := um.PtrUdpMsg.Encode(um.UdpMsgTypeFindNode, fn); eno != um.UdpMsgEnoNone {
+	var pum = new(um.UdpMsg)
+	if eno := pum.Encode(um.UdpMsgTypeFindNode, fn); eno != um.UdpMsgEnoNone {
 		yclog.LogCallerFileLine("NgbProtoFindNodeReq: encode failed, eno: %d", eno)
 		return NgbProtoEnoEncode
 	}
@@ -229,7 +231,8 @@ func (inst *neighborInst) NgbProtoPingReq(ptn interface{}, ping *um.Ping) NgbPro
 	// encode request
 	//
 
-	if eno := um.PtrUdpMsg.Encode(um.UdpMsgTypePing, ping); eno != um.UdpMsgEnoNone {
+	var pum = new(um.UdpMsg)
+	if eno := pum.Encode(um.UdpMsgTypePing, ping); eno != um.UdpMsgEnoNone {
 		yclog.LogCallerFileLine("NgbProtoPingReq: encode failed, eno: %d", eno)
 		return NgbProtoEnoEncode
 	}

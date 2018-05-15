@@ -24,6 +24,7 @@ package scheduler
 import (
 	"time"
 	"strings"
+	"fmt"
 	golog	"log"
 	yclog	"ycp2p/logger"
 )
@@ -121,7 +122,7 @@ func schimplCommonTask(ptn *schTaskNode) SchErrno {
 	//
 
 	if ptn.task.utep == nil || ptn.task.mailbox.que == nil || ptn.task.done == nil {
-		yclog.LogCallerFileLine("schimplCommonTask: invalid user task")
+		yclog.LogCallerFileLine("schimplCommonTask: invalid user task: %s", ptn.task.name)
 		return SchEnoParameter
 	}
 
@@ -133,8 +134,24 @@ func schimplCommonTask(ptn *schTaskNode) SchErrno {
 	done = &ptn.task.done
 
 	//
-	// loop to schedule, until done(or something else happened)
+	// loop to schedule, until done(or something else happened).
 	//
+	// Notice: if the message queue size of one user task is zero, then this means
+	// the user task would be a longlong loop, which need not to be shceduled by
+	// messages. In this case, we go a routine for the loop first, then we check
+	// the task until it done.
+	//
+
+	if ptn.task.mailbox.size == 0 ||
+		ptn.task.mailbox.que == nil ||
+		cap(*ptn.task.mailbox.que) == 0 {
+
+		yclog.LogCallerFileLine("schimplCommonTask: " +
+			"dead loop user task: %s",
+			ptn.task.name)
+
+		go ptn.task.utep(ptn, nil)
+	}
 
 taskLoop:
 
@@ -775,6 +792,10 @@ func schimplCreateTask(taskDesc *schTaskDescription) (SchErrno, interface{}){
 		yclog.LogCallerFileLine("schimplCreateTask: invalid user task description")
 		return SchEnoParameter, nil
 	}
+
+	yclog.LogCallerFileLine("schimplCreateTask: " +
+		"task description: %s",
+		fmt.Sprintf("%+v\n", taskDesc))
 
 	//
 	// get task node

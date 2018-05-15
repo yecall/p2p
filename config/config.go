@@ -197,10 +197,15 @@ const dftName = "test"
 // could never be applied), most of those defaults must be overided by higher
 // lever module of system.
 //
+const (
+	dftUdpPort = 30303
+	dftTcpPort = 30303
+)
+
 var dftLocal = Node {
-	IP:		net.IPv4zero,
-	UDP:	0,
-	TCP:	0,
+	IP:		net.IPv4(192,168,2,102),
+	UDP:	dftUdpPort,
+	TCP:	dftTcpPort,
 	ID:		NodeID{0},
 }
 
