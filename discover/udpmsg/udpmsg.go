@@ -25,7 +25,6 @@ import (
 	yclog	"ycp2p/logger"
 	ycfg	"ycp2p/config"
 	pb		"ycp2p/discover/udpmsg/pb"
-	"time"
 )
 
 //
@@ -323,6 +322,7 @@ func (pum *UdpMsg) GetFindNode() interface{} {
 	fn.To.TCP = uint16(*pbFN.To.TCP)
 	fn.To.UDP = uint16(*pbFN.To.UDP)
 	copy(fn.To.NodeId[:], pbFN.To.NodeId)
+
 	copy(fn.Target[:], pbFN.Target)
 
 	fn.Id = *pbFN.Id
@@ -479,17 +479,30 @@ func (pum *UdpMsg) EncodePing(ping *Ping) UdpMsgErrno {
 	pbm.Neighbors = nil
 	pbm.XXX_unrecognized = nil
 
+	pbPing.From = new(pb.UdpMessage_Node)
+	pbPing.From.UDP = new(uint32)
+	pbPing.From.TCP = new(uint32)
+
 	pbPing.From.IP =  append(pbPing.From.IP, ping.From.IP...)
 	*pbPing.From.TCP = uint32(ping.From.TCP)
 	*pbPing.From.UDP = uint32(ping.From.UDP)
 	pbPing.From.NodeId = append(pbPing.From.NodeId, ping.From.NodeId[:]...)
+
+	pbPing.To = new(pb.UdpMessage_Node)
+	pbPing.To.UDP = new(uint32)
+	pbPing.To.TCP = new(uint32)
 
 	pbPing.To.IP = append(pbPing.To.IP, ping.To.IP[:]...)
 	*pbPing.To.TCP = uint32(ping.To.TCP)
 	*pbPing.To.UDP = uint32(ping.To.UDP)
 	pbPing.To.NodeId = append(pbPing.To.NodeId, ping.To.NodeId[:]...)
 
+	pbPing.Id = new(uint64)
+	*pbPing.Id = ping.Id
+
+	pbPing.Expiration = new(uint64)
 	*pbPing.Expiration = ping.Expiration
+
 	pbPing.Extra = append(pbPing.Extra, ping.Extra...)
 
 	var err error
@@ -525,17 +538,30 @@ func (pum *UdpMsg) EncodePong(pong *Pong) UdpMsgErrno {
 	pbm.XXX_unrecognized = nil
 
 
+	pbPong.From = new(pb.UdpMessage_Node)
+	pbPong.From.UDP = new(uint32)
+	pbPong.From.TCP = new(uint32)
+
 	pbPong.From.IP = append(pbPong.From.IP, pong.From.IP...)
 	*pbPong.From.TCP = uint32(pong.From.TCP)
 	*pbPong.From.UDP = uint32(pong.From.UDP)
 	pbPong.From.NodeId = append(pbPong.From.NodeId, pong.From.NodeId[:]...)
+
+	pbPong.To = new(pb.UdpMessage_Node)
+	pbPong.To.UDP = new(uint32)
+	pbPong.To.TCP = new(uint32)
 
 	pbPong.To.IP = append(pbPong.To.IP, pong.To.IP...)
 	*pbPong.To.TCP = uint32(pong.To.TCP)
 	*pbPong.To.UDP = uint32(pong.To.UDP)
 	pbPong.To.NodeId = append(pbPong.To.NodeId, pong.To.NodeId[:]...)
 
+	pbPong.Id = new(uint64)
+	*pbPong.Id = pong.Id
+
+	pbPong.Expiration = new(uint64)
 	*pbPong.Expiration = pong.Expiration
+
 	pbPong.Extra = append(pbPong.Extra, pong.Extra...)
 
 	var err error
@@ -606,7 +632,7 @@ func (pum *UdpMsg) EncodeFindNode(fn *FindNode) UdpMsgErrno {
 	pbFN.To.NodeId = append(pbFN.To.NodeId, fn.To.NodeId[:]...)
 	pbFN.Target = append(pbFN.Target, fn.Target[:]...)
 
-	*pbFN.Id = uint64(time.Now().UnixNano())
+	*pbFN.Id = fn.Id
 	*pbFN.Expiration = fn.Expiration
 	pbFN.Extra = append(pbFN.Extra, fn.Extra...)
 
@@ -661,7 +687,7 @@ func (pum *UdpMsg) EncodeNeighbors(ngb *Neighbors) UdpMsgErrno {
 	pbNgb.To.NodeId = append(pbNgb.To.NodeId, ngb.To.NodeId[:]...)
 
 	pbNgb.Id = new(uint64)
-	*pbNgb.Id = uint64(time.Now().UnixNano())
+	*pbNgb.Id = ngb.Id
 
 	pbNgb.Expiration = new(uint64)
 	*pbNgb.Expiration = ngb.Expiration

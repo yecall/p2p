@@ -102,31 +102,47 @@ func lsnMgrPoweron(ptn interface{}) sch.SchErrno {
 
 	yclog.LogCallerFileLine("lsnMgrPoweron: poweron, carry out task initilization")
 
-	// Keep ourself task node pointer;
+	//
+	// Keep ourselves task node pointer;
 	// Get peer mamager task node pointer;
+	//
+
 	lsnMgr.ptn = ptn
 	_, lsnMgr.ptnPeerMgr = sch.SchinfGetTaskNodeByName(PeerMgrName)
+
 	if lsnMgr.ptnPeerMgr == nil {
 		yclog.LogCallerFileLine("lsnMgrPoweron: invalid peer manager task node pointer")
 		return sch.SchEnoInternal
 	}
 
+	//
 	// Get configuration
+	//
+
 	lsnMgr.cfg = ycfg.P2pConfig4PeerListener()
+
 	if lsnMgr.cfg == nil {
 		yclog.LogCallerFileLine("lsnMgrPoweron: invalid configuration pointer")
 		return sch.SchEnoConfig
 	}
 
+	//
 	// Setup net lsitener
+	//
+
 	var err error
+
 	lsnAddr := fmt.Sprintf("%s:%d", lsnMgr.cfg.IP.String(), lsnMgr.cfg.Port)
+
 	if lsnMgr.listener, err = net.Listen("tcp", lsnAddr); err != nil {
+
 		yclog.LogCallerFileLine("lsnMgrPoweron: " +
 			"listen failed, addr: %s, err: %s",
 			lsnAddr, err.Error())
+
 		return sch.SchEnoOS
 	}
+
 	lsnMgr.listenAddr = lsnMgr.listener.Addr().(*net.TCPAddr)
 
 	yclog.LogCallerFileLine("lsnMgrPoweron: " +
@@ -143,7 +159,10 @@ func lsnMgrPoweroff() sch.SchErrno {
 
 	yclog.LogCallerFileLine("lsnMgrPoweroff: poweroff, done")
 
+	//
 	// kill accepter task if needed
+	//
+
 	if _, ptn := sch.SchinfGetTaskNodeByName(PeerAccepterName); ptn != nil {
 		lsnMgrStop()
 	}
@@ -178,12 +197,15 @@ func lsnMgrStart() sch.SchErrno {
 	}
 
 	if eno, ptn := sch.SchinfCreateTask(&tskDesc); eno != sch.SchEnoNone || ptn == nil {
+
 		yclog.LogCallerFileLine("lsnMgrStart: " +
 			"SchinfCreateTask failed, eno: %d, ptn: %x",
 			eno, ptn.(*interface{}))
+
 		if ptn == nil {
 			return eno
 		}
+
 		return sch.SchEnoInternal
 	}
 
@@ -201,10 +223,15 @@ func lsnMgrStop() sch.SchErrno {
 	acceptTCB.lockTcb.Lock()
 	defer acceptTCB.lockTcb.Unlock()
 
+	//
 	// Close the listener to force the acceptor task out of the loop,
 	// see function acceptProc for details please.
+	//
+
 	acceptTCB.event = sch.SchEnoKilled
+
 	if err := lsnMgr.listener.Close(); err != nil {
+
 		yclog.LogCallerFileLine("lsnMgrStop: try to close listner fialed, err: %s", err.Error())
 		return sch.SchEnoOS
 	}
@@ -286,35 +313,56 @@ acceptLoop:
 
 	for {
 
+		//
 		// Check if had been kill by manager
+		//
+
 		if acceptTCB.listener == nil {
 			yclog.LogCallerFileLine("PeerAcceptProc: broken for nil listener, we might have been killed")
 			break acceptLoop
 		}
 
+		//
 		// Get lock to accept: unlock it at once since we just want to know if we
 		// are allowed to accept.
+		//
+
 		acceptTCB.lockAccept.Lock()
 		acceptTCB.lockAccept.Unlock()
 
+		//
 		// Try to accept: can we be blocked in Accpet()?
 		// provide it would, so the listen manager might have to close the
 		// listener to get this task out.
+		//
+
 		conn, err := acceptTCB.listener.Accept()
 
+		//
 		// Lock the control block since following statements need to access it
+		//
+
 		acceptTCB.lockTcb.Lock()
 
+		//
 		// Check errors
+		//
+
 		if err != nil && !err.(net.Error).Temporary() {
+
 			yclog.LogCallerFileLine("PeerAcceptProc: " +
 				"break loop for non-temporary error while accepting, err: %s", err.Error())
+
 			acceptTCB.curError = err
 			acceptTCB.lockTcb.Unlock()
+
 			break acceptLoop
 		}
 
+		//
 		// Check connection accepted
+		//
+
 		if conn == nil {
 			yclog.LogCallerFileLine("PeerAcceptProc: " +
 				"break loop for null connection accepted without errors")
@@ -323,7 +371,10 @@ acceptLoop:
 			break acceptLoop
 		}
 
+		//
 		// Connection got, hand it up to peer manager task
+		//
+
 		var msg = sch.SchMessage{}
 		var msgBody = msgConnAcceptedInd {
 			conn: 		conn,
@@ -333,24 +384,33 @@ acceptLoop:
 
 		eno := sch.SchinfMakeMessage(&msg, ptn, acceptTCB.ptnPeMgr, sch.EvPeLsnConnAcceptedInd, &msgBody)
 		if eno != sch.SchEnoNone {
+
 			yclog.LogCallerFileLine("PeerAcceptProc: " +
 				"SchinfMakeMessage for EvPeLsnConnAcceptedInd failed, eno: %d",
 				eno)
+
 			acceptTCB.lockTcb.Unlock()
+
 			continue
 		}
 
 		eno = sch.SchinfSendMessage(&msg)
 		if eno != sch.SchEnoNone {
+
 			yclog.LogCallerFileLine("PeerAcceptProc: " +
 				"SchinfSendMessage for EvPeLsnConnAcceptedInd failed, target: %s",
 				sch.SchinfGetTaskName(acceptTCB.ptnPeMgr))
+
 			acceptTCB.lockTcb.Unlock()
+
 			continue
 		}
 	}
 
+	//
 	// Lock the control block since following statements need to access it
+	//
+
 	acceptTCB.lockTcb.Lock()
 
 	//

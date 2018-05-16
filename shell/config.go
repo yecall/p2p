@@ -22,20 +22,37 @@
 package shell
 
 import (
-	ycfg "ycp2p/config"
+	"fmt"
+	ycfg	"ycp2p/config"
+	yclog	"ycp2p/logger"
 )
 
 //
 // Get default configuration pointer
 //
 func ShellDefaultConfig() *ycfg.Config {
-	return ycfg.P2pDefaultConfig()
+
+	cfg := ycfg.P2pDefaultConfig()
+
+	yclog.LogCallerFileLine("ShellDefaultConfig: %s",
+		fmt.Sprintf("%+v", *cfg))
+
+	return cfg
 }
 
 //
 // Set configuration
 //
 func ShellConfig(cfg *ycfg.Config) ycfg.P2pCfgErrno {
+
+	if cfg == nil {
+		yclog.LogCallerFileLine("ShellConfig: invalid parameter")
+		return ycfg.PcfgEnoParameter
+	}
+
+	yclog.LogCallerFileLine("ShellConfig: %s",
+		fmt.Sprintf("%+v", *cfg))
+
 	return ycfg.P2pConfig(cfg)
 }
 

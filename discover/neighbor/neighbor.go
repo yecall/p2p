@@ -919,7 +919,9 @@ func (ngbMgr *neighborManager)PongHandler(pong *um.Pong) NgbMgrErrno {
 	//
 
 	strPeerNodeId := ycfg.P2pNodeId2HexString(pong.From.NodeId)
+
 	if ngbMgr.checkMap(strPeerNodeId) == false {
+
 		yclog.LogCallerFileLine("PongHandler: neighbor instance not exist: %s", strPeerNodeId)
 
 		//
@@ -946,7 +948,9 @@ func (ngbMgr *neighborManager)PongHandler(pong *um.Pong) NgbMgrErrno {
 	ptnNgb := ngbMgr.getMap(strPeerNodeId).ptn
 
 	var schMsg = sch.SchMessage{}
-	if eno := sch.SchinfMakeMessage(&schMsg, ngbMgr.ptnMe, ptnNgb, sch.EvNblPingpongRsp, pong); eno != sch.SchEnoNone {
+
+	if eno := sch.SchinfMakeMessage(&schMsg, ngbMgr.ptnMe, ptnNgb, sch.EvNblPingpongRsp, pong);
+	eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("PongHandler: SchinfMakeMessage failed, eno: %d", eno)
 		return NgbMgrEnoScheduler
 	}
@@ -1291,16 +1295,19 @@ func (ngbMgr *neighborManager)PingpongReq(ping *um.Ping) NgbMgrErrno {
 
 		if eno := sch.SchinfMakeMessage(&schMsg, ngbMgr.ptnMe, ngbMgr.ptnTab, sch.EvNblPingpongRsp, &rsp);
 		eno != sch.SchEnoNone {
+
 			yclog.LogCallerFileLine("PingpongReq: SchinfMakeMessage failed, eno: %d", eno)
 			return NgbMgrEnoScheduler
 		}
 
 		if eno := sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
+
 			yclog.LogCallerFileLine("PingpongReq: "+
 				"SchinfSendMessage failed, eno: %d, sender: %s, recver: %s",
 				eno,
 				sch.SchinfGetMessageSender(&schMsg),
 				sch.SchinfGetMessageRecver(&schMsg))
+
 			return NgbMgrEnoScheduler
 		}
 
@@ -1311,16 +1318,19 @@ func (ngbMgr *neighborManager)PingpongReq(ping *um.Ping) NgbMgrErrno {
 
 		if eno := sch.SchinfMakeMessage(&schMsg, ngbMgr.ptnMe, ptn, sch.EvNblPingpongReq, ping);
 		eno != sch.SchEnoNone {
+
 			yclog.LogCallerFileLine("PingpongReq: SchinfMakeMessage failed, eno: %d", eno)
 			return NgbMgrEnoScheduler
 		}
 
 		if eno := sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
+
 			yclog.LogCallerFileLine("PingpongReq: "+
 				"SchinfSendMessage failed, eno: %d, sender: %s, recver: %s",
 				eno,
 				sch.SchinfGetMessageSender(&schMsg),
 				sch.SchinfGetMessageRecver(&schMsg))
+
 			return NgbMgrEnoScheduler
 		}
 
@@ -1339,6 +1349,7 @@ func (ngbMgr *neighborManager)PingpongReq(ping *um.Ping) NgbMgrErrno {
 
 		rsp.Result = NgbMgrEnoDuplicated
 		rsp.Ping = ping
+
 		return funcRsp2Tab()
 	}
 
@@ -1358,6 +1369,7 @@ func (ngbMgr *neighborManager)PingpongReq(ping *um.Ping) NgbMgrErrno {
 	}
 
 	ppInstSeq++
+
 	var dc = sch.SchTaskDescription {
 		Name:	fmt.Sprintf("%s%d_pingpong_%s", NgbProcName, ppInstSeq, strPeerNodeId),
 		MbSize:	ngbProcMailboxSize,
@@ -1369,6 +1381,7 @@ func (ngbMgr *neighborManager)PingpongReq(ping *um.Ping) NgbMgrErrno {
 	}
 
 	eno, ptn := sch.SchinfCreateTask(&dc)
+
 	if eno != sch.SchEnoNone {
 
 		yclog.LogCallerFileLine("PingpongReq: SchinfCreateTask failed, eno: %d", eno)
@@ -1384,6 +1397,7 @@ func (ngbMgr *neighborManager)PingpongReq(ping *um.Ping) NgbMgrErrno {
 
 		rsp.Result = int(eno)
 		rsp.Ping = ping
+
 		return funcRsp2Tab()
 	}
 
@@ -1395,6 +1409,7 @@ func (ngbMgr *neighborManager)PingpongReq(ping *um.Ping) NgbMgrErrno {
 	ngbMgr.setupMap(strPeerNodeId, &ngbInst)
 
 	if eno := sch.SchinfStartTaskEx(ngbInst.ptn); eno != sch.SchEnoNone {
+
 		yclog.LogCallerFileLine("PingpongReq: start instance failed, eno: %d", eno)
 		return NgbMgrEnoScheduler
 	}
