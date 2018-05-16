@@ -437,17 +437,6 @@ func TabMgrPingpongTimerHandler(inst *instCtrlBlock) TabMgrErrno {
 	}
 
 	//
-	// update database for the neighbor node
-	//
-
-	inst.state = TabInstStateBTimeout
-	inst.rsp = nil
-	if eno := tabUpdateNodeDb4Query(inst, TabMgrEnoTimeout); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("TabMgrPingpongTimerHandler: tabUpdateNodeDb4Query failed, eno: %d", eno)
-		return eno
-	}
-
-	//
 	// update buckets
 	//
 
@@ -716,16 +705,6 @@ func TabMgrPingpongRsp(msg *sch.NblPingRsp) TabMgrErrno {
 
 	var result = msg.Result
 	if result != 0 { result = TabMgrEnoPingpongFailed }
-
-	//
-	// Update database for the neighbor node, we should not return when function
-	// tabUpdateNodeDb4Query return failed, for some nodes we try to operate on might
-	// still not be backup to database.
-	//
-
-	if eno := tabUpdateNodeDb4Query(inst, result); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("TabMgrPingpongRsp: tabUpdateNodeDb4Query failed, eno: %d", eno)
-	}
 
 	//
 	// Update buckets, we should not return when function tabUpdateBucket return
@@ -1540,18 +1519,32 @@ func tabUpdateNodeDb4Query(inst *instCtrlBlock, result int) TabMgrErrno {
 		return fnFailUpdate()
 
 	case (inst.state == TabInstStateQuering || inst.state == TabInstStateQTimeout) &&
-		result == TabMgrEnoTimeout:
+		result == TabMgrEnoTimeout: {
+
 		return fnFailUpdate()
+	}
 
 	case inst.state == TabInstStateBonding && result == TabMgrEnoNone:
-		return update()
+		yclog.LogCallerFileLine("tabUpdateNodeDb4Query: " +
+			"instance currently not query related, state: %d, result: %d",
+			inst.state, result)
+		return TabMgrEnoNone
 
 	case inst.state == TabInstStateBonding && result == TabMgrEnoPingpongFailed:
-		return fnFailClear()
+		yclog.LogCallerFileLine("tabUpdateNodeDb4Query: " +
+			"instance currently not query related, state: %d, result: %d",
+			inst.state, result)
+		return TabMgrEnoNone
 
 	case (inst.state == TabInstStateBonding || inst.state == TabInstStateBTimeout) &&
-		result == TabMgrEnoTimeout:
-		return fnFailClear()
+		result == TabMgrEnoTimeout: {
+
+			yclog.LogCallerFileLine("tabUpdateNodeDb4Query: "+
+				"instance currently not query related, state: %d, result: %d",
+				inst.state, result)
+
+			return TabMgrEnoNone
+		}
 
 	default:
 		yclog.LogCallerFileLine("tabUpdateNodeDb4Query: " +

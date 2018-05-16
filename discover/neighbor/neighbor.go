@@ -715,7 +715,7 @@ func NgbMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 
 	// udpmsg from udp listener task
 	case sch.EvNblMsgInd:
-		eno = ngbMgr.UdpMsgHandler(msg.Body.(*UdpMsgInd))
+		eno = ngbMgr.UdpMsgIndHandler(msg.Body.(*UdpMsgInd))
 
 	// request to find node from table task
 	case sch.EvNblFindNodeReq:
@@ -776,7 +776,7 @@ func (ngbMgr *neighborManager)PoweroffHandler(ptn interface{}) sch.SchErrno {
 //
 // udpmsg handler
 //
-func (ngbMgr *neighborManager)UdpMsgHandler(msg *UdpMsgInd) NgbMgrErrno {
+func (ngbMgr *neighborManager)UdpMsgIndHandler(msg *UdpMsgInd) NgbMgrErrno {
 
 	var eno NgbMgrErrno
 
@@ -1109,7 +1109,7 @@ func (ngbMgr *neighborManager)NeighborsHandler(nbs *um.Neighbors) NgbMgrErrno {
 	// Here we got Neighbors from another node
 	//
 	// currently relay is not supported, check if we are the target, if false, we
-	// just discard this ping message.
+	// just discard this neighbors message.
 	//
 	// Notice: unlike Ping or Pong, if an instance of neighbor task is not exist
 	// for peer node, we do not start a neighbor instance here in this function,
