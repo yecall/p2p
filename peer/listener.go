@@ -253,8 +253,8 @@ type acceptTskCtrlBlock struct {
 	listener	net.Listener	// the listener
 	event		sch.SchErrno	// event fired
 	curError	error			// current error fired
-	lockTcb		sync.Locker		// lock to protect this control block
-	lockAccept	sync.Locker		// lock to pause/resume acception
+	lockTcb		sync.Mutex		// lock to protect this control block
+	lockAccept	sync.Mutex		// lock to pause/resume acception
 }
 
 var acceptTCB = acceptTskCtrlBlock {
@@ -286,13 +286,15 @@ func PeerAcceptProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	//
 
 	_, acceptTCB.ptnLsnMgr = sch.SchinfGetTaskNodeByName(PeerLsnMgrName)
-	if acceptTCB.ptnPeMgr == nil || acceptTCB.ptnLsnMgr == nil {
+
+	if acceptTCB.ptnLsnMgr == nil {
 		yclog.LogCallerFileLine("PeerAcceptProc: invalid listener manager task pointer")
 		sch.SchinfTaskDone(ptn, sch.SchEnoInternal)
 		return sch.SchEnoInternal
 	}
 
 	_, acceptTCB.ptnPeMgr = sch.SchinfGetTaskNodeByName(PeerMgrName)
+
 	if acceptTCB.ptnPeMgr == nil || acceptTCB.ptnLsnMgr == nil {
 		yclog.LogCallerFileLine("PeerAcceptProc: invalid peer manager task pointer")
 		sch.SchinfTaskDone(ptn, sch.SchEnoInternal)
@@ -300,10 +302,12 @@ func PeerAcceptProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	}
 
 	acceptTCB.listener = lsnMgr.listener
+
 	if acceptTCB.listener == nil {
 		yclog.LogCallerFileLine("PeerAcceptProc: invalid listener")
 		sch.SchinfTaskDone(ptn, sch.SchEnoInternal)
 	}
+
 	acceptTCB.event = sch.EvSchNull
 	acceptTCB.curError = nil
 
@@ -364,12 +368,19 @@ acceptLoop:
 		//
 
 		if conn == nil {
+
 			yclog.LogCallerFileLine("PeerAcceptProc: " +
 				"break loop for null connection accepted without errors")
+
 			acceptTCB.event = sch.EvSchException
 			acceptTCB.lockTcb.Unlock()
+
 			break acceptLoop
 		}
+
+		yclog.LogCallerFileLine("PeerAcceptProc: " +
+			"accept one: %s",
+			conn.RemoteAddr().String())
 
 		//
 		// Connection got, hand it up to peer manager task
@@ -405,6 +416,10 @@ acceptLoop:
 
 			continue
 		}
+
+		yclog.LogCallerFileLine("PeerAcceptProc: " +
+			"send EvPeLsnConnAcceptedInd ok, target: %s",
+			sch.SchinfGetTaskName(acceptTCB.ptnPeMgr))
 	}
 
 	//
@@ -426,8 +441,10 @@ acceptLoop:
 		//
 
 		yclog.LogCallerFileLine("PeerAcceptProc: broken for event: %d", acceptTCB.event)
+
 		sch.SchinfTaskDone(ptn, acceptTCB.event)
 		acceptTCB.lockTcb.Unlock()
+
 		return acceptTCB.event
 	}
 
@@ -445,6 +462,7 @@ acceptLoop:
 
 	acceptTCB.lockTcb.Unlock()
 	sch.SchinfTaskDone(ptn, sch.SchEnoUnknown)
+
 	return sch.SchEnoUnknown
 }
 
@@ -452,6 +470,7 @@ acceptLoop:
 // Pause accept
 //
 func PauseAccept() bool {
+	yclog.LogCallerFileLine("PauseAccept: try to pause accepting inbound")
 	acceptTCB.lockAccept.Lock()
 	return true
 }
@@ -460,6 +479,7 @@ func PauseAccept() bool {
 // Resume accept
 //
 func ResumeAccept() bool {
+	yclog.LogCallerFileLine("PauseAccept: try to resume accepting inbound")
 	acceptTCB.lockAccept.Unlock()
 	return true
 }

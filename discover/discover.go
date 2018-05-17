@@ -72,7 +72,9 @@ func init() {
 //
 func DcvMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 
-	yclog.LogCallerFileLine("DcvMgrProc: scheduled, msg: %d", msg.Id)
+	yclog.LogCallerFileLine("DcvMgrProc: " +
+		"scheduled, sender: %s, recver: %s, msg: %d",
+		sch.SchinfGetMessageSender(msg), sch.SchinfGetMessageRecver(msg), msg.Id)
 
 	var eno DcvMgrErrno = DcvMgrEnoNone
 
@@ -207,6 +209,10 @@ func DcvMgrTabRefreshRsp(rsp *sch.MsgTabRefreshRsp) DcvMgrErrno {
 
 		return DcvMgrEnoScheduler
 	}
+
+	yclog.LogCallerFileLine("DcvMgrTabRefreshRsp: " +
+		"send EvDcvFindNodeRsp ok, target: %s",
+		sch.SchinfGetTaskName(dcvMgr.ptnPeMgr))
 
 	return DcvMgrEnoNone
 }

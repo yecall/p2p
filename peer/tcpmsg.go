@@ -75,9 +75,9 @@ type TcpmsgPackage struct {
 func (tp *TcpmsgPackage)getHandshakeInbound(inst *peerInstance) (*TcpmsgHandshake, PeMgrErrno) {
 
 	if inst.hto != 0 {
-		inst.conn.SetDeadline(time.Now().Add(inst.hto))
+		inst.conn.SetReadDeadline(time.Now().Add(inst.hto))
 	} else {
-		inst.conn.SetDeadline(time.Time{})
+		inst.conn.SetReadDeadline(time.Time{})
 	}
 
 	r := inst.conn.(io.Reader)
@@ -85,7 +85,7 @@ func (tp *TcpmsgPackage)getHandshakeInbound(inst *peerInstance) (*TcpmsgHandshak
 
 	pkg := new(pb.TcpmsgPackage)
 	if err := gr.ReadMsg(pkg); err != nil {
-		yclog.LogCallerFileLine("getHandshakeInbound: NewDelimitedReader faied, err: %s", err.Error())
+		yclog.LogCallerFileLine("getHandshakeInbound: ReadMsg faied, err: %s", err.Error())
 		return nil, PeMgrEnoOs
 	}
 
@@ -154,44 +154,35 @@ func (tp *TcpmsgPackage)putHandshakeOutbound(inst *peerInstance, hs *TcpmsgHands
 
 	pbMsg := new(pb.TcpmsgHandshake)
 
-	for _, b := range hs.NodeId {
-		pbMsg.NodeId = append(pbMsg.NodeId, b)
-	}
-
+	pbMsg.NodeId = append(pbMsg.NodeId, hs.NodeId[:] ...)
 	pbMsg.ProtoNum = &hs.ProtoNum
+	pbMsg.Protocols = make([]*pb.TcpmsgHandshake_Protocol, *pbMsg.ProtoNum)
 
 	for i, p := range hs.Protocols {
 
-		pbMsg.Protocols[i].Pid = new(pb.ProtocolId)
+		var pbProto = new(pb.TcpmsgHandshake_Protocol)
+		pbMsg.Protocols[i] = pbProto
 
-		// we now treate Handshake as a protocol, but seems it needs not to be presented
-		// in protocol table in handshake message?
+		pbProto.Pid = new(pb.ProtocolId)
 		if p.Pid == uint32(pb.ProtocolId_PROTO_HANDSHAKE) {
-			*pbMsg.Protocols[i].Pid = pb.ProtocolId_PROTO_HANDSHAKE
+			*pbProto.Pid = pb.ProtocolId_PROTO_HANDSHAKE
 		} else if p.Pid == uint32(pb.ProtocolId_PROTO_EXTERNAL) {
-			*pbMsg.Protocols[i].Pid = pb.ProtocolId_PROTO_EXTERNAL
+			*pbProto.Pid = pb.ProtocolId_PROTO_EXTERNAL
 		} else {
 			yclog.LogCallerFileLine("putHandshakeOutbound: invalid pid: %d", p.Pid)
 			return PeMgrEnoMessage
 		}
 
-		pbMsg.Protocols[i].Ver = append(pbMsg.Protocols[i].Ver, p.Ver[0], p.Ver[1], p.Ver[2], p.Ver[3])
+		pbProto.Ver = append(pbProto.Ver, p.Ver[:]...)
+
 	}
 
-	var payload []byte
-	var err error
+	payload, err1 := pbMsg.Marshal()
 
-	tp.Pid = uint32(pb.ProtocolId_PROTO_HANDSHAKE)
-	if payload, err = pbMsg.Marshal(); err != nil {
-		yclog.LogCallerFileLine("putHandshakeOutbound: Marshal failed, err: %s", err.Error())
+	if err1 != nil {
+		yclog.LogCallerFileLine("putHandshakeOutbound: Marshal failed, err: %s", err1.Error())
 		return PeMgrEnoMessage
 	}
-
-	if tp.PlLen = uint32(len(payload)); tp.PlLen <= 0 {
-		yclog.LogCallerFileLine("putHandshakeOutbound: invalid payload length")
-		return PeMgrEnoMessage
-	}
-	tp.Payload = payload
 
 	//
 	// encode the package
@@ -200,12 +191,13 @@ func (tp *TcpmsgPackage)putHandshakeOutbound(inst *peerInstance, hs *TcpmsgHands
 	pbPkg := new(pb.TcpmsgPackage)
 	pbPkg.Pid = new(pb.ProtocolId)
 	*pbPkg.Pid = pb.ProtocolId_PROTO_HANDSHAKE
-	*pbPkg.PlLen = tp.PlLen
-	pbPkg.Payload = tp.Payload
+	pbPkg.PlLen = new(uint32)
+	*pbPkg.PlLen = uint32(len(payload))
+	pbPkg.Payload = append(pbPkg.Payload, payload...)
 
-	var sendBuf []byte
-	if sendBuf, err = pbPkg.Marshal(); err != nil {
-		yclog.LogCallerFileLine("putHandshakeOutbound: Marshal failed, err: %s", err.Error())
+	sendBuf, err2 := pbPkg.Marshal()
+	if err2 != nil {
+		yclog.LogCallerFileLine("putHandshakeOutbound: Marshal failed, err: %s", err2.Error())
 		return PeMgrEnoMessage
 	}
 
@@ -219,13 +211,14 @@ func (tp *TcpmsgPackage)putHandshakeOutbound(inst *peerInstance, hs *TcpmsgHands
 	//
 
 	if inst.hto != 0 {
-		inst.conn.SetDeadline(time.Now().Add(inst.hto))
+		inst.conn.SetWriteDeadline(time.Now().Add(inst.hto))
 	} else {
-		inst.conn.SetDeadline(time.Time{})
+		inst.conn.SetWriteDeadline(time.Time{})
 	}
+
 	w := inst.conn.(io.Writer)
-	if n, _ := w.Write(sendBuf); n != len(sendBuf) {
-		yclog.LogCallerFileLine("putHandshakeOutbound: Write failed, err: %s", err.Error())
+	if n, err3 := w.Write(sendBuf); n != len(sendBuf) {
+		yclog.LogCallerFileLine("putHandshakeOutbound: Write failed, err: %s", err3.Error())
 		return PeMgrEnoOs
 	}
 

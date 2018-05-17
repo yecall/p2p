@@ -69,7 +69,8 @@ const (
 const P2pMaxBootstrapNodes = 32
 
 var BootstrapNodeUrl = []string {
-	"EF660C03932E84402507BCC29763756B1DDFCB636CE5F562FC92383ED180480019DD6A32EEE1F3CEB832A47EB7C13DC415A18E4B3F634FB951966BFB0292ADA8@192.168.2.102:30303:30303",
+	//"EF660C03932E84402507BCC29763756B1DDFCB636CE5F562FC92383ED180480019DD6A32EEE1F3CEB832A47EB7C13DC415A18E4B3F634FB951966BFB0292ADA8@192.168.2.102:30303:30303",
+	"35D0E223218EFA064C098B8A0B48AA54DC340AC5A904278B23CD20D99A448B4E17A7EE444C599665F1396EC67F1CCD638C0410C57B885483C4F3A6CC1151D4A7@192.168.2.178:30303:30303",
 }
 
 //
@@ -115,6 +116,11 @@ type Node struct {
 	ID			NodeID		// the node's public key
 }
 
+type Protocol struct {
+	Pid		uint32		// protocol identity
+	Ver		[4]byte		// protocol version: M.m0.m1.m2
+}
+
 //
 // Node static Configuration parameters
 //
@@ -134,6 +140,8 @@ type Config struct {
 	NoDial			bool				// outboundless flag
 	BootstrapNode	bool				// bootstrap node flag
 	Local			Node				// myself
+	ProtoNum		uint32				// local protocol number
+	Protocols		[]Protocol			// local protocol table
 }
 
 //
@@ -159,16 +167,19 @@ type Cfg4PeerListener struct {
 //
 // Configuration about peer manager
 //
+
 type Cfg4PeerManager struct {
-	IP				net.IP	// ip address
-	Port			uint16	// port number
-	ID				NodeID	// the node's public key
-	MaxPeers		int		// max peers would be
-	MaxOutbounds	int		// max concurrency outbounds
-	MaxInBounds		int		// max concurrency inbounds
-	Statics			[]*Node	// static nodes
-	NoDial			bool	// do not dial outbound
-	BootstrapNode	bool	// local is a bootstrap node
+	IP				net.IP		// ip address
+	Port			uint16		// port number
+	ID				NodeID		// the node's public key
+	MaxPeers		int			// max peers would be
+	MaxOutbounds	int			// max concurrency outbounds
+	MaxInBounds		int			// max concurrency inbounds
+	Statics			[]*Node		// static nodes
+	NoDial			bool		// do not dial outbound
+	BootstrapNode	bool		// local is a bootstrap node
+	ProtoNum		uint32		// local protocol number
+	Protocols		[]Protocol	// local protocol table
 }
 
 //
@@ -203,7 +214,7 @@ const (
 )
 
 var dftLocal = Node {
-	IP:		net.IPv4(192,168,2,178),
+	IP:		net.IPv4(192,168,2,102),
 	UDP:	dftUdpPort,
 	TCP:	dftTcpPort,
 	ID:		NodeID{0},
@@ -221,9 +232,11 @@ var config = Config {
 	StaticNodes:		nil,
 	NodeDataDir:		P2pDefaultDataDir(true),
 	NodeDatabase:		datadirNodeDatabase,
-	NoDial:				true,
-	BootstrapNode:		true,
+	NoDial:				false,
+	BootstrapNode:		false,
 	Local:				dftLocal,
+	ProtoNum:			1,
+	Protocols:			[]Protocol {{Pid:0,Ver:[4]byte{0,1,0,0},}},
 }
 
 var PtrConfig = &config
@@ -642,6 +655,8 @@ func P2pConfig4PeerManager() *Cfg4PeerManager {
 		MaxInBounds:	config.MaxInbounds,
 		Statics:		config.StaticNodes,
 		NoDial:			config.NoDial,
+		ProtoNum:		config.ProtoNum,
+		Protocols:		config.Protocols,
 	}
 }
 

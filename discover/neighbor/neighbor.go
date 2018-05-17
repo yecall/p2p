@@ -81,7 +81,7 @@ type neighborInst struct {
 const (
 	NgbProtoEnoNone	= 0
 	NgbProtoEnoParameter = iota + 100	// +100, an offset is necessary to distinct this errno from
-	// those NgbMgrEnoxxx.
+										// those NgbMgrEnoxxx.
 	NgbProtoEnoScheduler
 	NgbProtoEnoOs
 	NgbProtoEnoEncode
@@ -94,9 +94,9 @@ type NgbProtoErrno int
 // Timeouts
 //
 const (
-	NgbProtoWriteTimeout		= 1 * time.Second
-	NgbProtoReadTimeout			= NgbProtoWriteTimeout
-	NgbProtoPingResponseTimeout	= 20 * time.Second
+	NgbProtoWriteTimeout			= 1 * time.Second
+	NgbProtoReadTimeout				= NgbProtoWriteTimeout
+	NgbProtoPingResponseTimeout		= 20 * time.Second
 	NgbProtoFindNodeResponseTimeout = 20 * time.Second
 )
 
@@ -191,6 +191,10 @@ func (inst *neighborInst) NgbProtoFindNodeReq(ptn interface{}, fn *um.FindNode) 
 	 	return NgbProtoEnoOs
 	 }
 
+	yclog.LogCallerFileLine("NgbProtoFindNodeReq: " +
+		"FindNode message sent ok, peer: %s",
+		fmt.Sprintf("%+v", fn.To))
+
 	 //
 	 // start timer to wait response("Neighbors" message) from peer
 	 //
@@ -259,6 +263,10 @@ func (inst *neighborInst) NgbProtoPingReq(ptn interface{}, ping *um.Ping) NgbPro
 			dst.String(), eno)
 		return NgbProtoEnoOs
 	}
+
+	yclog.LogCallerFileLine("NgbProtoPingReq: " +
+		"Ping message sent ok, peer: %s",
+		fmt.Sprintf("%+v", ping.To))
 
 	//
 	// start time for response
@@ -351,6 +359,10 @@ func (inst *neighborInst) NgbProtoPingRsp(msg *um.Pong) NgbProtoErrno {
 			sch.SchinfGetMessageRecver(&schMsg))
 		return NgbMgrEnoScheduler
 	}
+
+	yclog.LogCallerFileLine("NgbProtoPingRsp: " +
+		"send EvNblPingpongRsp to table manager ok, pong: %s",
+		fmt.Sprintf("%+v", rsp.Pong))
 
 	//
 	// remove ourself from map in manager. notice: since we had setup the calback
@@ -715,7 +727,7 @@ func NgbMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 
 	// udpmsg from udp listener task
 	case sch.EvNblMsgInd:
-		eno = ngbMgr.UdpMsgIndHandler(msg.Body.(*UdpMsgInd))
+		eno = ngbMgr.UdpMsgInd(msg.Body.(*UdpMsgInd))
 
 	// request to find node from table task
 	case sch.EvNblFindNodeReq:
@@ -776,7 +788,11 @@ func (ngbMgr *neighborManager)PoweroffHandler(ptn interface{}) sch.SchErrno {
 //
 // udpmsg handler
 //
-func (ngbMgr *neighborManager)UdpMsgIndHandler(msg *UdpMsgInd) NgbMgrErrno {
+func (ngbMgr *neighborManager)UdpMsgInd(msg *UdpMsgInd) NgbMgrErrno {
+
+	yclog.LogCallerFileLine("UdpMsgInd: " +
+		"udp message indication received, type: %d",
+		msg.msgType)
 
 	var eno NgbMgrErrno
 
@@ -817,6 +833,8 @@ func (ngbMgr *neighborManager)PingHandler(ping *um.Ping) NgbMgrErrno {
 	// currently relay is not supported, check if we are the target, if false, we
 	// just discard this ping message.
 	//
+
+	yclog.LogCallerFileLine("PingHandler: handle Ping message from peer")
 
 	if ping.To.NodeId != lsnMgr.cfg.ID {
 		yclog.LogCallerFileLine("PingHandler: not the target: %s", ycfg.P2pNodeId2HexString(lsnMgr.cfg.ID))
@@ -863,6 +881,10 @@ func (ngbMgr *neighborManager)PingHandler(ping *um.Ping) NgbMgrErrno {
 		return NgbMgrEnoEncode
 	}
 
+	yclog.LogCallerFileLine("PingHandler: " +
+		"send Pong message ok, peer: %s",
+		fmt.Sprintf("%+v", pong.To))
+
 	//
 	// check if neighbor task instance exist for the sender node, if none,
 	// we then start a neighbor instance Ping to it, and if we recived Pong
@@ -876,13 +898,21 @@ func (ngbMgr *neighborManager)PingHandler(ping *um.Ping) NgbMgrErrno {
 		return NgbMgrEnoNone
 	}
 
+	yclog.LogCallerFileLine("PingHandler: " +
+		"start bounding procedure for peer: %s",
+		fmt.Sprintf("%+v", ping.From))
+
 	if eno := ngbMgr.PingpongReq(&um.Ping {
 		From: 		*ngbMgr.localNode(),
 		To:			ping.From,
 		Expiration: uint64(time.Now().Add(expiration).Unix()),
 		Extra:		nil,
 	}); eno != NgbMgrEnoNone {
-		yclog.LogCallerFileLine("PingHandler: PingpongReq failed, to: %s", strPeerNodeId)
+
+		yclog.LogCallerFileLine("PingHandler: " +
+			"PingpongReq failed, to: %s",
+			strPeerNodeId)
+
 		return eno
 	}
 
@@ -900,6 +930,8 @@ func (ngbMgr *neighborManager)PongHandler(pong *um.Pong) NgbMgrErrno {
 	// currently relay is not supported, check if we are the target, if false, we
 	// just discard this Pong message.
 	//
+
+	yclog.LogCallerFileLine("PongHandler: handle Pong message from peer")
 
 	if pong.To.NodeId != lsnMgr.cfg.ID {
 		yclog.LogCallerFileLine("PongHandler: not the target: %s", ycfg.P2pNodeId2HexString(lsnMgr.cfg.ID))
@@ -922,7 +954,9 @@ func (ngbMgr *neighborManager)PongHandler(pong *um.Pong) NgbMgrErrno {
 
 	if ngbMgr.checkMap(strPeerNodeId) == false {
 
-		yclog.LogCallerFileLine("PongHandler: neighbor instance not exist: %s", strPeerNodeId)
+		yclog.LogCallerFileLine("PongHandler: " +
+			"neighbor instance not exist, start bounding precedure for it: %s",
+			fmt.Sprintf("%+v", pong.From))
 
 		//
 		// neighbor instance not exist, we start one then
@@ -934,7 +968,11 @@ func (ngbMgr *neighborManager)PongHandler(pong *um.Pong) NgbMgrErrno {
 			Expiration: uint64(time.Now().Add(expiration).Unix()),
 			Extra:		nil,
 		}); eno != NgbMgrEnoNone {
-			yclog.LogCallerFileLine("PongHandler: PingpongReq failed, to: %s", strPeerNodeId)
+
+			yclog.LogCallerFileLine("PongHandler: " +
+				"PingpongReq failed, to: %s",
+					strPeerNodeId)
+
 			return eno
 		}
 
@@ -960,6 +998,10 @@ func (ngbMgr *neighborManager)PongHandler(pong *um.Pong) NgbMgrErrno {
 		return NgbMgrEnoScheduler
 	}
 
+	yclog.LogCallerFileLine("PongHandler: " +
+		"dispatch Pong to neighbor instance task ok, peer: %s",
+		strPeerNodeId)
+
 	return NgbMgrEnoNone
 }
 
@@ -981,6 +1023,8 @@ func (ngbMgr *neighborManager)FindNodeHandler(findNode *um.FindNode) NgbMgrErrno
 	// to add the sender node to bucket and node database.
 	//
 
+	yclog.LogCallerFileLine("FindNodeHandler: handle FindNode message from peer")
+
 	if findNode.To.NodeId != lsnMgr.cfg.ID {
 		yclog.LogCallerFileLine("FindNodeHandler: " +
 			"not the target: %s", ycfg.P2pNodeId2HexString(lsnMgr.cfg.ID))
@@ -997,7 +1041,9 @@ func (ngbMgr *neighborManager)FindNodeHandler(findNode *um.FindNode) NgbMgrErrno
 	// Notice: if the target of this FindNode message is same as the sender
 	// node identity, then the buckets of the sender might be all empty, in
 	// such case, if the closest set is empty, we then append our local node
-	// as a neighbor for the sender, see bellow pls.
+	// as a neighbor for the sender; if the closest not exceed the max, we
+	// append local node; if the closet is max, substitute the tail node with
+	// local. See bellow please.
 	//
 
 	var eno tab.TabMgrErrno
@@ -1008,8 +1054,19 @@ func (ngbMgr *neighborManager)FindNodeHandler(findNode *um.FindNode) NgbMgrErrno
 	nodes = append(nodes, tab.TabClosest(tab.NodeID(findNode.From.NodeId), tab.TabInstQPendingMax)...)
 
 	if len(nodes) == 0 {
-		if findNode.From.NodeId == findNode.Target {
+
+		nodes = append(nodes, tab.TabBuildNode(&ycfg.PtrConfig.Local))
+
+	} else if findNode.From.NodeId == findNode.Target {
+
+		num := len(nodes)
+		if num < tab.TabInstQPendingMax {
+
 			nodes = append(nodes, tab.TabBuildNode(&ycfg.PtrConfig.Local))
+
+		} else {
+
+			nodes[num-1] = tab.TabBuildNode(&ycfg.PtrConfig.Local)
 		}
 	}
 
@@ -1057,6 +1114,11 @@ func (ngbMgr *neighborManager)FindNodeHandler(findNode *um.FindNode) NgbMgrErrno
 
 			return NgbMgrEnoUdp
 		}
+
+		yclog.LogCallerFileLine("FindNodeHandler: " +
+			"send Neighbors message ok, peer: %s",
+			fmt.Sprintf("%+v", neighbors.To))
+
 	} else {
 
 		yclog.LogCallerFileLine("FindNodeHandler: " +
@@ -1083,6 +1145,10 @@ func (ngbMgr *neighborManager)FindNodeHandler(findNode *um.FindNode) NgbMgrErrno
 		return NgbMgrEnoTable
 	}
 
+	yclog.LogCallerFileLine("FindNodeHandler: " +
+		"TabBucketAddNode ok, node: %s",
+		fmt.Sprintf("%+v", findNode.From))
+
 	//
 	// Backup sender node to node database
 	//
@@ -1097,6 +1163,10 @@ func (ngbMgr *neighborManager)FindNodeHandler(findNode *um.FindNode) NgbMgrErrno
 		return NgbMgrEnoTable
 	}
 
+	yclog.LogCallerFileLine("FindNodeHandler: " +
+		"TabUpdateNode ok, node: %s",
+		fmt.Sprintf("%+v", findNode.From))
+
 	return NgbMgrEnoNone
 }
 
@@ -1109,12 +1179,14 @@ func (ngbMgr *neighborManager)NeighborsHandler(nbs *um.Neighbors) NgbMgrErrno {
 	// Here we got Neighbors from another node
 	//
 	// currently relay is not supported, check if we are the target, if false, we
-	// just discard this neighbors message.
+	// just discard this ping message.
 	//
 	// Notice: unlike Ping or Pong, if an instance of neighbor task is not exist
 	// for peer node, we do not start a neighbor instance here in this function,
 	// instead, we discard this "Neighbors" message then return at once.
 	//
+
+	yclog.LogCallerFileLine("NeighborsHandler: handle Neighbors message from peer")
 
 	if nbs.To.NodeId != lsnMgr.cfg.ID {
 		yclog.LogCallerFileLine("NeighborsHandler: not the target: %s", ycfg.P2pNodeId2HexString(lsnMgr.cfg.ID))

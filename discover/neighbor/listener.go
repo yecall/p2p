@@ -536,6 +536,8 @@ _loop:
 			// deal with the message
 			//
 
+			yclog.LogCallerFileLine("udpReaderLoop: bytes received: %d", bys)
+
 			buf = buf[0:bys]
 			udpReader.msgHandler(&buf, bys, peer)
 		}
@@ -635,6 +637,10 @@ func (rd udpReaderTask) msgHandler(pbuf *[]byte, len int, from *net.UDPAddr) sch
 		return schEno
 	}
 
+	yclog.LogCallerFileLine("msgHandler: " +
+		"udp message dispatched, type: %d",
+		udpMsgInd.msgType)
+
 	return sch.SchEnoNone
 }
 
@@ -671,6 +677,8 @@ func sendUdpMsg(buf []byte, toAddr *net.UDPAddr) sch.SchErrno {
 			len(buf), sent)
 		return sch.SchEnoOS
 	}
+
+	yclog.LogCallerFileLine("sendUdpMsg: ok, bytes sent: %d", sent)
 
 	return sch.SchEnoNone
 }
