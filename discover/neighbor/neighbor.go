@@ -1189,7 +1189,11 @@ func (ngbMgr *neighborManager)NeighborsHandler(nbs *um.Neighbors) NgbMgrErrno {
 	yclog.LogCallerFileLine("NeighborsHandler: handle Neighbors message from peer")
 
 	if nbs.To.NodeId != lsnMgr.cfg.ID {
-		yclog.LogCallerFileLine("NeighborsHandler: not the target: %s", ycfg.P2pNodeId2HexString(lsnMgr.cfg.ID))
+
+		yclog.LogCallerFileLine("NeighborsHandler: " +
+			"not the target: %s",
+			ycfg.P2pNodeId2HexString(lsnMgr.cfg.ID))
+
 		return NgbMgrEnoParameter
 	}
 
@@ -1200,19 +1204,31 @@ func (ngbMgr *neighborManager)NeighborsHandler(nbs *um.Neighbors) NgbMgrErrno {
 
 	strPeerNodeId := ycfg.P2pNodeId2HexString(nbs.From.NodeId)
 	if ngbMgr.checkMap(strPeerNodeId) == false {
-		yclog.LogCallerFileLine("NeighborsHandler: neighbor isntance not exist: %s", strPeerNodeId)
+
+		yclog.LogCallerFileLine("NeighborsHandler: " +
+			"neighbor isntance not exist: %s",
+			strPeerNodeId)
+
 		return NgbMgrEnoMismatched
 	}
+
 	ptnNgb := ngbMgr.getMap(strPeerNodeId).ptn
 
 	var schMsg = sch.SchMessage{}
-	if eno := sch.SchinfMakeMessage(&schMsg, ngbMgr.ptnMe, ptnNgb, sch.EvNblFindNodeRsp, nbs); eno != sch.SchEnoNone {
-		yclog.LogCallerFileLine("NeighborsHandler: SchinfMakeMessage failed, eno: %d", eno)
+
+	if eno := sch.SchinfMakeMessage(&schMsg, ngbMgr.ptnMe, ptnNgb, sch.EvNblFindNodeRsp, nbs);
+	eno != sch.SchEnoNone {
+
+		yclog.LogCallerFileLine("NeighborsHandler: " +
+			"SchinfMakeMessage failed, eno: %d", eno)
 		return NgbMgrEnoScheduler
 	}
 
 	if eno := sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
-		yclog.LogCallerFileLine("NeighborsHandler: SchinfSendMessage failed, eno: %d", eno)
+
+		yclog.LogCallerFileLine("NeighborsHandler: " +
+			"SchinfSendMessage failed, eno: %d", eno)
+
 		return NgbMgrEnoScheduler
 	}
 

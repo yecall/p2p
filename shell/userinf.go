@@ -23,107 +23,196 @@ package shell
 
 import (
 	"fmt"
+	"sync"
 	"ycp2p/peer"
+	yclog "ycp2p/logger"
 )
+
 
 //
 // errno about this interface
 //
-type UserInfErrno	int
+type P2pInfErrno	int
+
 const (
-	UserInfEnoNone		UserInfErrno = 0	// none of errors
-	UserInfEnoParameter	UserInfErrno = 1	// invalid parameters
-	UserInfoEnoNotImpl	UserInfErrno = 2	// not implemented
-	UserInfEnoUnknown	UserInfErrno = 3	// unknown
-	UserInfEnoMax		UserInfErrno = 4	// max, for bound checking
+	P2pInfEnoNone		P2pInfErrno = 0	// none of errors
+	P2pInfEnoParameter	P2pInfErrno = 1	// invalid parameters
+	P2pInfEnoScheduler	P2pInfErrno	= 2	// shceduler
+	P2pInfEnoNotImpl	P2pInfErrno = 3	// not implemented
+	P2pInfEnoInternal	P2pInfErrno	= 4	// internal
+	P2pInfEnoUnknown	P2pInfErrno = 5	// unknown
+	P2pInfEnoMax		P2pInfErrno = 6	// max, for bound checking
 )
 
 //
 // Description about user interface errno
 //
-var UserInfErrnoDescription = []string {
+var P2pInfErrnoDescription = []string {
 	"none of errors",
 	"invalid parameters",
 	"unknown",
-	"max, for bound checking",
+	"max value can errno be",
 }
 
 //
 // Stringz an errno with itself
 //
-func (eno UserInfErrno) UserInfErrnoString() string {
-	if eno < UserInfEnoNone || eno >= UserInfEnoMax {
+func (eno P2pInfErrno) P2pInfErrnoString() string {
+	if eno < P2pInfEnoNone || eno >= P2pInfEnoMax {
 		return fmt.Sprintf("Can't be stringzed, invalid eno:%d", eno)
 	}
-	return UserInfErrnoDescription[eno]
+	return P2pInfErrnoDescription[eno]
 }
 
 //
 // Stringz an errno with an eno parameter
 //
-func UserInfErrnoString(eno UserInfErrno) string {
-	return eno.UserInfErrnoString()
+func P2pInfErrnoString(eno P2pInfErrno) string {
+	return eno.P2pInfErrnoString()
 }
-
-//
-// Messages' identity callbacked to user
-//
-const (
-	CBMID_NULL		= iota	// it's null, means none
-	CBMID_MAX				// for bound checking
-)
 
 //
 // Message passed into user's callback
 //
-type UserCallbackMessageId	int			// message identity as integer
-type UserCallbackMessage struct {
-	MsgId		UserCallbackMessageId	// message identity
-	PeerInfo	*peer.PeerInfo			// peer information
-	MsgBody		interface{}				// message body
+type P2pPackageCallback struct {
+	PeerInfo		*peer.PeerInfo	// peer information
+	ProtoId			int				// protocol identity
+	PayloadLength	int				// bytes in payload buffer
+	Payload			[]byte			// payload buffer
 }
 
 //
 // Message from user
 //
-type UserMessage2Peer struct {
-	IdList		[]peer.PeerId	// peer identity list
+type P2pPackage2Peer struct {
+	IdList			[]peer.PeerId	// peer identity list
+	ProtoId			int				// protocol identity
 	PayloadLength	int				// payload length
-	Payload		[]byte			// payload
-	ExtraInfo	interface{}	// extra info: user this field to tell p2p more about this message,
-								// for example, if broadcasting is wanted, then set IdList to nil
-								// and setup thie extra info field.
+	Payload			[]byte			// payload
+	Extra			interface{}		// extra info: user this field to tell p2p more about this message,
+									// for example, if broadcasting is wanted, then set IdList to nil
+									// and setup thie extra info field.
 }
 
 //
-// User callback function type
+// callback type
 //
-type UserInfCallback func(msg *UserCallbackMessage) interface{}
+const (
+	P2pInfIndCb	= iota
+	P2pInfPkgCb
+)
+
+//
+// P2p peer status indication callback type
+//
+const (
+	P2pIndPeerActivated	= iota	// peer activated
+	P2pIndConnStatus			// connection status changed
+	P2pIndPeerClosed			// connection closed
+)
+
+type P2pIndPeerActivatedPara struct {
+	Inst		interface{}
+	PeerInfo	*peer.Handshake
+}
+
+type P2pIndConnStatusPara int
+
+type P2pIndPeerClosedPara int
+
+type P2pInfIndCallback func(what int, para interface{}) interface{}
+
+//
+// P2p callback function type for package incoming
+//
+type P2pInfPkgCallback func(msg *P2pPackageCallback) interface{}
 
 //
 // Register user callback function to p2p
 //
-func UserInfRegisterCallback(ucb UserInfCallback) UserInfErrno {
-	return UserInfEnoNone
+var P2pIndHandler P2pInfIndCallback = nil
+var Lock4Cb sync.Mutex
+
+func P2pInfRegisterCallback(what int, cb interface{}, ptn interface{}) P2pInfErrno {
+
+	if what != P2pInfIndCb && what != P2pInfPkgCb {
+		yclog.LogCallerFileLine("P2pInfRegisterCallback: " +
+			"invalid callback type: %d",
+			what)
+		return P2pInfEnoParameter
+	}
+
+	if what == P2pInfIndCb {
+		if P2pIndHandler != nil {
+			yclog.LogCallerFileLine("P2pInfRegisterCallback: old handler will be overlapped")
+		}
+		Lock4Cb.Lock()
+		P2pIndHandler = cb.(P2pInfIndCallback)
+		Lock4Cb.Unlock()
+		return P2pInfEnoNone
+	}
+
+	if ptn == nil {
+		yclog.LogCallerFileLine("P2pInfRegisterCallback: nil task node pointer")
+		return P2pInfEnoParameter
+	}
+
+	if eno := peer.SetP2pkgCallback(cb, ptn); eno != peer.PeMgrEnoNone {
+		yclog.LogCallerFileLine("P2pInfRegisterCallback: " +
+			"SetP2pkgCallback failed, eno: %d",
+			eno)
+		return P2pInfEnoInternal
+	}
+
+	return P2pInfEnoNone
 }
 
 //
 // Send message to peer
 //
-func UserInfSendMessage(msg UserMessage2Peer) UserInfErrno {
-	return UserInfEnoNone
+func P2pInfSendPackage(pkg *P2pPackage2Peer) P2pInfErrno {
+
+	if eno, failed := peer.SendPackage(pkg); eno != peer.PeMgrEnoNone {
+
+		yclog.LogCallerFileLine("P2pInfSendPackage: " +
+			"SendPackage failed, eno: %d, pkg: %s",
+			eno,
+			fmt.Sprintf("%+v", *pkg))
+
+		var str = ""
+
+		for _, f := range failed {
+			str = str + fmt.Sprintf("%x", *f)
+		}
+
+		yclog.LogCallerFileLine("P2pInfSendPackage: " +
+			"failed list: %s",
+			str)
+
+		return P2pInfEnoInternal
+	}
+
+	return P2pInfEnoNone
 }
 
 //
 // Disconnect peer
 //
-func UserInfDisconnectPeer(id peer.PeerId) UserInfErrno {
-	return UserInfEnoNone
+func P2pInfClosePeer(id *peer.PeerId) P2pInfErrno {
+	if eno := peer.ClosePeer(id); eno != peer.PeMgrEnoNone {
+		yclog.LogCallerFileLine("P2pInfSendPackage: " +
+			"ClosePeer failed, eno: %d, peer: %s",
+			eno,
+			fmt.Sprintf("%+v", *id))
+		return P2pInfEnoInternal
+	}
+	return P2pInfEnoNone
 }
 
 //
 // Free total p2p all
 //
-func UserInfPoweroff() UserInfErrno {
-	return UserInfEnoNone
+func P2pInfPoweroff() P2pInfErrno {
+	yclog.LogCallerFileLine("P2pInfPoweroff: not supported yet")
+	return P2pInfEnoNotImpl
 }

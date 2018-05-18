@@ -80,6 +80,7 @@ func schimplSchedulerInit() SchErrno {
 		schTaskNodePool[loop].next = &schTaskNodePool[(loop + 1) & (schTaskNodePoolSize - 1)]
 		schTaskNodePool[loop].task.tmIdxTab = make(map[*schTmcbNode] int)
 	}
+
 	p2pSDL.freeSize = schTaskNodePoolSize
 	p2pSDL.tkFree = &schTaskNodePool[0]
 
@@ -93,6 +94,7 @@ func schimplSchedulerInit() SchErrno {
 		schTimerNodePool[loop].tmcb.stop = make(chan bool, 1)
 		schTimerNodePool[loop].tmcb.stopped = make(chan bool)
 	}
+
 	p2pSDL.tmFreeSize = schTimerNodePoolSize
 	p2pSDL.tmFree = &schTimerNodePool[0]
 
@@ -122,7 +124,11 @@ func schimplCommonTask(ptn *schTaskNode) SchErrno {
 	//
 
 	if ptn.task.utep == nil || ptn.task.mailbox.que == nil || ptn.task.done == nil {
-		yclog.LogCallerFileLine("schimplCommonTask: invalid user task: %s", ptn.task.name)
+
+		yclog.LogCallerFileLine("schimplCommonTask: " +
+			"invalid user task: %s",
+			ptn.task.name)
+
 		return SchEnoParameter
 	}
 
@@ -314,10 +320,14 @@ timerLoop:
 		ptm.tmcb.taskNode.task.lock.Lock()
 
 		dur := ptm.tmcb.dur
+
 		if dur <= 0 {
+
 			yclog.LogCallerFileLine("schimplTimerCommonTask: " +
 				"invalid absolute timer duration:%d", ptm.tmcb.dur)
+
 			ptm.tmcb.taskNode.task.lock.Unlock()
+
 			return SchEnoParameter
 		}
 
@@ -415,9 +425,12 @@ absTimerLoop:
 		tid, utid, tmName, tskName)
 
 	if killed {
+
 		ptm.tmcb.stopped<-true
+
 		close(ptm.tmcb.stop)
 		close(ptm.tmcb.stopped)
+
 		ptm.tmcb.stop = nil
 		ptm.tmcb.stopped = nil
 	}
@@ -426,9 +439,11 @@ absTimerLoop:
 	ptm.tmcb.taskNode = nil
 
 	if eno := schimplRetTimerNode(ptm); eno != SchEnoNone {
+
 		yclog.LogCallerFileLine("schimplTimerCommonTask: " +
 			"schimplRetTimerNode failed, eno: %d",
 			eno)
+
 		return eno
 	}
 
@@ -469,25 +484,35 @@ func schimplGetTimerNode() (SchErrno, *schTmcbNode) {
 	tmn = p2pSDL.tmFree
 
 	if tmn.last == tmn && tmn.next == tmn {
+
 		if p2pSDL.tmFreeSize - 1 != 0 {
+
 			yclog.LogCallerFileLine("schimplGetTimerNode: " +
 				"internal errors, should be 0, but free size: %d",
 				p2pSDL.tmFreeSize)
+
 			return SchEnoInternal, nil
 		}
+
 		p2pSDL.tmFreeSize--
 		p2pSDL.tmFree = nil
+
 	} else {
+
 		if p2pSDL.tmFreeSize - 1 <= 0 {
+
 			yclog.LogCallerFileLine("schimplGetTimerNode: " +
 				"internal errors, should equal or less than 0, but free size: %d",
 				p2pSDL.tmFreeSize)
+
 			return SchEnoInternal, nil
 		}
+
 		last := tmn.last
 		next := tmn.next
 		next.last = last
 		last.next = next
+
 		p2pSDL.tmFree = next
 		p2pSDL.tmFreeSize--
 	}
@@ -528,15 +553,20 @@ func schimplRetTimerNode(ptm *schTmcbNode) SchErrno {
 	//
 
 	if p2pSDL.tmFree == nil {
+
 		ptm.last = ptm
 		ptm.next = ptm
+
 	} else {
+
 		last := p2pSDL.tmFree.last
 		ptm.last = last
 		last.next = ptm
 		ptm.next = p2pSDL.tmFree
 		p2pSDL.tmFree.last = ptm
+
 	}
+
 	p2pSDL.tmFree = ptm
 	p2pSDL.tmFreeSize++
 
@@ -577,18 +607,26 @@ func schimplGetTaskNode() (SchErrno, *schTaskNode) {
 	tkn = p2pSDL.tkFree
 
 	if tkn.last == tkn && tkn.next == tkn {
+
 		p2pSDL.tkFree = nil
+
 		if p2pSDL.freeSize--; p2pSDL.freeSize != 0 {
+
 			yclog.LogCallerFileLine("schimplGetTaskNode: internal errors")
+
 			return SchEnoInternal, nil
 		}
+
 	} else {
+
 		last := tkn.last
 		next := tkn.next
 		next.last = last
 		last.next = next
 		p2pSDL.tkFree = next
+
 		if p2pSDL.freeSize--; p2pSDL.freeSize <= 0 {
+
 			yclog.LogCallerFileLine("schimplGetTaskNode: internal errors")
 			return SchEnoInternal, nil
 		}
@@ -622,15 +660,20 @@ func schimplRetTaskNode(ptn *schTaskNode) SchErrno {
 	//
 
 	if p2pSDL.tkFree == nil {
+
 		ptn.last = ptn
 		ptn.next = ptn
+
 	} else {
+
 		last := p2pSDL.tkFree.last
 		ptn.last = last
 		last.next = ptn
 		ptn.next = p2pSDL.tkFree
 		p2pSDL.tkFree.last = ptn
+
 	}
+
 	p2pSDL.tkFree = ptn
 	p2pSDL.freeSize++
 
@@ -659,15 +702,20 @@ func schimplTaskBusyEnque(ptn *schTaskNode) SchErrno {
 	//
 
 	if p2pSDL.tkBusy == nil {
+
 		ptn.last = ptn
 		ptn.next = ptn
+
 	} else {
+
 		last := p2pSDL.tkBusy.last
 		ptn.last = last
 		last.next = ptn
 		ptn.next = p2pSDL.tkBusy
 		p2pSDL.tkBusy.last = ptn
+
 	}
+
 	p2pSDL.tkBusy = ptn
 	p2pSDL.busySize++
 
@@ -716,26 +764,39 @@ func schimplTaskBusyDeque(ptn *schTaskNode) SchErrno {
 	}
 
 	if ptn.last == ptn && ptn.next == ptn {
+
 		if ptn == p2pSDL.tkBusy {
+
 			p2pSDL.tkBusy = nil
+
 		} else {
+
 			yclog.LogCallerFileLine("schimplTaskBusyDeque: internal errors")
+
 			return SchEnoInternal
 		}
 		if p2pSDL.busySize--; p2pSDL.busySize != 0 {
+
 			yclog.LogCallerFileLine("schimplTaskBusyDeque: internal errors")
+
 			return SchEnoInternal
 		}
 	} else {
+
 		last := ptn.last
 		next := ptn.next
 		last.next = next
 		next.last = last
+
 		if p2pSDL.tkBusy == ptn {
+
 			p2pSDL.tkBusy = next
 		}
+
 		if p2pSDL.busySize--; p2pSDL.busySize <= 0 {
+
 			yclog.LogCallerFileLine("schimplTaskBusyDeque: internal errors")
+
 			return SchEnoInternal
 		}
 	}
@@ -802,7 +863,11 @@ func schimplCreateTask(taskDesc *schTaskDescription) (SchErrno, interface{}){
 	//
 
 	if eno, ptn = schimplGetTaskNode(); eno != SchEnoNone || ptn == nil {
-		yclog.LogCallerFileLine("schimplCreateTask: schimplGetTaskNode failed, eno: %d", eno)
+
+		yclog.LogCallerFileLine("schimplCreateTask: " +
+			"schimplGetTaskNode failed, eno: %d",
+			eno)
+
 		return eno, nil
 	}
 
@@ -811,7 +876,9 @@ func schimplCreateTask(taskDesc *schTaskDescription) (SchErrno, interface{}){
 	//
 
 	if ptn.task.mailbox.que != nil {
+
 		yclog.LogCallerFileLine("schimplCreateTask: raw task node mailbox not empty")
+
 		close(*ptn.task.mailbox.que)
 		ptn.task.mailbox.que = nil
 		ptn.task.mailbox.size = 0
@@ -881,7 +948,9 @@ func schimplCreateTask(taskDesc *schTaskDescription) (SchErrno, interface{}){
 
 	} else if _, dup := p2pSDL.tkMap[schTaskName(ptn.task.name)]; dup == true {
 
-		yclog.LogCallerFileLine("schimplCreateTask: duplicated task name: %s", ptn.task.name)
+		yclog.LogCallerFileLine("schimplCreateTask: " +
+			"duplicated task name: %s",
+			ptn.task.name)
 
 		p2pSDL.lock.Unlock()
 		return SchEnoDuplicated, nil
@@ -897,7 +966,11 @@ func schimplCreateTask(taskDesc *schTaskDescription) (SchErrno, interface{}){
 	//
 
 	if eno := schimplTaskBusyEnque(ptn); eno != SchEnoNone {
-		yclog.LogCallerFileLine("schimplCreateTask: schimplTaskBusyEnque failed, rc: %d", eno)
+
+		yclog.LogCallerFileLine("schimplCreateTask: " +
+			"schimplTaskBusyEnque failed, rc: %d",
+			eno)
+
 		return eno, nil
 	}
 
@@ -919,7 +992,9 @@ func schimplCreateTask(taskDesc *schTaskDescription) (SchErrno, interface{}){
 
 	} else {
 
-		yclog.LogCallerFileLine("schimplCreateTask: suspended for invalid goStatus flag: %d", taskDesc.Flag)
+		yclog.LogCallerFileLine("schimplCreateTask: " +
+			"suspended for invalid goStatus flag: %d",
+			taskDesc.Flag)
 
 		ptn.task.goStatus = SchCreatedSuspend
 		eno = SchEnoSuspended
@@ -936,7 +1011,7 @@ type schTaskGroupDescription SchTaskGroupDescription
 func schimplCreateTaskGroup(taskGrpDesc *schTaskGroupDescription)(SchErrno, interface{}) {
 
 	if taskGrpDesc == nil {
-		yclog.LogCallerFileLine("")
+		yclog.LogCallerFileLine("schimplCreateTaskGroup: invalid parameter")
 		return SchEnoParameter, nil
 	}
 
@@ -946,7 +1021,7 @@ func schimplCreateTaskGroup(taskGrpDesc *schTaskGroupDescription)(SchErrno, inte
 
 	mbCount := len(taskGrpDesc.MbList)
 	if mbCount > schMaxGroupSize {
-		yclog.LogCallerFileLine("")
+		yclog.LogCallerFileLine("schimplCreateTaskGroup: too much group members")
 		return SchEnoResource, nil
 	}
 
@@ -975,8 +1050,11 @@ func schimplCreateTaskGroup(taskGrpDesc *schTaskGroupDescription)(SchErrno, inte
 			// the future.
 			//
 
-			yclog.LogCallerFileLine("")
-			ptnTab = nil
+			yclog.LogCallerFileLine("schimplCreateTaskGroup: " +
+				"create task failed, eno: %d",
+				eno)
+
+			return eno, nil
 		}
 
 		ptnTab = append(ptnTab, nil)
@@ -1011,12 +1089,18 @@ func schimplStartTask(name string) SchErrno {
 	// start it.
 	//
 
+	//
 	// get task node pointer by name
+	//
+
 	eno, ptn := schimplGetTaskNodeByName(name)
+
 	if eno != SchEnoNone || ptn == nil {
+
 		yclog.LogCallerFileLine("schimplStartTask: " +
 			"schimplGetTaskNodeByName failed, name: %s, eno: %d, ptn: %x",
 			name, eno, ptn)
+
 		return eno
 	}
 
@@ -1025,8 +1109,10 @@ func schimplStartTask(name string) SchErrno {
 	//
 
 	if ptn.task.goStatus != SchCreatedSuspend {
+
 		yclog.LogCallerFileLine("schimplStartTask: " +
 			"invalid user task status: %d", ptn.task.goStatus)
+
 		return SchEnoMismatched
 	}
 
@@ -1056,8 +1142,11 @@ func schimplStartTaskEx(ptn *schTaskNode) SchErrno {
 	//
 
 	if ptn.task.goStatus != SchCreatedSuspend {
+
 		yclog.LogCallerFileLine("schimplStartTaskEx: " +
-			"invalid user task status: %d", ptn.task.goStatus)
+			"invalid user task status: %d",
+			ptn.task.goStatus)
+
 		return SchEnoMismatched
 	}
 
@@ -1068,7 +1157,10 @@ func schimplStartTaskEx(ptn *schTaskNode) SchErrno {
 	ptn.task.goStatus = SchCreatedGo
 	go schimplCommonTask(ptn)
 
-	yclog.LogCallerFileLine("schimplStartTaskEx: start ok, task: %s", ptn.task.name)
+	yclog.LogCallerFileLine("schimplStartTaskEx: " +
+		"start ok, task: %s",
+		ptn.task.name)
+
 	return SchEnoNone
 }
 
@@ -1099,7 +1191,11 @@ func schimplStartTaskGroup(grp string) (SchErrno, int) {
 	//
 
 	if _, err := p2pSDL.grpMap[schTaskGroupName(grp)]; !err {
-		yclog.LogCallerFileLine("schimplStartTaskGroup: not exist, group: %s", grp)
+
+		yclog.LogCallerFileLine("schimplStartTaskGroup: " +
+			"not exist, group: %s",
+			grp)
+
 		return SchEnoMismatched, -1
 	}
 
@@ -1130,7 +1226,11 @@ func schimplStartTaskGroup(grp string) (SchErrno, int) {
 	//
 
 	if failedCount > 0 {
-		yclog.LogCallerFileLine("schimplStartTaskGroup: total failed count: %d", failedCount)
+
+		yclog.LogCallerFileLine("schimplStartTaskGroup: " +
+			"total failed count: %d",
+			failedCount)
+
 		return SchEnoUnknown, failedCount
 	}
 
@@ -1185,7 +1285,11 @@ func schimplStopTaskGroup(grp string) SchErrno {
 	//
 
 	if _, err := p2pSDL.grpMap[schTaskGroupName(grp)]; !err {
-		yclog.LogCallerFileLine("schimplStopTaskGroup: not exist, group: %s", grp)
+
+		yclog.LogCallerFileLine("schimplStopTaskGroup: " +
+			"not exist, group: %s",
+			grp)
+
 		return SchEnoNotFound
 	}
 
@@ -1194,10 +1298,20 @@ func schimplStopTaskGroup(grp string) SchErrno {
 	//
 
 	var mbTaskMap = p2pSDL.grpMap[schTaskGroupName(grp)]
+
 	for mbName, mbTaskNode := range mbTaskMap {
+
 		yclog.LogCallerFileLine("schimplStopTaskGroup: " +
 			"stop member task: %s of group: %s", mbName, grp)
-		schimplStopTaskEx(mbTaskNode)
+
+		if eno := schimplTaskDone(mbTaskNode, SchEnoKilled); eno != SchEnoNone {
+
+			yclog.LogCallerFileLine("schimplStopTaskGroup: " +
+				"schimplTaskDone failed, eno: %d",
+				eno	)
+
+			return eno
+		}
 	}
 
 	//
@@ -1237,8 +1351,10 @@ func schimplStopTaskEx(ptn *schTaskNode) SchErrno {
 	//
 
 	if eno := schimplTaskBusyDeque(ptn); eno != SchEnoNone {
+
 		yclog.LogCallerFileLine("schimplStopTaskEx: " +
 			"schimplTaskBusyDeque failed, eno: %d", eno)
+
 		return eno
 	}
 
@@ -1247,10 +1363,13 @@ func schimplStopTaskEx(ptn *schTaskNode) SchErrno {
 	//
 
 	if ptn.task.dieCb != nil {
+
 		if eno = ptn.task.dieCb(&ptn.task); eno != SchEnoNone {
+
 			yclog.LogCallerFileLine("schimplStopTaskEx: "+
 				"dieCb failed, task: %s, eno: %d",
 				ptn.task.name, eno)
+
 			return eno
 		}
 	}
@@ -1262,15 +1381,19 @@ func schimplStopTaskEx(ptn *schTaskNode) SchErrno {
 	for ptm, tid = range ptn.task.tmIdxTab {
 
 		if ptm == nil {
+
 			yclog.LogCallerFileLine("schimplStopTaskEx: " +
 				"failed, nil timer control block pointer")
+
 			return SchEnoInternal
 		}
 
 		if eno = schimplKillTimer(ptn, tid); eno != SchEnoNone {
+
 			yclog.LogCallerFileLine("schimplStopTaskEx: " +
 				"schimplKillTimer failed, task: %s, eno: %d",
 				ptn.task.name, eno)
+
 			return eno
 		}
 	}
@@ -1280,7 +1403,11 @@ func schimplStopTaskEx(ptn *schTaskNode) SchErrno {
 	//
 
 	if eno = schimplTcbClean(&ptn.task); eno != SchEnoNone {
-		yclog.LogCallerFileLine("schimplStopTaskEx: schimplTcbClean faild, eno: %d", eno)
+
+		yclog.LogCallerFileLine("schimplStopTaskEx: " +
+			"schimplTcbClean faild, eno: %d",
+			eno)
+
 		return eno
 	}
 
@@ -1289,9 +1416,11 @@ func schimplStopTaskEx(ptn *schTaskNode) SchErrno {
 	//
 
 	if eno = schimplRetTaskNode(ptn); eno != SchEnoNone {
+
 		yclog.LogCallerFileLine("schimplStopTaskEx: " +
 			"schimplRetTimerNode failed, task: %s, eno: %d",
 			ptn.task.name, eno)
+
 		return  eno
 	}
 
@@ -1300,6 +1429,7 @@ func schimplStopTaskEx(ptn *schTaskNode) SchErrno {
 	//
 
 	if len(ptn.task.name) > 0 {
+
 		delete(p2pSDL.tkMap, schTaskName(ptn.task.name))
 	}
 
@@ -1307,7 +1437,7 @@ func schimplStopTaskEx(ptn *schTaskNode) SchErrno {
 }
 
 //
-// Make user tack control block clean
+// Make user task control block clean
 //
 func schimplTcbClean(tcb *schTask) SchErrno {
 
@@ -1334,9 +1464,12 @@ func schimplTcbClean(tcb *schTask) SchErrno {
 	tcb.stopped = nil
 
 	for loop := 0; loop < schMaxTaskTimer; loop++ {
+
 		if tcb.tmTab[loop] != nil {
+
 			delete(tcb.tmIdxTab, tcb.tmTab[loop])
 			delete(p2pSDL.tmMap, tcb.tmTab[loop])
+
 			tcb.tmTab[loop] = nil
 		}
 	}
@@ -1436,7 +1569,11 @@ func schimplSendMsg2TaskGroup(grp string, msg *schMessage) (SchErrno, int) {
 	//
 
 	if mtl, found = p2pSDL.grpMap[schTaskGroupName(grp)]; found != true {
-		yclog.LogCallerFileLine("schimplSendMsg2TaskGroup: not exist, group: %s", grp)
+
+		yclog.LogCallerFileLine("schimplSendMsg2TaskGroup: " +
+			"not exist, group: %s",
+			grp)
+
 		return SchEnoParameter, -1
 	}
 
@@ -1445,11 +1582,15 @@ func schimplSendMsg2TaskGroup(grp string, msg *schMessage) (SchErrno, int) {
 	//
 
 	for _, ptn := range mtl {
+
 		msg.recver = ptn
+
 		if eno := schimplSendMsg(msg); eno != SchEnoNone {
+
 			yclog.LogCallerFileLine("schimplSendMsg2TaskGroup: " +
 				"send failed, group: %s, member: %s",
 				grp, ptn.task.name)
+
 			failedCount++
 		}
 	}
@@ -1505,8 +1646,10 @@ func schimplSetTimer(ptn *schTaskNode, tdc *timerDescription) (SchErrno, int) {
 	//
 
 	if eno, ptm = schimplGetTimerNode(); eno != SchEnoNone || ptm == nil {
+
 		yclog.LogCallerFileLine("schimplSetTimer: " +
 			"schimplGetTimerNode failed, eno: %d", eno)
+
 		return eno, schInvalidTid
 	}
 
@@ -1577,7 +1720,9 @@ func schimplKillTimer(ptn *schTaskNode, tid int) SchErrno {
 	//
 
 	if ptn.task.tmTab[tid] == nil {
+
 		yclog.LogCallerFileLine("schimplKillTimer: try to kill a null timer")
+
 		ptn.task.lock.Unlock()
 		return SchEnoNotFound
 	}
@@ -1593,10 +1738,13 @@ func schimplKillTimer(ptn *schTaskNode, tid int) SchErrno {
 	tcb.stop<-true
 
 	ptn.task.lock.Unlock()
+
 	if stopped := <-tcb.stopped; stopped {
+
 		yclog.LogCallerFileLine("schimplKillTimer: " +
 			"timer killed ok, tid: %d, task: %s",
 			tid, ptn.task.name)
+
 		return SchEnoNone
 	}
 
@@ -1631,10 +1779,18 @@ func schimplTaskDone(ptn *schTaskNode, eno SchErrno) SchErrno {
 		return SchEnoParameter
 	}
 
+	//
+	// some tasks might have empty names
+	//
+
 	var tskName = ""
+
 	if tskName = schimplGetTaskName(ptn); len(tskName) == 0 {
+
 		yclog.LogCallerFileLine("schimplTaskDone: done task without name")
+
 	} else {
+
 		yclog.LogCallerFileLine("schimplTaskDone: task name: %s", tskName)
 	}
 
@@ -1643,13 +1799,17 @@ func schimplTaskDone(ptn *schTaskNode, eno SchErrno) SchErrno {
 	//
 
 	ptn.task.done<-eno
+
 	if <-ptn.task.stopped != true {
+
 		yclog.LogCallerFileLine("schimplTaskDone: it's done, but seems some errors")
+
 		ptn.task.stopped<-true
 		return SchEnoInternal
 	}
 
 	yclog.LogCallerFileLine("schimplTaskDone: done! task: %s", tskName)
+
 	return SchEnoNone
 }
 
@@ -1771,8 +1931,10 @@ func schimplSchedulerStart(tsd []TaskStaticDescription, tpo []string) (eno SchEr
 		//
 
 		if eno, ptn = schimplCreateTask(&tkd); eno != SchEnoNone {
+
 			yclog.LogCallerFileLine("schimplSchedulerStart: " +
 				"schimplCreateTask failed, task: %s", tkd.Name)
+
 			return SchEnoParameter, nil
 		}
 
@@ -1848,6 +2010,7 @@ func schimplSchedulerStart(tsd []TaskStaticDescription, tpo []string) (eno SchEr
 	//
 
 	yclog.LogCallerFileLine("schimplSchedulerStart: go the watchdog")
+
 	go wdCB.watchDogProc()
 
 	golog.Printf("schimplSchedulerStart:")
@@ -1912,6 +2075,7 @@ func (wd watchDogCtrlBlock) dogWatch() SchErrno {
 	defer wd.scb.lock.Unlock()
 
 	var ptn *schTaskNode
+
 	if ptn = wd.scb.tkBusy; ptn == nil {
 		yclog.LogCallerFileLine("dogWatch: none of user tasks in scheduling")
 		return SchEnoNone
@@ -1927,6 +2091,7 @@ func (wd watchDogCtrlBlock) dogWatch() SchErrno {
 
 	for {
 		if ptn.task.dog.HaveDog == true && ptn.task.dog.Inited == true{
+
 			ptn.task.dog.lock.Lock()
 
 			if ptn.task.dog.BiteCounter++; ptn.task.dog.BiteCounter >= ptn.task.dog.DieThreshold {

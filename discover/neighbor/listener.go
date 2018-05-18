@@ -51,8 +51,8 @@ type listenerManager struct {
 	conn		*net.UDPConn		// udp connection
 	addr		net.UDPAddr			// real udp address
 	state		int					// state
-	ptnMe		interface{}		// pointer to myself task
-	ptnReader	interface{}		// pointer to udp reader task
+	ptnMe		interface{}			// pointer to myself task
+	ptnReader	interface{}			// pointer to udp reader task
 }
 
 //
@@ -96,23 +96,18 @@ func LsnMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 
 	switch msg.Id {
 
-	// poweron, init lsnmgr to work
 	case sch.EvSchPoweron:
 		eno = lsnMgr.procPoweron()
 
-	// poweroff
 	case sch.EvSchPoweroff:
 		eno = lsnMgr.procPoweroff()
 
-	// start udp reading
 	case sch.EvNblStart:
 		eno = lsnMgr.procStart()
 
-	// stop udp reading
 	case sch.EvNblStop:
 		eno = lsnMgr.procStop()
 
-	// unknown message identity
 	default:
 		yclog.LogCallerFileLine("LsnMgrProc: unknow message: %d", msg.Id)
 		return sch.SchEnoMismatched
@@ -619,21 +614,26 @@ func (rd udpReaderTask) msgHandler(pbuf *[]byte, len int, from *net.UDPAddr) sch
 
 	schEno = sch.SchinfMakeMessage(&msg, rd.ptnMe, rd.ptnNgbMgr, sch.EvNblMsgInd, &udpMsgInd)
 	if schEno != sch.SchEnoNone {
+
 		yclog.LogCallerFileLine("msgHandler: " +
 			"SchinfMakeMessage failed, sender: %s, recver: %s, eno: %d",
 			sch.SchinfGetMessageSender(&msg),
 			sch.SchinfGetMessageRecver(&msg),
 			eno)
+
 		return schEno
 	}
 
 	schEno = sch.SchinfSendMessage(&msg)
+
 	if schEno != sch.SchEnoNone {
+
 		yclog.LogCallerFileLine("msgHandler: " +
 			"SchinfSendMessage failed, sender: %s, recver: %s, eno: %d",
 			sch.SchinfGetMessageSender(&msg),
 			sch.SchinfGetMessageRecver(&msg),
 			schEno)
+
 		return schEno
 	}
 

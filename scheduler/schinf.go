@@ -259,7 +259,7 @@ func SchinfStopTask(ptn interface{}) SchErrno {
 		yclog.LogCallerFileLine("SchinfStopTask: SchinfTaskDone failed, eno: %d", eno)
 		return eno
 	}
-	return schimplStopTaskEx(ptn.(*schTaskNode))
+	return SchEnoNone
 }
 
 //

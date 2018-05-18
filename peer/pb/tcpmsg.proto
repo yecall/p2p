@@ -33,33 +33,69 @@ package tcpmsg.pb;
 //
 
 enum ProtocolId {
-    PROTO_HANDSHAKE = 0;        // handshake
-    PROTO_EXTERNAL = 0xff;      // external
+    PID_P2P = 0;        // p2p internal
+    PID_EXT = 0xff;     // external, for p2p users
+}
+
+//
+// Message identities
+//
+
+enum MessageId {
+
+    //
+    // PID_P2P section
+    //
+
+    MID_HANDSHAKE   = 0;
+    MID_PING        = 1;
+    MID_PONG        = 2;
+
+    //
+    // PID_EXT section
+    //
 }
 
 //
 // The package for all messages
 //
 
-message TcpmsgPackage {
-    required ProtocolId Pid = 1;    // protocol identity
-    required uint32 PlLen = 2;      // payload length
-    optional bytes Payload = 3;     // payload
+message P2PPackage {
+    required ProtocolId Pid         = 1;    // protocol identity
+    required uint32 PayloadLength   = 2;    // payload length
+    optional bytes Payload          = 3;    // payload
 }
 
 //
 // Handlshake message
 //
 
-message TcpmsgHandshake {
+message P2PMessage {
 
     message Protocol {
-        required ProtocolId Pid = 1;// protocol identity
-        required bytes Ver = 2;     // protocol version: M.m0.m1.m2
+        required ProtocolId Pid = 1;    // protocol identity
+        required bytes      Ver = 2;    // protocol version: M.m0.m1.m2
     }
 
-    required bytes NodeId = 1;      // node identity
-    required uint32 ProtoNum = 2;   // number of protocols
-    repeated Protocol Protocols = 3;// protocol table
-}
+    message Handshake {
+        required bytes      NodeId      = 1;    // node identity
+        required uint32     ProtoNum    = 2;    // number of protocols
+        repeated Protocol   Protocols   = 3;    // protocol table
+        optional bytes      Extra       = 4;    // extra info, reserved
+    }
 
+    message Ping {
+        required uint64     seq     = 1;    // sequence number
+        optional bytes      Extra   = 2;    // extra info, reserved
+    }
+
+    message Pong {
+        required uint64     seq     = 1;    // sequence number
+        optional bytes      Extra   = 2;    // extra info, reserved
+    }
+
+    required MessageId  mid         = 1;    // message identity
+    optional Handshake  handshake   = 2;    // handshake message
+    optional Ping       ping        = 3;    // ping message
+    optional Pong       pong        = 4;    // pong message
+}

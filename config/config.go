@@ -194,6 +194,14 @@ type Cfg4TabManager struct {
 }
 
 //
+// Configuration about protocols supported
+//
+type Cfg4Protocols struct {
+	ProtoNum  uint32     // local protocol number
+	Protocols []Protocol // local protocol table
+}
+
+//
 // Default version string, formated as "M.m0.m1.m2"
 //
 const dftVersion = "0.1.0.0"
@@ -673,3 +681,12 @@ func P2pConfig4TabManager() *Cfg4TabManager {
 	}
 }
 
+//
+// Get protocols
+//
+func P2pConfig4Protocols() *Cfg4Protocols {
+	return &Cfg4Protocols {
+		ProtoNum: config.ProtoNum,
+		Protocols: config.Protocols,
+	}
+}
