@@ -88,7 +88,7 @@ type UserCallbackMessage struct {
 //
 type UserMessage2Peer struct {
 	IdList		[]peer.PeerId	// peer identity list
-	PayloadLen	int				// payload length
+	PayloadLength	int				// payload length
 	Payload		[]byte			// payload
 	ExtraInfo	interface{}	// extra info: user this field to tell p2p more about this message,
 								// for example, if broadcasting is wanted, then set IdList to nil

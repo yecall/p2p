@@ -2028,8 +2028,8 @@ func piDataReq(inst *peerInstance, msg interface{}) PeMgrErrno {
 func piHandshakeInbound(inst *peerInstance) PeMgrErrno {
 
 	var eno PeMgrErrno = PeMgrEnoNone
-	var pkg = new(TcpmsgPackage)
-	var hs *TcpmsgHandshake
+	var pkg = new(P2pPackage)
+	var hs *Handshake
 
 	//
 	// read inbound handshake from remote peer
@@ -2098,8 +2098,8 @@ func piHandshakeInbound(inst *peerInstance) PeMgrErrno {
 func piHandshakeOutbound(inst *peerInstance) PeMgrErrno {
 
 	var eno PeMgrErrno = PeMgrEnoNone
-	var pkg = new(TcpmsgPackage)
-	var hs = new(TcpmsgHandshake)
+	var pkg = new(P2pPackage)
+	var hs = new(Handshake)
 
 	//
 	// write outbound handshake to remote peer

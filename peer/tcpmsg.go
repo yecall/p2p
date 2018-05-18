@@ -54,7 +54,7 @@ type Protocol struct {
 //
 // Handshake message
 //
-type TcpmsgHandshake struct {
+type Handshake struct {
 	NodeId		ycfg.NodeID
 	ProtoNum	uint32
 	Protocols	[]Protocol
@@ -63,7 +63,7 @@ type TcpmsgHandshake struct {
 //
 // Package for TCP message
 //
-type TcpmsgPackage struct {
+type P2pPackage struct {
 	Pid		uint32	// protocol identity
 	PlLen	uint32	// payload length
 	Payload	[]byte	// payload
@@ -72,7 +72,7 @@ type TcpmsgPackage struct {
 //
 // Read handshake message from inbound peer
 //
-func (tp *TcpmsgPackage)getHandshakeInbound(inst *peerInstance) (*TcpmsgHandshake, PeMgrErrno) {
+func (tp *P2pPackage)getHandshakeInbound(inst *peerInstance) (*Handshake, PeMgrErrno) {
 
 	if inst.hto != 0 {
 		inst.conn.SetReadDeadline(time.Now().Add(inst.hto))
@@ -83,7 +83,7 @@ func (tp *TcpmsgPackage)getHandshakeInbound(inst *peerInstance) (*TcpmsgHandshak
 	r := inst.conn.(io.Reader)
 	gr := ggio.NewDelimitedReader(r, inst.maxPkgSize)
 
-	pkg := new(pb.TcpmsgPackage)
+	pkg := new(pb.P2pPackage)
 	if err := gr.ReadMsg(pkg); err != nil {
 		yclog.LogCallerFileLine("getHandshakeInbound: ReadMsg faied, err: %s", err.Error())
 		return nil, PeMgrEnoOs
@@ -106,7 +106,7 @@ func (tp *TcpmsgPackage)getHandshakeInbound(inst *peerInstance) (*TcpmsgHandshak
 		return nil, PeMgrEnoMessage
 	}
 
-	pbHS := new(pb.TcpmsgHandshake)
+	pbHS := new(pb.Handshake)
 	pbHS.Unmarshal(pkg.Payload)
 
 	if len(pbHS.NodeId) != ycfg.NodeIDBytes {
@@ -126,7 +126,7 @@ func (tp *TcpmsgPackage)getHandshakeInbound(inst *peerInstance) (*TcpmsgHandshak
 		return nil, PeMgrEnoMessage
 	}
 
-	var ptrMsg = new(TcpmsgHandshake)
+	var ptrMsg = new(Handshake)
 	for i, b := range pbHS.NodeId {
 		ptrMsg.NodeId[i] = b
 	}
@@ -146,13 +146,13 @@ func (tp *TcpmsgPackage)getHandshakeInbound(inst *peerInstance) (*TcpmsgHandshak
 //
 // Write handshake message to peer
 //
-func (tp *TcpmsgPackage)putHandshakeOutbound(inst *peerInstance, hs *TcpmsgHandshake) PeMgrErrno {
+func (tp *P2pPackage)putHandshakeOutbound(inst *peerInstance, hs *Handshake) PeMgrErrno {
 
 	//
 	// encode handshake message to package payload
 	//
 
-	pbMsg := new(pb.TcpmsgHandshake)
+	pbMsg := new(pb.Handshake)
 
 	pbMsg.NodeId = append(pbMsg.NodeId, hs.NodeId[:] ...)
 	pbMsg.ProtoNum = &hs.ProtoNum
@@ -188,7 +188,7 @@ func (tp *TcpmsgPackage)putHandshakeOutbound(inst *peerInstance, hs *TcpmsgHands
 	// encode the package
 	//
 
-	pbPkg := new(pb.TcpmsgPackage)
+	pbPkg := new(pb.P2pPackage)
 	pbPkg.Pid = new(pb.ProtocolId)
 	*pbPkg.Pid = pb.ProtocolId_PROTO_HANDSHAKE
 	pbPkg.PlLen = new(uint32)

@@ -8,8 +8,8 @@
 		tcpmsg.proto
 
 	It has these top-level messages:
-		TcpmsgPackage
-		TcpmsgHandshake
+		P2pPackage
+		Handshake
 */
 package tcpmsg_pb
 
@@ -64,66 +64,66 @@ func (x *ProtocolId) UnmarshalJSON(data []byte) error {
 }
 func (ProtocolId) EnumDescriptor() ([]byte, []int) { return fileDescriptorTcpmsg, []int{0} }
 
-type TcpmsgPackage struct {
+type P2pPackage struct {
 	Pid              *ProtocolId `protobuf:"varint,1,req,name=Pid,enum=tcpmsg.pb.ProtocolId" json:"Pid,omitempty"`
 	PlLen            *uint32     `protobuf:"varint,2,req,name=PlLen" json:"PlLen,omitempty"`
 	Payload          []byte      `protobuf:"bytes,3,opt,name=Payload" json:"Payload,omitempty"`
 	XXX_unrecognized []byte      `json:"-"`
 }
 
-func (m *TcpmsgPackage) Reset()                    { *m = TcpmsgPackage{} }
-func (m *TcpmsgPackage) String() string            { return proto.CompactTextString(m) }
-func (*TcpmsgPackage) ProtoMessage()               {}
-func (*TcpmsgPackage) Descriptor() ([]byte, []int) { return fileDescriptorTcpmsg, []int{0} }
+func (m *P2pPackage) Reset()                    { *m = P2pPackage{} }
+func (m *P2pPackage) String() string            { return proto.CompactTextString(m) }
+func (*P2pPackage) ProtoMessage()               {}
+func (*P2pPackage) Descriptor() ([]byte, []int) { return fileDescriptorTcpmsg, []int{0} }
 
-func (m *TcpmsgPackage) GetPid() ProtocolId {
+func (m *P2pPackage) GetPid() ProtocolId {
 	if m != nil && m.Pid != nil {
 		return *m.Pid
 	}
 	return ProtocolId_PROTO_HANDSHAKE
 }
 
-func (m *TcpmsgPackage) GetPlLen() uint32 {
+func (m *P2pPackage) GetPlLen() uint32 {
 	if m != nil && m.PlLen != nil {
 		return *m.PlLen
 	}
 	return 0
 }
 
-func (m *TcpmsgPackage) GetPayload() []byte {
+func (m *P2pPackage) GetPayload() []byte {
 	if m != nil {
 		return m.Payload
 	}
 	return nil
 }
 
-type TcpmsgHandshake struct {
+type Handshake struct {
 	NodeId           []byte                      `protobuf:"bytes,1,req,name=NodeId" json:"NodeId,omitempty"`
 	ProtoNum         *uint32                     `protobuf:"varint,2,req,name=ProtoNum" json:"ProtoNum,omitempty"`
 	Protocols        []*TcpmsgHandshake_Protocol `protobuf:"bytes,3,rep,name=Protocols" json:"Protocols,omitempty"`
 	XXX_unrecognized []byte                      `json:"-"`
 }
 
-func (m *TcpmsgHandshake) Reset()                    { *m = TcpmsgHandshake{} }
-func (m *TcpmsgHandshake) String() string            { return proto.CompactTextString(m) }
-func (*TcpmsgHandshake) ProtoMessage()               {}
-func (*TcpmsgHandshake) Descriptor() ([]byte, []int) { return fileDescriptorTcpmsg, []int{1} }
+func (m *Handshake) Reset()                    { *m = Handshake{} }
+func (m *Handshake) String() string            { return proto.CompactTextString(m) }
+func (*Handshake) ProtoMessage()               {}
+func (*Handshake) Descriptor() ([]byte, []int) { return fileDescriptorTcpmsg, []int{1} }
 
-func (m *TcpmsgHandshake) GetNodeId() []byte {
+func (m *Handshake) GetNodeId() []byte {
 	if m != nil {
 		return m.NodeId
 	}
 	return nil
 }
 
-func (m *TcpmsgHandshake) GetProtoNum() uint32 {
+func (m *Handshake) GetProtoNum() uint32 {
 	if m != nil && m.ProtoNum != nil {
 		return *m.ProtoNum
 	}
 	return 0
 }
 
-func (m *TcpmsgHandshake) GetProtocols() []*TcpmsgHandshake_Protocol {
+func (m *Handshake) GetProtocols() []*TcpmsgHandshake_Protocol {
 	if m != nil {
 		return m.Protocols
 	}
@@ -158,12 +158,12 @@ func (m *TcpmsgHandshake_Protocol) GetVer() []byte {
 }
 
 func init() {
-	proto.RegisterType((*TcpmsgPackage)(nil), "tcpmsg.pb.TcpmsgPackage")
-	proto.RegisterType((*TcpmsgHandshake)(nil), "tcpmsg.pb.TcpmsgHandshake")
-	proto.RegisterType((*TcpmsgHandshake_Protocol)(nil), "tcpmsg.pb.TcpmsgHandshake.Protocol")
+	proto.RegisterType((*P2pPackage)(nil), "tcpmsg.pb.P2pPackage")
+	proto.RegisterType((*Handshake)(nil), "tcpmsg.pb.Handshake")
+	proto.RegisterType((*TcpmsgHandshake_Protocol)(nil), "tcpmsg.pb.Handshake.Protocol")
 	proto.RegisterEnum("tcpmsg.pb.ProtocolId", ProtocolId_name, ProtocolId_value)
 }
-func (m *TcpmsgPackage) Marshal() (dAtA []byte, err error) {
+func (m *P2pPackage) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -173,7 +173,7 @@ func (m *TcpmsgPackage) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *TcpmsgPackage) MarshalTo(dAtA []byte) (int, error) {
+func (m *P2pPackage) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -204,7 +204,7 @@ func (m *TcpmsgPackage) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *TcpmsgHandshake) Marshal() (dAtA []byte, err error) {
+func (m *Handshake) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -214,7 +214,7 @@ func (m *TcpmsgHandshake) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *TcpmsgHandshake) MarshalTo(dAtA []byte) (int, error) {
+func (m *Handshake) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -297,7 +297,7 @@ func encodeVarintTcpmsg(dAtA []byte, offset int, v uint64) int {
 	dAtA[offset] = uint8(v)
 	return offset + 1
 }
-func (m *TcpmsgPackage) Size() (n int) {
+func (m *P2pPackage) Size() (n int) {
 	var l int
 	_ = l
 	if m.Pid != nil {
@@ -316,7 +316,7 @@ func (m *TcpmsgPackage) Size() (n int) {
 	return n
 }
 
-func (m *TcpmsgHandshake) Size() (n int) {
+func (m *Handshake) Size() (n int) {
 	var l int
 	_ = l
 	if m.NodeId != nil {
@@ -367,7 +367,7 @@ func sovTcpmsg(x uint64) (n int) {
 func sozTcpmsg(x uint64) (n int) {
 	return sovTcpmsg(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
-func (m *TcpmsgPackage) Unmarshal(dAtA []byte) error {
+func (m *P2pPackage) Unmarshal(dAtA []byte) error {
 	var hasFields [1]uint64
 	l := len(dAtA)
 	iNdEx := 0
@@ -391,10 +391,10 @@ func (m *TcpmsgPackage) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: TcpmsgPackage: wiretype end group for non-group")
+			return fmt.Errorf("proto: P2pPackage: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: TcpmsgPackage: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: P2pPackage: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -498,7 +498,7 @@ func (m *TcpmsgPackage) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *TcpmsgHandshake) Unmarshal(dAtA []byte) error {
+func (m *Handshake) Unmarshal(dAtA []byte) error {
 	var hasFields [1]uint64
 	l := len(dAtA)
 	iNdEx := 0
@@ -522,10 +522,10 @@ func (m *TcpmsgHandshake) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: TcpmsgHandshake: wiretype end group for non-group")
+			return fmt.Errorf("proto: Handshake: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: TcpmsgHandshake: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: Handshake: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
