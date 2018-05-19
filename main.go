@@ -28,8 +28,87 @@ import (
 	"ycp2p/shell"
 	yclog	"ycp2p/logger"
 	sch		"ycp2p/scheduler"
+	"fmt"
+	"ycp2p/peer"
 )
 
+
+//
+// Indication/Package handlers
+//
+var (
+	p2pIndHandler shell.P2pInfIndCallback = p2pIndProc
+	p2pPkgHandler shell.P2pInfPkgCallback = p2pPkgProc
+)
+
+//
+// Indication handler
+//
+func p2pIndProc(what int, para interface{}) interface{} {
+
+	switch what {
+
+	case shell.P2pIndPeerActivated:
+
+		pap := para.(*shell.P2pIndPeerActivatedPara)
+
+		yclog.LogCallerFileLine("p2pIndProc: " +
+			"P2pIndPeerActivated, para: %s",
+			fmt.Sprintf("%+v", *pap))
+
+		if eno := shell.P2pInfRegisterCallback(shell.P2pInfPkgCb, p2pPkgHandler, pap.Ptn);
+		eno != shell.P2pInfEnoNone {
+
+			yclog.LogCallerFileLine("p2pIndProc: " +
+				"P2pInfRegisterCallback failed, eno: %d, task: %s",
+				eno,
+				sch.SchinfGetTaskName(pap.Ptn))
+		}
+
+	case shell.P2pIndConnStatus:
+
+		psp := para.(*shell.P2pIndConnStatusPara)
+
+		yclog.LogCallerFileLine("p2pIndProc: " +
+			"P2pIndConnStatus, para: %s",
+			fmt.Sprintf("%+v", *psp))
+
+		if psp.Status != 0 {
+
+			yclog.LogCallerFileLine("p2pIndProc: " +
+				"status: %d, close peer: %s",
+				psp.Status,
+				fmt.Sprintf("%x", psp.PeerInfo.NodeId	))
+
+			if eno := shell.P2pInfClosePeer((*peer.PeerId)(&psp.PeerInfo.NodeId));
+			eno != shell.P2pInfEnoNone {
+				yclog.LogCallerFileLine("p2pIndProc: " +
+					"P2pInfClosePeer failed, eno: %d, peer: %s",
+					eno,
+					fmt.Sprintf("%x", psp.PeerInfo.NodeId))
+			}
+		}
+
+	case shell.P2pIndPeerClosed:
+
+		yclog.LogCallerFileLine("p2pIndProc: " +
+			"P2pIndPeerClosed, para: %d",
+			what, *para.(*int))
+
+
+	default:
+		yclog.LogCallerFileLine("p2pIndProc: inknown indication: %d", what)
+	}
+
+	return para
+}
+
+//
+// Package handler
+//
+func p2pPkgProc(msg *shell.P2pPackageCallback) interface{} {
+	return nil
+}
 
 func main() {
 
@@ -59,6 +138,16 @@ func main() {
 
 	if eno := shell.P2pInit(); eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("main: SchinfSchedulerInit failed, eno: %d", eno)
+		return
+	}
+
+	//
+	// register indication handler
+	//
+
+	if eno := shell.P2pInfRegisterCallback(shell.P2pInfIndCb, p2pIndHandler, nil);
+	eno != shell.P2pInfEnoNone {
+		yclog.LogCallerFileLine("main: P2pInfRegisterCallback failed, eno: %d", eno)
 		return
 	}
 

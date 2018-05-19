@@ -70,12 +70,30 @@ type Handshake struct {
 }
 
 //
+// PingPong message
+//
+type Pingpong struct {
+	Seq			uint64		// sequence
+	Extra		[]byte		// extra info
+}
+
+//
 // Package for TCP message
 //
 type P2pPackage struct {
 	Pid				uint32	// protocol identity
 	PayloadLength	uint32	// payload length
 	Payload			[]byte	// payload
+}
+
+//
+// Message for TCP message
+//
+type P2pMessage struct {
+	Mid				uint32
+	Ping			*Pingpong
+	Pong			*Pingpong
+	Handshake		*Handshake
 }
 
 //
@@ -113,7 +131,7 @@ func (upkg *P2pPackage)getHandshakeInbound(inst *peerInstance) (*Handshake, PeMg
 	if *pkg.Pid != PID_P2P {
 
 		yclog.LogCallerFileLine("getHandshakeInbound: " +
-			"not a Hadnshake package, pid: %d",
+			"not a p2p package, pid: %d",
 			*pkg.Pid)
 
 		return nil, PeMgrEnoMessage
@@ -295,6 +313,150 @@ func (upkg *P2pPackage)putHandshakeOutbound(inst *peerInstance, hs *Handshake) P
 }
 
 //
+// Ping
+//
+func (upkg *P2pPackage)ping(inst *peerInstance, ping *Pingpong) PeMgrErrno {
+
+	//
+	// encode ping message to payload
+	//
+
+	pbPing := pb.P2PMessage{
+		Mid: 		new(pb.MessageId),
+		Handshake:	nil,
+		Ping:		&pb.P2PMessage_Ping{
+			Seq:	&ping.Seq,
+			Extra:	make([]byte, 0),
+		},
+		Pong:nil,
+	}
+
+	*pbPing.Mid = pb.MessageId_MID_PONG
+	pbPing.Ping.Extra = append(pbPing.Ping.Extra, ping.Extra...)
+
+	payload, err := pbPing.Marshal()
+
+	if len(payload) == 0 || err != nil {
+		yclog.LogCallerFileLine("ping: empty payload")
+		return PeMgrEnoMessage
+	}
+
+	//
+	// setup package for payload
+	//
+
+	pbPkg := pb.P2PPackage {
+		Pid:			new(pb.ProtocolId),
+		PayloadLength:	new(uint32),
+		Payload:		make([]byte, 0),
+	}
+
+	*pbPkg.PayloadLength = uint32(len(payload))
+	*pbPkg.Pid = pb.ProtocolId_PID_P2P
+	pbPkg.Payload = append(pbPkg.Payload, payload...)
+
+	//
+	// Set deadline
+	//
+
+	if inst.hto != 0 {
+		inst.conn.SetWriteDeadline(time.Now().Add(inst.hto))
+	} else {
+		inst.conn.SetWriteDeadline(time.Time{})
+	}
+
+	//
+	// Create writer and then write package to peer
+	//
+
+	w := inst.conn.(io.Writer)
+	gw := ggio.NewDelimitedWriter(w)
+
+	if err := gw.WriteMsg(&pbPkg); err != nil {
+
+		yclog.LogCallerFileLine("ping:" +
+			"Write failed, err: %s",
+			err.Error())
+
+		return PeMgrEnoOs
+	}
+
+	return PeMgrEnoNone
+}
+
+//
+// Ping
+//
+func (upkg *P2pPackage)pong(inst *peerInstance, pong *Pingpong) PeMgrErrno {
+
+	//
+	// encode pong message to payload.
+	//
+
+	pbPong := pb.P2PMessage{
+		Mid: 		new(pb.MessageId),
+		Handshake:	nil,
+		Ping:		nil,
+		Pong:		&pb.P2PMessage_Pong{
+			Seq:	&pong.Seq,
+			Extra:	make([]byte, 0),
+		},
+	}
+
+	*pbPong.Mid = pb.MessageId_MID_PING
+	pbPong.Ping.Extra = append(pbPong.Pong.Extra, pong.Extra...)
+
+	payload, err := pbPong.Marshal()
+
+	if len(payload) == 0 || err != nil {
+		yclog.LogCallerFileLine("pong: empty payload")
+		return PeMgrEnoMessage
+	}
+
+	//
+	// setup package for payload
+	//
+
+	pbPkg := pb.P2PPackage {
+		Pid:			new(pb.ProtocolId),
+		PayloadLength:	new(uint32),
+		Payload:		make([]byte, 0),
+	}
+
+	*pbPkg.PayloadLength = uint32(len(payload))
+	*pbPkg.Pid = pb.ProtocolId_PID_P2P
+	pbPkg.Payload = append(pbPkg.Payload, payload...)
+
+	//
+	// Set deadline
+	//
+
+	if inst.hto != 0 {
+		inst.conn.SetWriteDeadline(time.Now().Add(inst.hto))
+	} else {
+		inst.conn.SetWriteDeadline(time.Time{})
+	}
+
+	//
+	// Create writer and then write package to peer
+	//
+
+	w := inst.conn.(io.Writer)
+	gw := ggio.NewDelimitedWriter(w)
+
+	if err := gw.WriteMsg(&pbPkg); err != nil {
+
+		yclog.LogCallerFileLine("pong:" +
+			"Write failed, err: %s",
+			err.Error())
+
+		return PeMgrEnoOs
+	}
+
+	return PeMgrEnoNone
+}
+
+//
 // Send user packege
 //
 
@@ -381,6 +543,71 @@ func (upkg *P2pPackage)RecvPackage(inst *peerInstance) PeMgrErrno {
 			err.Error())
 
 		return PeMgrEnoOs
+	}
+
+	return PeMgrEnoNone
+}
+
+//
+// Decode message from package
+//
+func (upkg *P2pPackage)GetMessage(pmsg *P2pMessage) PeMgrErrno {
+
+	//
+	// upkg must hold the package extracted from a pb.pb.P2PPackage before
+	// calling into here of this function.
+	//
+
+	if pmsg == nil {
+		yclog.LogCallerFileLine("GetMessage: invalid parameter")
+		return PeMgrEnoParameter
+	}
+
+	pbMsg := new(pb.P2PMessage)
+
+	if err := pbMsg.Unmarshal(upkg.Payload); err != nil {
+
+		yclog.LogCallerFileLine("GetMessage:" +
+			"Unmarshal failed, err: %s",
+			err.Error())
+
+		return PeMgrEnoMessage
+	}
+
+	pmsg.Mid = uint32(*pbMsg.Mid)
+	pmsg.Handshake = nil
+	pmsg.Ping = nil
+	pmsg.Pong = nil
+
+	if pmsg.Mid == uint32(MID_HANDSHAKE) {
+
+		pbHS := pbMsg.Handshake
+		hs := new(Handshake)
+		pmsg.Handshake = hs
+
+		copy(hs.NodeId[:], pbHS.NodeId)
+		hs.ProtoNum = *pbHS.ProtoNum
+		hs.Protocols = make([]Protocol, len(pbHS.Protocols))
+		for i, p := range pbHS.Protocols {
+			hs.Protocols[i].Pid = uint32(*p.Pid)
+			copy(hs.Protocols[i].Ver[:], p.Ver)
+		}
+
+	} else if pmsg.Mid == uint32(MID_PING) {
+
+		ping := new(Pingpong)
+		ping.Seq = *pbMsg.Ping.Seq
+		ping.Extra = append(ping.Extra, pbMsg.Ping.Extra...)
+
+	} else if pmsg.Mid == uint32(MID_PONG) {
+
+		pong := new(Pingpong)
+		pong.Seq = *pbMsg.Pong.Seq
+		pong.Extra = append(pong.Extra, pbMsg.Pong.Extra...)
+
+	} else {
+		yclog.LogCallerFileLine("")
+		return PeMgrEnoMessage
 	}
 
 	return PeMgrEnoNone

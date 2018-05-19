@@ -26,6 +26,7 @@ import (
 	"sync"
 	"ycp2p/peer"
 	yclog "ycp2p/logger"
+	"ycp2p/scheduler"
 )
 
 
@@ -106,19 +107,26 @@ const (
 // P2p peer status indication callback type
 //
 const (
-	P2pIndPeerActivated	= iota	// peer activated
-	P2pIndConnStatus			// connection status changed
-	P2pIndPeerClosed			// connection closed
+	P2pIndPeerActivated	= iota		// peer activated
+	P2pIndConnStatus				// connection status changed
+	P2pIndPeerClosed				// connection closed
 )
 
 type P2pIndPeerActivatedPara struct {
-	Inst		interface{}
-	PeerInfo	*peer.Handshake
+	Ptn			interface{}			// task node pointer
+	PeerInfo	*peer.Handshake		// handshake info
 }
 
-type P2pIndConnStatusPara int
+type P2pIndConnStatusPara struct {
+	Ptn			interface{}			// task node pointer
+	PeerInfo	*peer.Handshake		// handshake info
+	Status		int					// status code
+	Description	string				// description
+}
 
-type P2pIndPeerClosedPara int
+type P2pIndPeerClosedPara struct {
+	PeerId		peer.PeerId			// peer identity
+}
 
 type P2pInfIndCallback func(what int, para interface{}) interface{}
 
@@ -146,6 +154,9 @@ func P2pInfRegisterCallback(what int, cb interface{}, ptn interface{}) P2pInfErr
 		if P2pIndHandler != nil {
 			yclog.LogCallerFileLine("P2pInfRegisterCallback: old handler will be overlapped")
 		}
+		if cb == nil {
+			yclog.LogCallerFileLine("P2pInfRegisterCallback: user registers nil indication handler")
+		}
 		Lock4Cb.Lock()
 		P2pIndHandler = cb.(P2pInfIndCallback)
 		Lock4Cb.Unlock()
@@ -155,6 +166,14 @@ func P2pInfRegisterCallback(what int, cb interface{}, ptn interface{}) P2pInfErr
 	if ptn == nil {
 		yclog.LogCallerFileLine("P2pInfRegisterCallback: nil task node pointer")
 		return P2pInfEnoParameter
+	}
+
+	yclog.LogCallerFileLine("P2pInfRegisterCallback: " +
+		"target instance: %s",
+		scheduler.SchinfGetTaskName(ptn))
+
+	if cb == nil {
+		yclog.LogCallerFileLine("P2pInfRegisterCallback: user registers nil package handler")
 	}
 
 	if eno := peer.SetP2pkgCallback(cb, ptn); eno != peer.PeMgrEnoNone {

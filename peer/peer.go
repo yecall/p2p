@@ -26,10 +26,10 @@ import (
 	"time"
 	"fmt"
 	"sync"
+	"ycp2p/shell"
 	ycfg	"ycp2p/config"
 	sch 	"ycp2p/scheduler"
 	yclog	"ycp2p/logger"
-	"ycp2p/shell"
 )
 
 //
@@ -45,6 +45,7 @@ const (
 	PeMgrEnoMessage
 	PeMgrEnoUnsup
 	PeMgrEnoInternal
+	PeMgrEnoPingpongTh
 	PeMgrEnoUnknown
 )
 
@@ -623,7 +624,7 @@ func peMgrLsnConnAcceptedInd(msg interface{}) PeMgrErrno {
 
 	//peInst.p2pkgLock	= *new(sync.Mutex)
 	peInst.p2pkgRx		= nil
-	peInst.p2pkgTx		= make([]*P2pPackage, 0, schMaxP2packages)
+	peInst.p2pkgTx		= make([]*P2pPackage, 0, PeInstMaxP2packages)
 	peInst.txDone		= *new(chan PeMgrErrno)
 	peInst.rxDone		= *new(chan PeMgrErrno)
 
@@ -1255,7 +1256,7 @@ func peMgrCreateOutboundInst(node *ycfg.Node) PeMgrErrno {
 
 	//peInst.p2pkgLock	= *new(sync.Mutex)
 	peInst.p2pkgRx		= nil
-	peInst.p2pkgTx		= make([]*P2pPackage, 0, schMaxP2packages)
+	peInst.p2pkgTx		= make([]*P2pPackage, 0, PeInstMaxP2packages)
 	peInst.txDone		= *new(chan PeMgrErrno)
 	peInst.rxDone		= *new(chan PeMgrErrno)
 
@@ -1543,12 +1544,13 @@ const (
 
 type peerInstState int	// instance state type
 
-const PeInstDirNull		= 0		// null, so connection should be nil
-const PeInstDirOutbound	= +1	// outbound connection
-const PeInstDirInbound	= -1	// inbound connection
+const PeInstDirNull			= 0		// null, so connection should be nil
+const PeInstDirOutbound		= +1	// outbound connection
+const PeInstDirInbound		= -1	// inbound connection
 
-const PeInstMailboxSize = 32	// mailbox size
-const schMaxP2packages	= 32	// max p2p packages pending to be sent
+const PeInstMailboxSize 	= 32	// mailbox size
+const PeInstMaxP2packages	= 32	// max p2p packages pending to be sent
+const PeInstMaxPingpongCnt	= 4		// max pingpong counter value
 
 type peerInstance struct {
 	name		string						// name
@@ -1573,6 +1575,8 @@ type peerInstance struct {
 	p2pkgTx		[]*P2pPackage				// outcoming p2p packages
 	txDone		chan PeMgrErrno				// TX chan
 	rxDone		chan PeMgrErrno				// RX chan
+	ppSeq		uint64						// pingpong sequence no.
+	ppCnt		int							// pingpong counter
 }
 
 var peerInstDefault = peerInstance {
@@ -1598,6 +1602,8 @@ var peerInstDefault = peerInstance {
 	p2pkgTx:	nil,
 	txDone:		nil,
 	rxDone:		nil,
+	ppSeq:		0,
+	ppCnt:		0,
 }
 
 //
@@ -1643,6 +1649,13 @@ type MsgCloseInd struct {
 	cause	PeMgrErrno	// tell why it's closed
 	peNode 	*ycfg.Node	// target node
 	ptn		interface{}	// pointer to task instance node of sender
+}
+
+//
+// EvPePingpongReq message
+//
+type MsgPingpongReq struct {
+	seq		uint64		// init sequence no.
 }
 
 //
@@ -1906,13 +1919,68 @@ func piPingpongReq(inst *peerInstance, msg interface{}) PeMgrErrno {
 
 	//
 	// The ping procedure is inted by a timer internal the peer task
-	// instance, and seems no need to init this kind of procedure outside
-	// the peer instance.
+	// instance, or from outside module for some purpose.
 	//
-	_ = inst
-	_ = msg
-	yclog.LogCallerFileLine("piPingpongReq: not supported")
-	return PeMgrEnoUnsup
+
+	if msg != nil {
+
+		yclog.LogCallerFileLine("piPingpongReq: " +
+			"ppSeq: %d, will be inited to be: %d",
+			inst.ppSeq, msg.(*MsgPingpongReq).seq)
+
+		inst.ppSeq = msg.(*MsgPingpongReq).seq
+	}
+
+	ping := Pingpong {
+		Seq:	inst.ppSeq,
+		Extra:	nil,
+	}
+	inst.ppSeq++
+
+	upkg := new(P2pPackage)
+	if eno := upkg.ping(inst, &ping); eno != PeMgrEnoNone {
+
+		//
+		// failed, we callback to tell user about this
+		//
+
+		yclog.LogCallerFileLine("piPingpongReq: " +
+			"upkg.ping failed, eno: %d, peer: %s",
+			eno,
+			fmt.Sprintf("%x", inst.node.ID))
+
+		shell.Lock4Cb.Lock()
+
+		if shell.P2pIndHandler != nil {
+
+			para := shell.P2pIndConnStatusPara {
+				Ptn:		inst.ptnMe,
+				PeerInfo:	&Handshake {
+					NodeId:		inst.node.ID,
+					ProtoNum:	inst.protoNum,
+					Protocols:	inst.protocols,
+				},
+				Status		:	int(eno),
+				Description	:"piPingpongReq: upkg.ping failed",
+			}
+
+			shell.P2pIndHandler(shell.P2pIndConnStatus, &para)
+
+		} else {
+			yclog.LogCallerFileLine("piPingpongReq: indication callback not installed yet")
+		}
+
+		shell.Lock4Cb.Unlock()
+
+		return eno
+	}
+
+	yclog.LogCallerFileLine("piPingpongReq: " +
+		"ping sent ok: %s, peer: %s",
+		fmt.Sprintf("%+v", ping),
+		fmt.Sprintf("%x", inst.node.ID))
+
+	return PeMgrEnoNone
 }
 
 //
@@ -2102,7 +2170,7 @@ func piEstablishedInd(inst *peerInstance, msg interface{}) PeMgrErrno {
 	if shell.P2pIndHandler != nil {
 
 		para := shell.P2pIndPeerActivatedPara {
-			Inst: inst,
+			Ptn: inst.ptnMe,
 			PeerInfo: & Handshake {
 				NodeId:		inst.node.ID,
 				ProtoNum:	inst.protoNum,
@@ -2124,6 +2192,10 @@ func piEstablishedInd(inst *peerInstance, msg interface{}) PeMgrErrno {
 
 	go piTx(inst); go piRx(inst)
 
+	yclog.LogCallerFileLine("piEstablishedInd: " +
+		"piTx and piRx are in going ... inst: %s",
+		fmt.Sprintf("%+v", *inst))
+
 	return PeMgrEnoNone
 }
 
@@ -2133,12 +2205,97 @@ func piEstablishedInd(inst *peerInstance, msg interface{}) PeMgrErrno {
 func piPingpongTimerHandler(inst *peerInstance) PeMgrErrno {
 
 	//
-	// This timer is for pingpong after peer is established, as heartbit, but now
-	// it's not implemented.
+	// This timer is for pingpong after peer is established, as heartbit.
+	// We send EvPePingpongReq event to ourselves with nil message, see
+	// this event handler pls.
+	//
+	// Also, here we need to check the pingpong counter to findout if it
+	// reachs to the threshold(this is a simple method, in fact, we can
+	// do better, basing on the pingpong procedure).
 	//
 
-	yclog.LogCallerFileLine("piPingpongTimerHandler: pingpong timer expired, not implemented")
-	_ = inst
+	schMsg := sch.SchMessage{}
+
+	yclog.LogCallerFileLine("piPingpongTimerHandler: " +
+		"pingpong timer expired for inst: %s",
+		fmt.Sprintf("%+v", *inst))
+
+
+	if inst.ppCnt++; inst.ppCnt > PeInstMaxPingpongCnt {
+
+		//
+		// callback to tell user about this, and then close the connection
+		// of this peer instance.
+		//
+
+		shell.Lock4Cb.Lock()
+
+		if shell.P2pIndHandler != nil {
+
+			para := shell.P2pIndConnStatusPara {
+				Ptn:		inst.ptnMe,
+				PeerInfo:	&Handshake {
+					NodeId:		inst.node.ID,
+					ProtoNum:	inst.protoNum,
+					Protocols:	inst.protocols,
+				},
+				Status		:	PeMgrEnoPingpongTh,
+				Description	:"piPingpongTimerHandler: threshold reached",
+			}
+
+			shell.P2pIndHandler(shell.P2pIndConnStatus, &para)
+
+		} else {
+			yclog.LogCallerFileLine("piPingpongTimerHandler: indication callback not installed yet")
+		}
+
+		shell.Lock4Cb.Unlock()
+
+		//
+		// close the peer instance
+		//
+
+		if eno := sch.SchinfMakeMessage(&schMsg, inst.ptnMe, inst.ptnMe, sch.EvPeCloseReq, nil);
+		eno != sch.SchEnoNone {
+			yclog.LogCallerFileLine("piPingpongTimerHandler: " +
+				"SchinfMakeMessage failed, eno: %d",
+				eno)
+			return PeMgrEnoScheduler
+		}
+		if eno := sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
+			yclog.LogCallerFileLine("piPingpongTimerHandler: " +
+				"SchinfSendMessage failed, eno: %d, target: %s",
+				eno,
+				sch.SchinfGetTaskName(inst.ptnMe))
+			return PeMgrEnoScheduler
+		}
+
+		yclog.LogCallerFileLine("piPingpongTimerHandler: " +
+			"EvPeCloseReq sent ok, target: %s",
+			sch.SchinfGetTaskName(inst.ptnMe))
+
+		return PeMgrEnoNone
+	}
+
+	if eno := sch.SchinfMakeMessage(&schMsg, inst.ptnMe, inst.ptnMe, sch.EvPePingpongReq, nil);
+	eno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("piPingpongTimerHandler: " +
+			"SchinfMakeMessage failed, eno: %d",
+			eno)
+		return PeMgrEnoScheduler
+	}
+	if eno := sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("piPingpongTimerHandler: " +
+			"SchinfSendMessage failed, eno: %d, target: %s",
+			eno,
+			sch.SchinfGetTaskName(inst.ptnMe))
+		return PeMgrEnoScheduler
+	}
+
+	yclog.LogCallerFileLine("piPingpongTimerHandler: " +
+		"EvPePingpongReq sent ok, target: %s",
+		sch.SchinfGetTaskName(inst.ptnMe))
+
 	return PeMgrEnoUnsup
 }
 
@@ -2302,10 +2459,13 @@ func SetP2pkgCallback(cb interface{}, ptn interface{}) PeMgrErrno {
 	}
 
 	inst := sch.SchinfGetUserDataArea(ptn).(*peerInstance)
+
 	if inst == nil {
+
 		yclog.LogCallerFileLine("SetP2pkgCallback: " +
 			"nil instance data area, task: %s",
 			sch.SchinfGetTaskName(ptn))
+
 		return PeMgrEnoUnknown
 	}
 
@@ -2360,7 +2520,7 @@ func SendPackage(pkg *shell.P2pPackage2Peer) (PeMgrErrno, []*PeerId){
 
 		inst.p2pkgLock.Lock()
 
-		if len(inst.p2pkgTx) >= schMaxP2packages {
+		if len(inst.p2pkgTx) >= PeInstMaxP2packages {
 			yclog.LogCallerFileLine("SendPackage: tx buffer full")
 			failed = append(failed, &pid)
 			continue;
@@ -2493,14 +2653,27 @@ txBreak:
 
 				//
 				// if failed, callback to the user, so he can close
-				// this peer seems in troubles, we will done then.
+				// this peer seems in troubles, we will be done then.
 				//
 
 				shell.Lock4Cb.Lock()
 
 				if shell.P2pIndHandler != nil {
 
-					shell.P2pIndHandler(shell.P2pIndConnStatus, eno)
+					hs := Handshake {
+						NodeId:		inst.node.ID,
+						ProtoNum:	inst.protoNum,
+						Protocols:	inst.protocols,
+					}
+
+					info := shell.P2pIndConnStatusPara{
+						Ptn:		inst.ptnMe,
+						PeerInfo:	&hs,
+						Status:		int(eno),
+						Description:"piTx: SendPackage failed",
+					}
+
+					shell.P2pIndHandler(shell.P2pIndConnStatus, &info)
 
 				} else {
 					yclog.LogCallerFileLine("piTx: indication callback not installed yet")
@@ -2555,14 +2728,27 @@ rxBreak:
 
 			//
 			// if failed, callback to the user, so he can close
-			// this peer seems in troubles, we will done then.
+			// this peer seems in troubles, we will be done then.
 			//
 
 			shell.Lock4Cb.Lock()
 
 			if shell.P2pIndHandler != nil {
 
-				shell.P2pIndHandler(shell.P2pIndConnStatus, eno)
+				hs := Handshake {
+					NodeId:		inst.node.ID,
+					ProtoNum:	inst.protoNum,
+					Protocols:	inst.protocols,
+				}
+
+				info := shell.P2pIndConnStatusPara{
+					Ptn:		inst.ptnMe,
+					PeerInfo:	&hs,
+					Status:		int(eno),
+					Description:"piRx: RecvPackage failed",
+				}
+
+				shell.P2pIndHandler(shell.P2pIndConnStatus, &info)
 
 			} else {
 				yclog.LogCallerFileLine("piRx: indication callback not installed yet")
@@ -2574,32 +2760,204 @@ rxBreak:
 		}
 
 		//
-		// callback to the user for package incoming
+		// check the package received to filter out those not for p2p internal only
 		//
 
-		inst.p2pkgLock.Lock()
+		if upkg.Pid == uint32(PID_P2P) {
 
-		if inst.p2pkgRx != nil {
+			if eno := piP2pPkgProc(inst, upkg); eno != PeMgrEnoNone {
 
-			peerInfo.Protocols	= nil
-			peerInfo.NodeId		= inst.node.ID
-			peerInfo.ProtoNum	= inst.protoNum
-			peerInfo.Protocols	= append(peerInfo.Protocols, inst.protocols...)
+				yclog.LogCallerFileLine("piRx: " +
+					"piP2pMsgProc failed, eno: %d, inst: %s",
+					eno,
+					fmt.Sprintf("%+v", *inst))
+			}
 
-			pkgCb.Payload		= nil
-			pkgCb.PeerInfo		= &peerInfo
-			pkgCb.ProtoId		= int(upkg.Pid)
-			pkgCb.PayloadLength	= int(upkg.PayloadLength)
-			pkgCb.Payload		= append(pkgCb.Payload, upkg.Payload...)
+		} else if upkg.Pid != uint32(PID_EXT) {
 
-			inst.p2pkgRx(&pkgCb)
+			//
+			// callback to the user for package incoming
+			//
+
+			inst.p2pkgLock.Lock()
+
+			if inst.p2pkgRx != nil {
+
+				peerInfo.Protocols	= nil
+				peerInfo.NodeId		= inst.node.ID
+				peerInfo.ProtoNum	= inst.protoNum
+				peerInfo.Protocols	= append(peerInfo.Protocols, inst.protocols...)
+
+				pkgCb.Payload		= nil
+				pkgCb.PeerInfo		= &peerInfo
+				pkgCb.ProtoId		= int(upkg.Pid)
+				pkgCb.PayloadLength	= int(upkg.PayloadLength)
+				pkgCb.Payload		= append(pkgCb.Payload, upkg.Payload...)
+
+				inst.p2pkgRx(&pkgCb)
+
+			} else {
+				yclog.LogCallerFileLine("piRx: package callback not installed yet")
+			}
+
+			inst.p2pkgLock.Unlock()
 
 		} else {
-			yclog.LogCallerFileLine("piRx: package callback not installed yet")
-		}
 
-		inst.p2pkgLock.Unlock()
+			//
+			// unknow protocol identity
+			//
+
+			yclog.LogCallerFileLine("piRx: " +
+				"package discarded for unknown pid: %d",
+				upkg.Pid)
+		}
 	}
 
 	return done
 }
+
+//
+// Handler for p2p packages recevied
+//
+func piP2pPkgProc(inst *peerInstance, upkg *P2pPackage) PeMgrErrno {
+
+	//
+	// check the package
+	//
+
+	if inst == nil || upkg == nil {
+		yclog.LogCallerFileLine("piP2pPkgProc: invalid parameters")
+		return PeMgrEnoParameter
+	}
+
+	if upkg.Pid != uint32(PID_P2P) {
+
+		yclog.LogCallerFileLine("piP2pPkgProc: " +
+			"not a p2p package, pid: %d",
+			upkg.Pid)
+
+		return PeMgrEnoMessage
+	}
+
+	if upkg.PayloadLength <= 0 {
+
+		yclog.LogCallerFileLine("piP2pPkgProc: " +
+			"invalid payload length: %d",
+			upkg.PayloadLength)
+
+		return PeMgrEnoMessage
+	}
+
+	if len(upkg.Payload) != int(upkg.PayloadLength) {
+
+		yclog.LogCallerFileLine("piP2pPkgProc: " +
+			"payload length mismatched, PlLen: %d, real: %d",
+			upkg.PayloadLength,
+			len(upkg.Payload))
+
+		return PeMgrEnoMessage
+	}
+
+	//
+	// extract message from package payload
+	//
+
+	var msg = P2pMessage{}
+
+	if eno := upkg.GetMessage(&msg); eno != PeMgrEnoNone {
+
+		yclog.LogCallerFileLine("piP2pPkgProc: " +
+			"GetMessage failed, eno: %d",
+			eno	)
+
+		return eno
+	}
+
+	//
+	// check message identity
+	//
+
+	switch msg.Mid {
+
+	case uint32(MID_HANDSHAKE):
+
+		yclog.LogCallerFileLine("piP2pPkgProc: MID_HANDSHAKE, discarded")
+		return PeMgrEnoMessage
+
+	case uint32(MID_PING):
+
+		return piP2pPingProc(inst, msg.Ping)
+
+	case uint32(MID_PONG):
+
+		return piP2pPongProc(inst, msg.Pong)
+
+	default:
+		yclog.LogCallerFileLine("piP2pPkgProc: unknown mid: %d", msg.Mid)
+		return PeMgrEnoMessage
+	}
+
+	return PeMgrEnoNone
+}
+
+//
+// handler for ping message from peer
+//
+func piP2pPingProc(inst *peerInstance, ping *Pingpong) PeMgrErrno {
+
+	upkg := new(P2pPackage)
+
+	pong := Pingpong {
+		Seq:	ping.Seq,
+		Extra:	nil,
+	}
+
+	//
+	// clear pingpong counter of this instance
+	//
+
+	inst.ppCnt = 0
+
+	//
+	// pong the peer
+	//
+
+	if eno := upkg.pong(inst, &pong); eno != PeMgrEnoNone {
+
+		yclog.LogCallerFileLine("piP2pPingProc: " +
+			"pong failed, eno: %d, inst: %s",
+			eno,
+			fmt.Sprintf("%+v", *inst))
+
+		return eno
+	}
+
+	yclog.LogCallerFileLine("piP2pPingProc: " +
+		"pong ok, ping: %s, pong: %s, inst: %s",
+		fmt.Sprintf("%+v", *ping),
+		fmt.Sprintf("%+v", pong),
+		fmt.Sprintf("%+v", *inst))
+
+	return PeMgrEnoNone
+}
+
+//
+// handler for pong message from peer
+//
+func piP2pPongProc(inst *peerInstance, pong *Pingpong) PeMgrErrno {
+
+	//
+	// Currently, the heartbeat checking does not apply pong message from
+	// peer, instead, a counter for ping messages and a timer are invoked,
+	// see it please. We just simply debug out the pong message here.
+	//
+
+	yclog.LogCallerFileLine("piP2pPongProc: " +
+		"pong received: %s, inst: %s",
+		fmt.Sprintf("%+v", pong),
+		fmt.Sprintf("%+v", *inst))
+
+	return PeMgrEnoNone
+}
+
