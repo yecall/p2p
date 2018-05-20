@@ -23,7 +23,6 @@ package shell
 
 import (
 	"fmt"
-	"sync"
 	"ycp2p/peer"
 	yclog "ycp2p/logger"
 	"ycp2p/scheduler"
@@ -73,73 +72,19 @@ func P2pInfErrnoString(eno P2pInfErrno) string {
 }
 
 //
-// Message passed into user's callback
-//
-type P2pPackage4Callback struct {
-	PeerInfo		*peer.PeerInfo	// peer information
-	ProtoId			int				// protocol identity
-	PayloadLength	int				// bytes in payload buffer
-	Payload			[]byte			// payload buffer
-}
-
-//
-// Message from user
-//
-type P2pPackage2Peer struct {
-	IdList			[]peer.PeerId	// peer identity list
-	ProtoId			int				// protocol identity
-	PayloadLength	int				// payload length
-	Payload			[]byte			// payload
-	Extra			interface{}		// extra info: user this field to tell p2p more about this message,
-									// for example, if broadcasting is wanted, then set IdList to nil
-									// and setup thie extra info field.
-}
-
-//
-// callback type
-//
-const (
-	P2pInfIndCb	= iota
-	P2pInfPkgCb
-)
-
-//
-// P2p peer status indication callback type
-//
-const (
-	P2pIndPeerActivated	= iota		// peer activated
-	P2pIndConnStatus				// connection status changed
-	P2pIndPeerClosed				// connection closed
-)
-
-type P2pIndPeerActivatedPara struct {
-	Ptn			interface{}			// task node pointer
-	PeerInfo	*peer.Handshake		// handshake info
-}
-
-type P2pIndConnStatusPara struct {
-	Ptn			interface{}			// task node pointer
-	PeerInfo	*peer.Handshake		// handshake info
-	Status		int					// status code
-	Description	string				// description
-}
-
-type P2pIndPeerClosedPara struct {
-	PeerId		peer.PeerId			// peer identity
-}
-
-type P2pInfIndCallback func(what int, para interface{}) interface{}
-
-//
-// P2p callback function type for package incoming
-//
-type P2pInfPkgCallback func(msg *P2pPackage4Callback) interface{}
-
-//
 // Register user callback function to p2p
 //
-var P2pIndHandler P2pInfIndCallback = nil
-var Lock4Cb sync.Mutex
+
+const (
+	P2pInfIndCb = peer.P2pInfIndCb	// callback type for indication
+	P2pInfPkgCb = peer.P2pInfPkgCb	// callback type for incoming packages
+)
+
+const (
+	P2pIndPeerActivated	= peer.P2pIndPeerActivated	// indication for a peer activated to work
+	P2pIndConnStatus	= peer.P2pIndConnStatus		// indication for peer connection status changed
+	P2pIndPeerClosed	= peer.P2pIndPeerClosed		// indication for peer connection closed
+)
 
 func P2pInfRegisterCallback(what int, cb interface{}, ptn interface{}) P2pInfErrno {
 
@@ -151,15 +96,15 @@ func P2pInfRegisterCallback(what int, cb interface{}, ptn interface{}) P2pInfErr
 	}
 
 	if what == P2pInfIndCb {
-		if P2pIndHandler != nil {
+		if peer.P2pIndHandler != nil {
 			yclog.LogCallerFileLine("P2pInfRegisterCallback: old handler will be overlapped")
 		}
 		if cb == nil {
 			yclog.LogCallerFileLine("P2pInfRegisterCallback: user registers nil indication handler")
 		}
-		Lock4Cb.Lock()
-		P2pIndHandler = cb.(P2pInfIndCallback)
-		Lock4Cb.Unlock()
+		peer.Lock4Cb.Lock()
+		peer.P2pIndHandler = cb.(peer.P2pInfIndCallback)
+		peer.Lock4Cb.Unlock()
 		return P2pInfEnoNone
 	}
 
@@ -189,7 +134,7 @@ func P2pInfRegisterCallback(what int, cb interface{}, ptn interface{}) P2pInfErr
 //
 // Send message to peer
 //
-func P2pInfSendPackage(pkg *P2pPackage2Peer) P2pInfErrno {
+func P2pInfSendPackage(pkg *peer.P2pPackage2Peer) P2pInfErrno {
 
 	if eno, failed := peer.SendPackage(pkg); eno != peer.PeMgrEnoNone {
 
@@ -218,7 +163,7 @@ func P2pInfSendPackage(pkg *P2pPackage2Peer) P2pInfErrno {
 // Disconnect peer
 //
 func P2pInfClosePeer(id *peer.PeerId) P2pInfErrno {
-	if eno := peer.ClosePeer(id); eno != peer.PeMgrEnoNone {
+	if eno := peer.ClosePeer((*peer.PeerId)(id)); eno != peer.PeMgrEnoNone {
 		yclog.LogCallerFileLine("P2pInfSendPackage: " +
 			"ClosePeer failed, eno: %d, peer: %s",
 			eno,

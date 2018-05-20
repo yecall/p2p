@@ -24,12 +24,13 @@ package main
 
 import (
 	"os"
+	"time"
+	"fmt"
 	"os/signal"
 	"ycp2p/shell"
+	"ycp2p/peer"
 	yclog	"ycp2p/logger"
 	sch		"ycp2p/scheduler"
-	"fmt"
-	"ycp2p/peer"
 )
 
 
@@ -37,9 +38,84 @@ import (
 // Indication/Package handlers
 //
 var (
-	p2pIndHandler shell.P2pInfIndCallback = p2pIndProc
-	p2pPkgHandler shell.P2pInfPkgCallback = p2pPkgProc
+	p2pIndHandler peer.P2pInfIndCallback = p2pIndProc
+	p2pPkgHandler peer.P2pInfPkgCallback = p2pPkgProc
 )
+
+//
+// Done signal for Tx routines
+//
+var doneMap = make(map[peer.PeerId] chan bool)
+
+//
+// Tx routine
+//
+func txProc(id peer.PeerId) {
+
+	if _, dup := doneMap[id]; dup == true {
+		yclog.LogCallerFileLine("txProc: " +
+			"duplicated, id: %s",
+			fmt.Sprintf("%x", id))
+		return
+	}
+
+	done := make(chan bool, 1)
+	doneMap[id] = done
+
+	seq := 0
+
+	pkg := peer.P2pPackage2Peer {
+		IdList: 		make([]peer.PeerId, 0),
+		ProtoId:		int(peer.PID_EXT),
+		PayloadLength:	0,
+		Payload:		make([]byte, 512),
+		Extra:			nil,
+	}
+
+	yclog.LogCallerFileLine("txProc: " +
+		"entered, id: %s",
+		fmt.Sprintf("%x", id))
+
+txLoop:
+
+	for {
+
+		time.Sleep(time.Second)
+
+		seq++
+		pkg.IdList = make([]peer.PeerId, 0)
+		for id, _ := range doneMap {
+			pkg.IdList = append(pkg.IdList, id)
+		}
+
+		txString := fmt.Sprintf("txProc: " +
+			"seq: %d, id: %s",
+			seq,
+			fmt.Sprintf("%x", id))
+
+		copy(pkg.Payload, ([]byte)(txString))
+		pkg.PayloadLength = len(pkg.Payload)
+
+		if eno := shell.P2pInfSendPackage(&pkg); eno != shell.P2pInfEnoNone {
+			yclog.LogCallerFileLine("txProc: " +
+				"send package failed, eno: %d, id: %s",
+				eno,
+				fmt.Sprintf("%x", id))
+		}
+
+		if isDone := <-done; isDone {
+			break txLoop
+		}
+	}
+
+	close(done)
+	delete(doneMap, id)
+
+	yclog.LogCallerFileLine("txProc: " +
+		"exit, id: %s",
+		fmt.Sprintf("%x", id))
+}
+
 
 //
 // Indication handler
@@ -50,7 +126,7 @@ func p2pIndProc(what int, para interface{}) interface{} {
 
 	case shell.P2pIndPeerActivated:
 
-		pap := para.(*shell.P2pIndPeerActivatedPara)
+		pap := para.(*peer.P2pIndPeerActivatedPara)
 
 		yclog.LogCallerFileLine("p2pIndProc: " +
 			"P2pIndPeerActivated, para: %s",
@@ -65,9 +141,11 @@ func p2pIndProc(what int, para interface{}) interface{} {
 				sch.SchinfGetTaskName(pap.Ptn))
 		}
 
+		go txProc(peer.PeerId(pap.PeerInfo.NodeId))
+
 	case shell.P2pIndConnStatus:
 
-		psp := para.(*shell.P2pIndConnStatusPara)
+		psp := para.(*peer.P2pIndConnStatusPara)
 
 		yclog.LogCallerFileLine("p2pIndProc: " +
 			"P2pIndConnStatus, para: %s",
@@ -95,9 +173,23 @@ func p2pIndProc(what int, para interface{}) interface{} {
 			"P2pIndPeerClosed, para: %d",
 			what, *para.(*int))
 
+		pcp := para.(*peer.P2pIndPeerClosedPara)
+
+		if done, ok := doneMap[pcp.PeerId]; ok && done != nil {
+			done<-true
+			break
+		}
+
+		yclog.LogCallerFileLine("p2pIndProc: " +
+			"done failed, id: %s",
+			fmt.Sprintf("%x", pcp.PeerId))
+
 
 	default:
-		yclog.LogCallerFileLine("p2pIndProc: inknown indication: %d", what)
+
+		yclog.LogCallerFileLine("p2pIndProc: " +
+			"inknown indication: %d",
+				what)
 	}
 
 	return para
@@ -106,7 +198,16 @@ func p2pIndProc(what int, para interface{}) interface{} {
 //
 // Package handler
 //
-func p2pPkgProc(msg *shell.P2pPackage4Callback) interface{} {
+func p2pPkgProc(pkg *peer.P2pPackage4Callback) interface{} {
+
+	yclog.LogCallerFileLine("p2pPkgProc: " +
+		"package received: %s",
+		fmt.Sprintf("%+v", *pkg))
+
+	yclog.LogCallerFileLine("p2pPkgProc: " +
+		"paylod of package: %s",
+		fmt.Sprintf("%s", pkg.Payload))
+
 	return nil
 }
 

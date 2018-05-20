@@ -26,7 +26,6 @@ import (
 	"time"
 	"fmt"
 	"sync"
-	"ycp2p/shell"
 	ycfg	"ycp2p/config"
 	sch 	"ycp2p/scheduler"
 	yclog	"ycp2p/logger"
@@ -643,6 +642,7 @@ func peMgrLsnConnAcceptedInd(msg interface{}) PeMgrErrno {
 		DieCb:		nil,
 		UserDa:		peInst,
 	}
+	peInst.name = peInst.name + tskDesc.Name
 
 	if eno, ptnInst = sch.SchinfCreateTask(&tskDesc);
 	eno != sch.SchEnoNone || ptnInst == nil {
@@ -1131,6 +1131,27 @@ func peMgrConnCloseCfm(msg interface{}) PeMgrErrno {
 	}
 
 	//
+	// callback to the user of p2p to tell peer closed
+	//
+
+	Lock4Cb.Lock()
+
+	if P2pIndHandler != nil {
+
+		para := P2pIndPeerClosedPara {
+			PeerId:		PeerId(cfm.peNode.ID),
+		}
+
+		P2pIndHandler(P2pIndPeerClosed, &para)
+
+	} else {
+		yclog.LogCallerFileLine("peMgrConnCloseCfm: indication callback not installed yet")
+	}
+
+	Lock4Cb.Unlock()
+
+
+	//
 	// since we had lost a peer, we need to drive ourself to startup outbound
 	//
 
@@ -1190,6 +1211,26 @@ func peMgrConnCloseInd(msg interface{}) PeMgrErrno {
 
 		return PeMgrEnoScheduler
 	}
+
+	//
+	// callback to the user of p2p to tell peer closed
+	//
+
+	Lock4Cb.Lock()
+
+	if P2pIndHandler != nil {
+
+		para := P2pIndPeerClosedPara {
+			PeerId:		PeerId(ind.peNode.ID),
+		}
+
+		P2pIndHandler(P2pIndPeerClosed, &para)
+
+	} else {
+		yclog.LogCallerFileLine("peMgrConnCloseInd: indication callback not installed yet")
+	}
+
+	Lock4Cb.Unlock()
 
 	//
 	// since we had lost a peer, we need to drive ourself to startup outbound
@@ -1275,6 +1316,7 @@ func peMgrCreateOutboundInst(node *ycfg.Node) PeMgrErrno {
 		DieCb:		nil,
 		UserDa:		peInst,
 	}
+	peInst.name = peInst.name + tskDesc.Name
 
 	if eno, ptnInst = sch.SchinfCreateTask(&tskDesc);
 	eno != sch.SchEnoNone || ptnInst == nil {
@@ -1571,7 +1613,7 @@ type peerInstance struct {
 	protocols	[]Protocol					// peer protocol table
 	ppTid		int							// pingpong timer identity
 	p2pkgLock	sync.Mutex					// lock for p2p package tx-sync
-	p2pkgRx		shell.P2pInfPkgCallback		// incoming p2p package callback
+	p2pkgRx		P2pInfPkgCallback			// incoming p2p package callback
 	p2pkgTx		[]*P2pPackage				// outcoming p2p packages
 	txDone		chan PeMgrErrno				// TX chan
 	rxDone		chan PeMgrErrno				// RX chan
@@ -1949,11 +1991,11 @@ func piPingpongReq(inst *peerInstance, msg interface{}) PeMgrErrno {
 			eno,
 			fmt.Sprintf("%x", inst.node.ID))
 
-		shell.Lock4Cb.Lock()
+		Lock4Cb.Lock()
 
-		if shell.P2pIndHandler != nil {
+		if P2pIndHandler != nil {
 
-			para := shell.P2pIndConnStatusPara {
+			para := P2pIndConnStatusPara {
 				Ptn:		inst.ptnMe,
 				PeerInfo:	&Handshake {
 					NodeId:		inst.node.ID,
@@ -1964,13 +2006,13 @@ func piPingpongReq(inst *peerInstance, msg interface{}) PeMgrErrno {
 				Description	:"piPingpongReq: upkg.ping failed",
 			}
 
-			shell.P2pIndHandler(shell.P2pIndConnStatus, &para)
+			P2pIndHandler(P2pIndConnStatus, &para)
 
 		} else {
 			yclog.LogCallerFileLine("piPingpongReq: indication callback not installed yet")
 		}
 
-		shell.Lock4Cb.Unlock()
+		Lock4Cb.Unlock()
 
 		return eno
 	}
@@ -1987,6 +2029,13 @@ func piPingpongReq(inst *peerInstance, msg interface{}) PeMgrErrno {
 // Close-Request handler
 //
 func piCloseReq(inst *peerInstance, msg interface{}) PeMgrErrno {
+
+	//
+	// Notice: do not kill the instance task here in this function, just the
+	// connection of the peer is closed, and event EvPeCloseCfm sent to the
+	// peer manager. The instance task would be killed by peer manager when
+	// EvPeCloseCfm event received, see it pls.
+	//
 
 	_ = msg
 
@@ -2045,19 +2094,6 @@ func piCloseReq(inst *peerInstance, msg interface{}) PeMgrErrno {
 
 			return PeMgrEnoOs
 		}
-	}
-
-	//
-	// stop task instance
-	//
-
-	if eno = sch.SchinfTaskDone(inst.ptnMe, eno); eno != sch.SchEnoNone {
-
-		yclog.LogCallerFileLine("piCloseReq: " +
-			"done task failed, task: %s, eno: %d",
-			sch.SchinfGetTaskName(inst.ptnMe), eno)
-
-		return PeMgrEnoScheduler
 	}
 
 	//
@@ -2128,7 +2164,7 @@ func piEstablishedInd(inst *peerInstance, msg interface{}) PeMgrErrno {
 		Name:	PeerMgrName + "_PePingpong",
 		Utid:	sch.PePingpongTimerId,
 		Tmt:	sch.SchTmTypePeriod,
-		Dur:	time.Second * 10,
+		Dur:	time.Second * 2,
 		Extra:	nil,
 	}
 
@@ -2165,11 +2201,11 @@ func piEstablishedInd(inst *peerInstance, msg interface{}) PeMgrErrno {
 	// callback to the user of p2p
 	//
 
-	shell.Lock4Cb.Lock()
+	Lock4Cb.Lock()
 
-	if shell.P2pIndHandler != nil {
+	if P2pIndHandler != nil {
 
-		para := shell.P2pIndPeerActivatedPara {
+		para := P2pIndPeerActivatedPara {
 			Ptn: inst.ptnMe,
 			PeerInfo: & Handshake {
 				NodeId:		inst.node.ID,
@@ -2178,13 +2214,13 @@ func piEstablishedInd(inst *peerInstance, msg interface{}) PeMgrErrno {
 			},
 		}
 
-		shell.P2pIndHandler(shell.P2pIndPeerActivated, &para)
+		P2pIndHandler(P2pIndPeerActivated, &para)
 
 	} else {
 		yclog.LogCallerFileLine("piEstablishedInd: indication callback not installed yet")
 	}
 
-	shell.Lock4Cb.Unlock()
+	Lock4Cb.Unlock()
 
 	//
 	// :( here we go routines for tx/rx on the activated peer):
@@ -2228,11 +2264,11 @@ func piPingpongTimerHandler(inst *peerInstance) PeMgrErrno {
 		// of this peer instance.
 		//
 
-		shell.Lock4Cb.Lock()
+		Lock4Cb.Lock()
 
-		if shell.P2pIndHandler != nil {
+		if P2pIndHandler != nil {
 
-			para := shell.P2pIndConnStatusPara {
+			para := P2pIndConnStatusPara {
 				Ptn:		inst.ptnMe,
 				PeerInfo:	&Handshake {
 					NodeId:		inst.node.ID,
@@ -2243,13 +2279,13 @@ func piPingpongTimerHandler(inst *peerInstance) PeMgrErrno {
 				Description	:"piPingpongTimerHandler: threshold reached",
 			}
 
-			shell.P2pIndHandler(shell.P2pIndConnStatus, &para)
+			P2pIndHandler(P2pIndConnStatus, &para)
 
 		} else {
 			yclog.LogCallerFileLine("piPingpongTimerHandler: indication callback not installed yet")
 		}
 
-		shell.Lock4Cb.Unlock()
+		Lock4Cb.Unlock()
 
 		//
 		// close the peer instance
@@ -2475,7 +2511,7 @@ func SetP2pkgCallback(cb interface{}, ptn interface{}) PeMgrErrno {
 	if inst.p2pkgRx != nil {
 		yclog.LogCallerFileLine("SetP2pkgCallback: old one will be overlapped")
 	}
-	inst.p2pkgRx = cb.(shell.P2pInfPkgCallback)
+	inst.p2pkgRx = cb.(P2pInfPkgCallback)
 
 	return PeMgrEnoNone
 }
@@ -2483,7 +2519,7 @@ func SetP2pkgCallback(cb interface{}, ptn interface{}) PeMgrErrno {
 //
 // Send package
 //
-func SendPackage(pkg *shell.P2pPackage2Peer) (PeMgrErrno, []*PeerId){
+func SendPackage(pkg *P2pPackage2Peer) (PeMgrErrno, []*PeerId){
 
 	//
 	// Notice: if PeMgrEnoParameter returned, then the fail list return with nil,
@@ -2523,7 +2559,7 @@ func SendPackage(pkg *shell.P2pPackage2Peer) (PeMgrErrno, []*PeerId){
 		if len(inst.p2pkgTx) >= PeInstMaxP2packages {
 			yclog.LogCallerFileLine("SendPackage: tx buffer full")
 			failed = append(failed, &pid)
-			continue;
+			continue
 		}
 
 		_pkg := new(P2pPackage)
@@ -2656,9 +2692,9 @@ txBreak:
 				// this peer seems in troubles, we will be done then.
 				//
 
-				shell.Lock4Cb.Lock()
+				Lock4Cb.Lock()
 
-				if shell.P2pIndHandler != nil {
+				if P2pIndHandler != nil {
 
 					hs := Handshake {
 						NodeId:		inst.node.ID,
@@ -2666,20 +2702,20 @@ txBreak:
 						Protocols:	inst.protocols,
 					}
 
-					info := shell.P2pIndConnStatusPara{
+					info := P2pIndConnStatusPara{
 						Ptn:		inst.ptnMe,
 						PeerInfo:	&hs,
 						Status:		int(eno),
 						Description:"piTx: SendPackage failed",
 					}
 
-					shell.P2pIndHandler(shell.P2pIndConnStatus, &info)
+					P2pIndHandler(P2pIndConnStatus, &info)
 
 				} else {
 					yclog.LogCallerFileLine("piTx: indication callback not installed yet")
 				}
 
-				shell.Lock4Cb.Unlock()
+				Lock4Cb.Unlock()
 			}
 		}
 
@@ -2702,7 +2738,7 @@ func piRx(inst *peerInstance) PeMgrErrno {
 
 	var done PeMgrErrno = PeMgrEnoNone
 	var peerInfo = PeerInfo{}
-	var pkgCb = shell.P2pPackage4Callback{}
+	var pkgCb = P2pPackage4Callback{}
 
 rxBreak:
 
@@ -2731,9 +2767,9 @@ rxBreak:
 			// this peer seems in troubles, we will be done then.
 			//
 
-			shell.Lock4Cb.Lock()
+			Lock4Cb.Lock()
 
-			if shell.P2pIndHandler != nil {
+			if P2pIndHandler != nil {
 
 				hs := Handshake {
 					NodeId:		inst.node.ID,
@@ -2741,20 +2777,20 @@ rxBreak:
 					Protocols:	inst.protocols,
 				}
 
-				info := shell.P2pIndConnStatusPara{
+				info := P2pIndConnStatusPara{
 					Ptn:		inst.ptnMe,
 					PeerInfo:	&hs,
 					Status:		int(eno),
 					Description:"piRx: RecvPackage failed",
 				}
 
-				shell.P2pIndHandler(shell.P2pIndConnStatus, &info)
+				P2pIndHandler(P2pIndConnStatus, &info)
 
 			} else {
 				yclog.LogCallerFileLine("piRx: indication callback not installed yet")
 			}
 
-			shell.Lock4Cb.Unlock()
+			Lock4Cb.Unlock()
 
 			continue
 		}
@@ -2960,4 +2996,5 @@ func piP2pPongProc(inst *peerInstance, pong *Pingpong) PeMgrErrno {
 
 	return PeMgrEnoNone
 }
+
 
