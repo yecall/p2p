@@ -106,7 +106,7 @@ func p2pIndProc(what int, para interface{}) interface{} {
 //
 // Package handler
 //
-func p2pPkgProc(msg *shell.P2pPackageCallback) interface{} {
+func p2pPkgProc(msg *shell.P2pPackage4Callback) interface{} {
 	return nil
 }
 

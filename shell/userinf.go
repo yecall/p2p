@@ -75,7 +75,7 @@ func P2pInfErrnoString(eno P2pInfErrno) string {
 //
 // Message passed into user's callback
 //
-type P2pPackageCallback struct {
+type P2pPackage4Callback struct {
 	PeerInfo		*peer.PeerInfo	// peer information
 	ProtoId			int				// protocol identity
 	PayloadLength	int				// bytes in payload buffer
@@ -133,7 +133,7 @@ type P2pInfIndCallback func(what int, para interface{}) interface{}
 //
 // P2p callback function type for package incoming
 //
-type P2pInfPkgCallback func(msg *P2pPackageCallback) interface{}
+type P2pInfPkgCallback func(msg *P2pPackage4Callback) interface{}
 
 //
 // Register user callback function to p2p

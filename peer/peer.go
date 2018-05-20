@@ -2702,7 +2702,7 @@ func piRx(inst *peerInstance) PeMgrErrno {
 
 	var done PeMgrErrno = PeMgrEnoNone
 	var peerInfo = PeerInfo{}
-	var pkgCb = shell.P2pPackageCallback{}
+	var pkgCb = shell.P2pPackage4Callback{}
 
 rxBreak:
 
