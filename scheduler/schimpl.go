@@ -2032,7 +2032,7 @@ type watchDogCtrlBlock struct {
 
 var wdCB = watchDogCtrlBlock {
 	scb:		&p2pSDL,
-	dogKill:	make(chan SchErrno),
+	dogKill:	make(chan SchErrno, 1),
 }
 
 func (wd watchDogCtrlBlock)watchDogProc() SchErrno {
@@ -2048,7 +2048,7 @@ dogKilled:
 	for {
 		select {
 		case <-wdt.C:
-			yclog.LogCallerFileLine("watchDogProc: dog time to watch")
+			//yclog.LogCallerFileLine("watchDogProc: dog time to watch")
 			wd.dogWatch()
 
 		case why = <-wd.dogKill:

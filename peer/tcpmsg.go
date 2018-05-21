@@ -23,6 +23,7 @@ package peer
 import (
 	"io"
 	"time"
+	"fmt"
 	ggio "github.com/gogo/protobuf/io"
 	ycfg	"ycp2p/config"
 	pb		"ycp2p/peer/pb"
@@ -328,10 +329,10 @@ func (upkg *P2pPackage)ping(inst *peerInstance, ping *Pingpong) PeMgrErrno {
 			Seq:	&ping.Seq,
 			Extra:	make([]byte, 0),
 		},
-		Pong:nil,
+		Pong:		nil,
 	}
 
-	*pbPing.Mid = pb.MessageId_MID_PONG
+	*pbPing.Mid = pb.MessageId_MID_PING
 	pbPing.Ping.Extra = append(pbPing.Ping.Extra, ping.Extra...)
 
 	payload, err := pbPing.Marshal()
@@ -403,8 +404,8 @@ func (upkg *P2pPackage)pong(inst *peerInstance, pong *Pingpong) PeMgrErrno {
 		},
 	}
 
-	*pbPong.Mid = pb.MessageId_MID_PING
-	pbPong.Ping.Extra = append(pbPong.Pong.Extra, pong.Extra...)
+	*pbPong.Mid = pb.MessageId_MID_PONG
+	pbPong.Pong.Extra = append(pbPong.Pong.Extra, pong.Extra...)
 
 	payload, err := pbPong.Marshal()
 
@@ -545,6 +546,20 @@ func (upkg *P2pPackage)RecvPackage(inst *peerInstance) PeMgrErrno {
 		return PeMgrEnoOs
 	}
 
+	//
+	// setup upkg(user package) with type P2pPackage from pb.P2pPackage
+	// object obtained above.
+	//
+
+	upkg.Pid			= uint32(*pkg.Pid)
+	upkg.PayloadLength	= *pkg.PayloadLength
+	upkg.Payload		= append(upkg.Payload, pkg.Payload ...)
+
+	yclog.LogCallerFileLine("RecvPackage: " +
+		"package got: %s, source package: %s",
+		fmt.Sprintf("%+v", *upkg),
+		fmt.Sprintf("%+v", *pkg))
+
 	return PeMgrEnoNone
 }
 
@@ -581,10 +596,10 @@ func (upkg *P2pPackage)GetMessage(pmsg *P2pMessage) PeMgrErrno {
 
 	if pmsg.Mid == uint32(MID_HANDSHAKE) {
 
-		pbHS := pbMsg.Handshake
 		hs := new(Handshake)
 		pmsg.Handshake = hs
 
+		pbHS := pbMsg.Handshake
 		copy(hs.NodeId[:], pbHS.NodeId)
 		hs.ProtoNum = *pbHS.ProtoNum
 		hs.Protocols = make([]Protocol, len(pbHS.Protocols))
@@ -596,17 +611,25 @@ func (upkg *P2pPackage)GetMessage(pmsg *P2pMessage) PeMgrErrno {
 	} else if pmsg.Mid == uint32(MID_PING) {
 
 		ping := new(Pingpong)
+		pmsg.Ping = ping
+
 		ping.Seq = *pbMsg.Ping.Seq
 		ping.Extra = append(ping.Extra, pbMsg.Ping.Extra...)
 
 	} else if pmsg.Mid == uint32(MID_PONG) {
 
 		pong := new(Pingpong)
+		pmsg.Pong = pong
+
 		pong.Seq = *pbMsg.Pong.Seq
 		pong.Extra = append(pong.Extra, pbMsg.Pong.Extra...)
 
 	} else {
-		yclog.LogCallerFileLine("")
+
+		yclog.LogCallerFileLine("GetMessage: " +
+			"unknown message identity: %d",
+			pmsg.Mid)
+
 		return PeMgrEnoMessage
 	}
 

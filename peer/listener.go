@@ -64,6 +64,16 @@ func init() {
 //
 func LsnMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 
+	//
+	// Attention: this task would init the listener while EvSchPoweron event received,
+	// and it would be started when EvPeLsnStartReq, which would be sent by peer manager,
+	// whose name is sch.PeerMgrName, after EvSchPoweron received. This task and the
+	// peer manager task are all static tasks that registered in the table TaskStaticTab,
+	// and EvSchPoweron event would be sent by scheduler to all static tasks in order
+	// they registered, so we must register this LsnMgrProc task at a position ahead of
+	// where peer manager is registered.
+	//
+
 	yclog.LogCallerFileLine("LsnMgrProc: " +
 		"scheduled, sender: %s, recver: %s, msg: %d",
 		sch.SchinfGetMessageSender(msg), sch.SchinfGetMessageRecver(msg), msg.Id)
@@ -71,6 +81,7 @@ func LsnMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	var eno sch.SchErrno
 
 	switch msg.Id {
+
 	case sch.EvSchPoweron:
 		eno = lsnMgrPoweron(ptn)
 
@@ -304,8 +315,9 @@ func PeerAcceptProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	acceptTCB.listener = lsnMgr.listener
 
 	if acceptTCB.listener == nil {
-		yclog.LogCallerFileLine("PeerAcceptProc: invalid listener")
+		yclog.LogCallerFileLine("PeerAcceptProc: invalid listener, done accepter")
 		sch.SchinfTaskDone(ptn, sch.SchEnoInternal)
+		return sch.SchEnoInternal
 	}
 
 	acceptTCB.event = sch.EvSchNull

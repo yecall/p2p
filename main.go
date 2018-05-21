@@ -52,10 +52,18 @@ var doneMap = make(map[peer.PeerId] chan bool)
 //
 func txProc(id peer.PeerId) {
 
+	//
+	// This demo simply sleep one secode and then send a string again and again;
+	// The "done" signal is also checked to determine if task is done;
+	// See bellow pls.
+	//
+
 	if _, dup := doneMap[id]; dup == true {
+
 		yclog.LogCallerFileLine("txProc: " +
 			"duplicated, id: %s",
 			fmt.Sprintf("%x", id))
+
 		return
 	}
 
@@ -80,6 +88,17 @@ txLoop:
 
 	for {
 
+		select {
+		case isDone := <-done:
+			if isDone {
+				yclog.LogCallerFileLine("txProc: " +
+					"it's done, isDone: %s",
+					fmt.Sprintf("%T", isDone))
+				break txLoop
+			}
+		default:
+		}
+
 		time.Sleep(time.Second)
 
 		seq++
@@ -103,9 +122,7 @@ txLoop:
 				fmt.Sprintf("%x", id))
 		}
 
-		if isDone := <-done; isDone {
-			break txLoop
-		}
+		yclog.LogCallerFileLine("txProc: string sent: %s", txString)
 	}
 
 	close(done)
@@ -122,9 +139,18 @@ txLoop:
 //
 func p2pIndProc(what int, para interface{}) interface{} {
 
+	//
+	// check what is indicated
+	//
+
 	switch what {
 
 	case shell.P2pIndPeerActivated:
+
+		//
+		// a peer is activated to work, so one can install the incoming packages
+		// handler.
+		//
 
 		pap := para.(*peer.P2pIndPeerActivatedPara)
 
@@ -145,6 +171,16 @@ func p2pIndProc(what int, para interface{}) interface{} {
 
 	case shell.P2pIndConnStatus:
 
+		//
+		// Peer connection status report. in general, this report is resulted for
+		// errors fired on the connection, one can check the "Flag" field in the
+		// indication to know if p2p underlying would try to close the connection
+		// itself, and one also can check the "Status" field to known what had
+		// happened(the interface for this is not completed yet). Following demo
+		// take a simple method: if connection is not closed by p2p itself, then
+		// request p2p to close it here.
+		//
+
 		psp := para.(*peer.P2pIndConnStatusPara)
 
 		yclog.LogCallerFileLine("p2pIndProc: " +
@@ -158,22 +194,35 @@ func p2pIndProc(what int, para interface{}) interface{} {
 				psp.Status,
 				fmt.Sprintf("%x", psp.PeerInfo.NodeId	))
 
-			if eno := shell.P2pInfClosePeer((*peer.PeerId)(&psp.PeerInfo.NodeId));
-			eno != shell.P2pInfEnoNone {
+			if psp.Flag == false {
+
 				yclog.LogCallerFileLine("p2pIndProc: " +
-					"P2pInfClosePeer failed, eno: %d, peer: %s",
-					eno,
-					fmt.Sprintf("%x", psp.PeerInfo.NodeId))
+					"try to close the instance, peer: %s",
+					fmt.Sprintf("%x", (*peer.PeerId)(&psp.PeerInfo.NodeId)))
+
+				if eno := shell.P2pInfClosePeer((*peer.PeerId)(&psp.PeerInfo.NodeId));
+					eno != shell.P2pInfEnoNone {
+					yclog.LogCallerFileLine("p2pIndProc: "+
+						"P2pInfClosePeer failed, eno: %d, peer: %s",
+						eno,
+						fmt.Sprintf("%x", psp.PeerInfo.NodeId))
+				}
 			}
 		}
 
 	case shell.P2pIndPeerClosed:
 
-		yclog.LogCallerFileLine("p2pIndProc: " +
-			"P2pIndPeerClosed, para: %d",
-			what, *para.(*int))
+		//
+		// Peer connection had been closed, one can clean his working context, see
+		// bellow statements please.
+		//
 
 		pcp := para.(*peer.P2pIndPeerClosedPara)
+
+		yclog.LogCallerFileLine("p2pIndProc: " +
+			"P2pIndPeerClosed, para: %s",
+			fmt.Sprintf("%+v", *pcp))
+
 
 		if done, ok := doneMap[pcp.PeerId]; ok && done != nil {
 			done<-true
@@ -199,6 +248,11 @@ func p2pIndProc(what int, para interface{}) interface{} {
 // Package handler
 //
 func p2pPkgProc(pkg *peer.P2pPackage4Callback) interface{} {
+
+	//
+	// the demo just print the payload, provided that it's a string,
+	// see function txProc(in this file) to know what's sent pls.
+	//
 
 	yclog.LogCallerFileLine("p2pPkgProc: " +
 		"package received: %s",
@@ -234,7 +288,7 @@ func main() {
 	shell.ShellConfig(&myCfg)
 
 	//
-	// init and then start
+	// init underlying p2p logic and then start
 	//
 
 	if eno := shell.P2pInit(); eno != sch.SchEnoNone {
@@ -243,7 +297,11 @@ func main() {
 	}
 
 	//
-	// register indication handler
+	// register indication handler. notice that please, the indication handler is a
+	// global object for all peers connected, while the incoming packages callback
+	// handler is owned by every peer, and it can be installed while activation of
+	// a peer is indicated. See demo indication handler p2pIndHandler and incoming
+	// package handler p2pPkgHandler for more please.
 	//
 
 	if eno := shell.P2pInfRegisterCallback(shell.P2pInfIndCb, p2pIndHandler, nil);

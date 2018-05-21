@@ -621,11 +621,13 @@ func peMgrLsnConnAcceptedInd(msg interface{}) PeMgrErrno {
 	peInst.raddr		= ibInd.remoteAddr
 	peInst.dir			= PeInstDirInbound
 
-	//peInst.p2pkgLock	= *new(sync.Mutex)
+	peInst.p2pkgLock	= sync.Mutex{}
 	peInst.p2pkgRx		= nil
 	peInst.p2pkgTx		= make([]*P2pPackage, 0, PeInstMaxP2packages)
-	peInst.txDone		= *new(chan PeMgrErrno)
-	peInst.rxDone		= *new(chan PeMgrErrno)
+	peInst.txDone		= make(chan PeMgrErrno, 1)
+	peInst.txExit		= make(chan PeMgrErrno)
+	peInst.rxDone		= make(chan PeMgrErrno, 1)
+	peInst.rxExit		= make(chan PeMgrErrno)
 
 	//
 	// Create peer instance task
@@ -1295,11 +1297,13 @@ func peMgrCreateOutboundInst(node *ycfg.Node) PeMgrErrno {
 	peInst.dir			= PeInstDirOutbound
 	peInst.node			= *node
 
-	//peInst.p2pkgLock	= *new(sync.Mutex)
+	peInst.p2pkgLock	= sync.Mutex{}
 	peInst.p2pkgRx		= nil
 	peInst.p2pkgTx		= make([]*P2pPackage, 0, PeInstMaxP2packages)
-	peInst.txDone		= *new(chan PeMgrErrno)
-	peInst.rxDone		= *new(chan PeMgrErrno)
+	peInst.txDone		= make(chan PeMgrErrno, 1)
+	peInst.txExit		= make(chan PeMgrErrno)
+	peInst.rxDone		= make(chan PeMgrErrno, 1)
+	peInst.rxExit		= make(chan PeMgrErrno)
 
 	//
 	// Create peer instance task
@@ -1616,7 +1620,9 @@ type peerInstance struct {
 	p2pkgRx		P2pInfPkgCallback			// incoming p2p package callback
 	p2pkgTx		[]*P2pPackage				// outcoming p2p packages
 	txDone		chan PeMgrErrno				// TX chan
+	txExit		chan PeMgrErrno				// TX had been done
 	rxDone		chan PeMgrErrno				// RX chan
+	rxExit		chan PeMgrErrno				// RX had been done
 	ppSeq		uint64						// pingpong sequence no.
 	ppCnt		int							// pingpong counter
 }
@@ -1639,11 +1645,13 @@ var peerInstDefault = peerInstance {
 	protoNum:	0,
 	protocols:	[]Protocol{{}},
 	ppTid:		sch.SchInvalidTid,
-	//p2pkgLock:	nil,
+	p2pkgLock:	sync.Mutex{},
 	p2pkgRx:	nil,
 	p2pkgTx:	nil,
 	txDone:		nil,
+	txExit:		nil,
 	rxDone:		nil,
+	rxExit:		nil,
 	ppSeq:		0,
 	ppCnt:		0,
 }
@@ -2003,6 +2011,7 @@ func piPingpongReq(inst *peerInstance, msg interface{}) PeMgrErrno {
 					Protocols:	inst.protocols,
 				},
 				Status		:	int(eno),
+				Flag		:	false,
 				Description	:"piPingpongReq: upkg.ping failed",
 			}
 
@@ -2052,12 +2061,19 @@ func piCloseReq(inst *peerInstance, msg interface{}) PeMgrErrno {
 	//
 
 	inst.rxDone<-PeMgrEnoNone
+	<-inst.rxExit
+
 	inst.txDone<-PeMgrEnoNone
+	<-inst.txExit
 
 	close(inst.rxDone)
 	inst.rxDone = nil
+	close(inst.rxExit)
+	inst.rxExit = nil
 	close(inst.txDone)
 	inst.txDone = nil
+	close(inst.txExit)
+	inst.txExit = nil
 
 	inst.p2pkgLock.Lock()
 	inst.p2pkgRx = nil
@@ -2226,7 +2242,8 @@ func piEstablishedInd(inst *peerInstance, msg interface{}) PeMgrErrno {
 	// :( here we go routines for tx/rx on the activated peer):
 	//
 
-	go piTx(inst); go piRx(inst)
+	go piTx(inst)
+	go piRx(inst)
 
 	yclog.LogCallerFileLine("piEstablishedInd: " +
 		"piTx and piRx are in going ... inst: %s",
@@ -2264,6 +2281,10 @@ func piPingpongTimerHandler(inst *peerInstance) PeMgrErrno {
 		// of this peer instance.
 		//
 
+		yclog.LogCallerFileLine("piPingpongTimerHandler: " +
+			"call P2pIndHandler noping threshold reached, ppCnt: %d",
+			inst.ppCnt)
+
 		Lock4Cb.Lock()
 
 		if P2pIndHandler != nil {
@@ -2276,7 +2297,8 @@ func piPingpongTimerHandler(inst *peerInstance) PeMgrErrno {
 					Protocols:	inst.protocols,
 				},
 				Status		:	PeMgrEnoPingpongTh,
-				Description	:"piPingpongTimerHandler: threshold reached",
+				Flag		:	true,
+				Description	:	"piPingpongTimerHandler: threshold reached",
 			}
 
 			P2pIndHandler(P2pIndConnStatus, &para)
@@ -2298,6 +2320,7 @@ func piPingpongTimerHandler(inst *peerInstance) PeMgrErrno {
 				eno)
 			return PeMgrEnoScheduler
 		}
+
 		if eno := sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
 			yclog.LogCallerFileLine("piPingpongTimerHandler: " +
 				"SchinfSendMessage failed, eno: %d, target: %s",
@@ -2320,6 +2343,7 @@ func piPingpongTimerHandler(inst *peerInstance) PeMgrErrno {
 			eno)
 		return PeMgrEnoScheduler
 	}
+
 	if eno := sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("piPingpongTimerHandler: " +
 			"SchinfSendMessage failed, eno: %d, target: %s",
@@ -2332,7 +2356,7 @@ func piPingpongTimerHandler(inst *peerInstance) PeMgrErrno {
 		"EvPePingpongReq sent ok, target: %s",
 		sch.SchinfGetTaskName(inst.ptnMe))
 
-	return PeMgrEnoUnsup
+	return PeMgrEnoNone
 }
 
 //
@@ -2663,7 +2687,9 @@ txBreak:
 		select {
 		case done = <-inst.txDone:
 			yclog.LogCallerFileLine("piTx: done with: %d", done)
+			inst.txExit<-done
 			break txBreak
+		default:
 		}
 
 		//
@@ -2685,12 +2711,20 @@ txBreak:
 			// encode and send it
 			//
 
+			yclog.LogCallerFileLine("piTx: " +
+				"send package: %s",
+				fmt.Sprintf("%+v", *upkg))
+
 			if eno := upkg.SendPackage(inst); eno != PeMgrEnoNone {
 
 				//
 				// if failed, callback to the user, so he can close
 				// this peer seems in troubles, we will be done then.
 				//
+
+				yclog.LogCallerFileLine("piTx: " +
+					"call P2pIndHandler for SendPackage failed, eno: %d",
+					eno)
 
 				Lock4Cb.Lock()
 
@@ -2706,6 +2740,7 @@ txBreak:
 						Ptn:		inst.ptnMe,
 						PeerInfo:	&hs,
 						Status:		int(eno),
+						Flag:		false,
 						Description:"piTx: SendPackage failed",
 					}
 
@@ -2749,14 +2784,18 @@ rxBreak:
 		//
 
 		select {
-		case done= <-inst.rxDone:
+		case done = <-inst.rxDone:
 			yclog.LogCallerFileLine("piRx: done with: %d", done)
+			inst.rxExit<-done
 			break rxBreak
+		default:
 		}
 
 		//
 		// try reading the peer
 		//
+
+		yclog.LogCallerFileLine("piRx: try RecvPackage ...")
 
 		upkg := new(P2pPackage)
 
@@ -2766,6 +2805,10 @@ rxBreak:
 			// if failed, callback to the user, so he can close
 			// this peer seems in troubles, we will be done then.
 			//
+
+			yclog.LogCallerFileLine("piRx: " +
+				"call P2pIndHandler for RecvPackage failed, eno: %d",
+				eno)
 
 			Lock4Cb.Lock()
 
@@ -2781,6 +2824,7 @@ rxBreak:
 					Ptn:		inst.ptnMe,
 					PeerInfo:	&hs,
 					Status:		int(eno),
+					Flag:		false,
 					Description:"piRx: RecvPackage failed",
 				}
 
@@ -2794,6 +2838,10 @@ rxBreak:
 
 			continue
 		}
+
+		yclog.LogCallerFileLine("piRx: " +
+			"package got: %s",
+			fmt.Sprintf("%+v", upkg))
 
 		//
 		// check the package received to filter out those not for p2p internal only
@@ -2809,7 +2857,7 @@ rxBreak:
 					fmt.Sprintf("%+v", *inst))
 			}
 
-		} else if upkg.Pid != uint32(PID_EXT) {
+		} else if upkg.Pid == uint32(PID_EXT) {
 
 			//
 			// callback to the user for package incoming

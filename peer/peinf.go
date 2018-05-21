@@ -72,6 +72,16 @@ type P2pIndConnStatusPara struct {
 	Ptn			interface{}			// task node pointer
 	PeerInfo	*Handshake			// handshake info
 	Status		int					// status code
+
+	//
+	// Indicate that if the instance would be closed by underlying of p2p.
+	// If true, user should not try to close the instance; else, user should
+	// determine basing on the status code to call shell.P2pInfClosePeer to
+	// close the instance if necessary.
+	//
+
+	Flag		bool				// flag
+
 	Description	string				// description
 }
 
