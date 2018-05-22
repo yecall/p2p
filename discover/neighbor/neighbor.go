@@ -94,7 +94,7 @@ type NgbProtoErrno int
 // Timeouts
 //
 const (
-	NgbProtoWriteTimeout			= 1 * time.Second
+	NgbProtoWriteTimeout			= 8 * time.Second
 	NgbProtoReadTimeout				= NgbProtoWriteTimeout
 	NgbProtoPingResponseTimeout		= 20 * time.Second
 	NgbProtoFindNodeResponseTimeout = 20 * time.Second
@@ -435,7 +435,7 @@ func (inst *neighborInst) NgbProtoFindNodeRsp(msg *um.Neighbors) NgbProtoErrno {
 	var rsp = sch.NblFindNodeRsp{}
 	var schMsg  = sch.SchMessage{}
 
-	rsp.Result = NgbProtoEnoNone
+	rsp.Result = (NgbProtoEnoNone << 16) + tab.TabMgrEnoNone
 	rsp.FindNode = inst.msgBody.(*um.FindNode)
 	rsp.Neighbors = msg
 
@@ -492,7 +492,7 @@ func (inst *neighborInst) NgbProtoFindNodeTimeout() NgbProtoErrno {
 	var rsp = sch.NblFindNodeRsp{}
 	var schMsg  = sch.SchMessage{}
 
-	rsp.Result = NgbProtoEnoTimeout
+	rsp.Result = (NgbProtoEnoTimeout << 16) + tab.TabMgrEnoTimeout
 	rsp.FindNode = inst.msgBody.(*um.FindNode)
 
 	if eno := sch.SchinfMakeMessage(&schMsg, inst.ptn, ngbMgr.ptnTab,
@@ -1284,8 +1284,9 @@ func (ngbMgr *neighborManager)FindNodeReq(findNode *um.FindNode) NgbMgrErrno {
 
 		yclog.LogCallerFileLine("FindNodeReq: duplicated neighbor instance: %s", strPeerNodeId)
 
-		rsp.Result = NgbMgrEnoDuplicated
+		rsp.Result = (NgbMgrEnoDuplicated << 16) + tab.TabMgrEnoDuplicated
 		rsp.FindNode = findNode
+
 		return funcRsp2Tab()
 	}
 
@@ -1325,8 +1326,9 @@ func (ngbMgr *neighborManager)FindNodeReq(findNode *um.FindNode) NgbMgrErrno {
 
 		yclog.LogCallerFileLine("FindNodeReq: SchinfCreateTask failed, eno: %d", eno)
 
-		rsp.Result = NgbMgrEnoScheduler
+		rsp.Result = (NgbMgrEnoScheduler << 16) + tab.TabMgrEnoScheduler
 		rsp.FindNode = findNode
+
 		return funcRsp2Tab()
 	}
 
@@ -1335,8 +1337,9 @@ func (ngbMgr *neighborManager)FindNodeReq(findNode *um.FindNode) NgbMgrErrno {
 
 		yclog.LogCallerFileLine("FindNodeReq: SchinfMakeMessage failed, eno: %d", eno)
 
-		rsp.Result = NgbMgrEnoScheduler
+		rsp.Result = (NgbMgrEnoScheduler << 16) + tab.TabMgrEnoScheduler
 		rsp.FindNode = findNode
+
 		return funcRsp2Tab()
 	}
 
@@ -1347,8 +1350,9 @@ func (ngbMgr *neighborManager)FindNodeReq(findNode *um.FindNode) NgbMgrErrno {
 
 		yclog.LogCallerFileLine("FindNodeReq: SchinfSendMessage failed, eno: %d", eno)
 
-		rsp.Result = NgbMgrEnoScheduler
+		rsp.Result = (NgbMgrEnoScheduler << 16) + tab.TabMgrEnoScheduler
 		rsp.FindNode = findNode
+
 		return funcRsp2Tab()
 	}
 

@@ -28,6 +28,8 @@ import (
 	"sync"
 	ycfg	"ycp2p/config"
 	sch 	"ycp2p/scheduler"
+	tab		"ycp2p/discover/table"
+	um		"ycp2p/discover/udpmsg"
 	yclog	"ycp2p/logger"
 )
 
@@ -63,20 +65,23 @@ type PeerInfo Handshake
 //
 // Peer manager configuration
 //
-const defaultConnectTimeout = 15 * time.Second	// default dial outbound timeout value, currently
-												// it's a fixed value here than can be configurated
-												// by other module.
+const defaultConnectTimeout = 15 * time.Second		// default dial outbound timeout value, currently
+													// it's a fixed value here than can be configurated
+													// by other module.
 
-const defaultHandshakeTimeout = 5 * time.Second	// default handshake timeout value, currently
-												// it's a fixed value here than can be configurated
-												// by other module.
+const defaultHandshakeTimeout = 8 * time.Second		// default handshake timeout value, currently
+													// it's a fixed value here than can be configurated
+													// by other module.
 
-const maxTcpmsgSize = 1024*1024*4				// max size of a tcpmsg package could be, currently
-												// it's a fixed value here than can be configurated
-												// by other module.
+const defaultActivePeerTimeout = 15 * time.Second	// default read/write operation timeout after a peer
+													// connection is activaged in working.
 
-const durDcvFindNodeTimer = time.Second * 22	// duration to wait for find node response from discover task,
-												// should be (findNodeExpiration + delta).
+const maxTcpmsgSize = 1024*1024*4					// max size of a tcpmsg package could be, currently
+													// it's a fixed value here than can be configurated
+													// by other module.
+
+const durDcvFindNodeTimer = time.Second * 22		// duration to wait for find node response from discover task,
+													// should be (findNodeExpiration + delta).
 
 type peMgrConfig struct {
 	maxPeers		int				// max peers would be
@@ -90,6 +95,7 @@ type peMgrConfig struct {
 	bootstrapNode	bool			// local is a bootstrap node
 	defaultCto		time.Duration	// default connect outbound timeout
 	defaultHto		time.Duration	// default handshake timeout
+	defaultAto		time.Duration	// default active read/write timeout
 	maxMsgSize		int				// max tcpmsg package size
 	protoNum		uint32			// local protocol number
 	protocols		[]Protocol		// local protocol table
@@ -290,6 +296,7 @@ func peMgrPoweron(ptn interface{}) PeMgrErrno {
 		bootstrapNode:	cfg.BootstrapNode,
 		defaultCto:		defaultConnectTimeout,
 		defaultHto:		defaultHandshakeTimeout,
+		defaultAto:		defaultActivePeerTimeout,
 		maxMsgSize:		maxTcpmsgSize,
 		protoNum:		cfg.ProtoNum,
 		protocols:		make([]Protocol, 0),
@@ -614,6 +621,7 @@ func peMgrLsnConnAcceptedInd(msg interface{}) PeMgrErrno {
 	peInst.state		= peInstStateAccepted
 	peInst.cto			= peMgr.cfg.defaultCto
 	peInst.hto			= peMgr.cfg.defaultHto
+	peInst.ato			= peMgr.cfg.defaultAto
 	peInst.maxPkgSize	= peMgr.cfg.maxMsgSize
 	peInst.dialer		= nil
 	peInst.conn			= ibInd.conn
@@ -1015,6 +1023,53 @@ func peMgrHandshakeRsp(msg interface{}) PeMgrErrno {
 		peMgr.nodes[inst.node.ID] = inst
 	}
 
+	//
+	// Since the peer node is accepted and handshake is passed here now,
+	// we add this peer node to bucket. But notice that this operation
+	// possible fail for some reasons such as it's a duplicated one. We
+	// should not care the result returned from interface of table module.
+	//
+
+	lastPing := time.Now()
+	lastPong := time.Now()
+
+	n := um.Node{
+		IP:		rsp.peNode.IP,
+		UDP:	rsp.peNode.UDP,
+		TCP:	rsp.peNode.TCP,
+		NodeId:	rsp.peNode.ID,
+	}
+
+	tabEno := tab.TabBucketAddNode(&n, &lastPing, &lastPong)
+	if tabEno != tab.TabMgrEnoNone {
+
+		yclog.LogCallerFileLine("peMgrHandshakeRsp: " +
+			"TabBucketAddNode failed, eno: %d",
+			eno)
+	}
+
+	yclog.LogCallerFileLine("peMgrHandshakeRsp: " +
+		"TabBucketAddNode ok, node: %s",
+		fmt.Sprintf("%+v", *rsp.peNode))
+
+	//
+	// Backup peer node to node database. Notice that this operation
+	// possible fail for some reasons such as it's a duplicated one. We
+	// should not care the result returned from interface of table module.
+	//
+
+	tabEno = tab.TabUpdateNode(&n)
+	if tabEno != tab.TabMgrEnoNone {
+
+		yclog.LogCallerFileLine("peMgrHandshakeRsp: " +
+			"TabUpdateNode failed, eno: %d",
+			tabEno)
+	}
+
+	yclog.LogCallerFileLine("peMgrHandshakeRsp: " +
+		"TabUpdateNode ok, node: %s",
+		fmt.Sprintf("%+v", *rsp.peNode))
+
 	return PeMgrEnoNone
 }
 
@@ -1289,6 +1344,7 @@ func peMgrCreateOutboundInst(node *ycfg.Node) PeMgrErrno {
 	peInst.state		= peInstStateConnOut
 	peInst.cto			= peMgr.cfg.defaultCto
 	peInst.hto			= peMgr.cfg.defaultHto
+	peInst.ato			= peMgr.cfg.defaultAto
 	peInst.maxPkgSize	= peMgr.cfg.maxMsgSize
 	peInst.dialer		= &net.Dialer{Timeout: peMgr.cfg.defaultCto}
 	peInst.conn			= nil
@@ -1606,6 +1662,7 @@ type peerInstance struct {
 	state		peerInstState				// state
 	cto			time.Duration				// connect timeout value
 	hto			time.Duration				// handshake timeout value
+	ato			time.Duration				// active peer connection read/write timeout value
 	dialer		*net.Dialer					// dialer to make outbound connection
 	conn		net.Conn					// connection
 	laddr		*net.TCPAddr				// local ip address
@@ -1794,6 +1851,8 @@ func piConnOutReq(inst *peerInstance, msg interface{}) PeMgrErrno {
 	var conn net.Conn = nil
 	var err error
 	var eno PeMgrErrno = PeMgrEnoNone
+
+	inst.dialer.Timeout = inst.cto
 
 	if conn, err = inst.dialer.Dial("tcp", addr.String()); err != nil {
 
@@ -2718,8 +2777,13 @@ txBreak:
 			if eno := upkg.SendPackage(inst); eno != PeMgrEnoNone {
 
 				//
-				// if failed, callback to the user, so he can close
+				// 1) if failed, callback to the user, so he can close
 				// this peer seems in troubles, we will be done then.
+				//
+				// 2) it is possible that, while we are blocked here in
+				// writing and the connection is closed for some reasons
+				// (for example the user close the peer), in this case,
+				// we would get an error.
 				//
 
 				yclog.LogCallerFileLine("piTx: " +
@@ -2802,8 +2866,13 @@ rxBreak:
 		if eno := upkg.RecvPackage(inst); eno != PeMgrEnoNone {
 
 			//
-			// if failed, callback to the user, so he can close
+			// 1) if failed, callback to the user, so he can close
 			// this peer seems in troubles, we will be done then.
+			//
+			// 2) it is possible that, while we are blocked here in
+			// reading and the connection is closed for some reasons
+			// (for example the user close the peer), in this case,
+			// we would get an error.
 			//
 
 			yclog.LogCallerFileLine("piRx: " +

@@ -45,6 +45,7 @@ const (
 	TabMgrEnoScheduler
 	TabMgrEnoDatabase
 	TabMgrEnoNotFound
+	TabMgrEnoDuplicated
 	TabMgrEnoInternal
 	TabMgrEnoFindNodeFailed
 	TabMgrEnoPingpongFailed
@@ -557,11 +558,39 @@ func TabMgrFindNodeRsp(msg *sch.NblFindNodeRsp)TabMgrErrno {
 	inst.rsp = msg
 
 	//
-	// obtain result
+	// obtain result. notice: if the result responed is "duplicated", we just need
+	// to delete the duplicated active query instance and try to activate more.
 	//
 
-	var result = msg.Result
-	if result != 0 { result = TabMgrEnoFindNodeFailed }
+	var result = msg.Result & 0xffff
+
+	if result == TabMgrEnoDuplicated {
+
+		yclog.LogCallerFileLine("TabMgrFindNodeRsp: " +
+			"duplicated, try to remove the instance and activate more" +
+			"msg.Result: %x, result: %d",
+			msg.Result, result)
+
+		//
+		// delete the active instance
+		//
+
+		if eno := tabDeleteActiveQueryInst(inst); eno != TabMgrEnoNone {
+			yclog.LogCallerFileLine("TabMgrFindNodeRsp: tabDeleteActiveQueryInst failed, eno: %d", eno)
+			return eno
+		}
+
+		//
+		// try to active more query instances
+		//
+
+		if eno := tabActiveQueryInst(); eno != TabMgrEnoNone {
+			yclog.LogCallerFileLine("TabMgrFindNodeRsp: tabActiveQueryInst failed, eno: %d", eno)
+			return eno
+		}
+
+		return TabMgrEnoNone
+	}
 
 	//
 	// update database for the neighbor node.
@@ -604,8 +633,8 @@ func TabMgrFindNodeRsp(msg *sch.NblFindNodeRsp)TabMgrErrno {
 	// check result reported, if it's failed, need not go further
 	//
 
-	if msg.Result != 0 {
-		yclog.LogCallerFileLine("TabMgrFindNodeRsp: fail reported, result: %d", msg.Result)
+	if result != 0 {
+		yclog.LogCallerFileLine("TabMgrFindNodeRsp: fail reported, result: %d", result)
 		return TabMgrEnoNone
 	}
 

@@ -506,7 +506,7 @@ _loop:
 		// try reading
 		//
 
-		udpReader.conn.SetDeadline(time.Now().Add(NgbProtoReadTimeout))
+		udpReader.conn.SetReadDeadline(time.Now().Add(NgbProtoReadTimeout))
 		bys, peer, err := udpReader.conn.ReadFromUDP(buf)
 
 		//
@@ -659,7 +659,7 @@ func sendUdpMsg(buf []byte, toAddr *net.UDPAddr) sch.SchErrno {
 		return sch.SchEnoParameter
 	}
 
-	if err := udpReader.conn.SetDeadline(time.Now().Add(NgbProtoWriteTimeout)); err != nil {
+	if err := udpReader.conn.SetWriteDeadline(time.Now().Add(NgbProtoWriteTimeout)); err != nil {
 		yclog.LogCallerFileLine("sendUdpMsg: SetDeadline failed, err: %s", err.Error())
 		return sch.SchEnoOS
 	}

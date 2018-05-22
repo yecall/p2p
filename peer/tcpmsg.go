@@ -483,8 +483,8 @@ func (upkg *P2pPackage)SendPackage(inst *peerInstance) PeMgrErrno {
 	// Set deadline
 	//
 
-	if inst.hto != 0 {
-		inst.conn.SetWriteDeadline(time.Now().Add(inst.hto))
+	if inst.ato != 0 {
+		inst.conn.SetWriteDeadline(time.Now().Add(inst.ato))
 	} else {
 		inst.conn.SetWriteDeadline(time.Time{})
 	}
@@ -522,8 +522,8 @@ func (upkg *P2pPackage)RecvPackage(inst *peerInstance) PeMgrErrno {
 	// Setup the reader
 	//
 
-	if inst.hto != 0 {
-		inst.conn.SetReadDeadline(time.Now().Add(inst.hto))
+	if inst.ato != 0 {
+		inst.conn.SetReadDeadline(time.Now().Add(inst.ato))
 	} else {
 		inst.conn.SetReadDeadline(time.Time{})
 	}

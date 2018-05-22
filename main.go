@@ -53,7 +53,7 @@ var doneMap = make(map[peer.PeerId] chan bool)
 func txProc(id peer.PeerId) {
 
 	//
-	// This demo simply sleep one secode and then send a string again and again;
+	// This demo simply sleeps one secode and then sends a string again and again;
 	// The "done" signal is also checked to determine if task is done;
 	// See bellow pls.
 	//
@@ -76,7 +76,7 @@ func txProc(id peer.PeerId) {
 		IdList: 		make([]peer.PeerId, 0),
 		ProtoId:		int(peer.PID_EXT),
 		PayloadLength:	0,
-		Payload:		make([]byte, 512),
+		Payload:		make([]byte, 0, 512),
 		Extra:			nil,
 	}
 
@@ -93,7 +93,7 @@ txLoop:
 			if isDone {
 				yclog.LogCallerFileLine("txProc: " +
 					"it's done, isDone: %s",
-					fmt.Sprintf("%T", isDone))
+					fmt.Sprintf("%t", isDone))
 				break txLoop
 			}
 		default:
@@ -112,7 +112,7 @@ txLoop:
 			seq,
 			fmt.Sprintf("%x", id))
 
-		copy(pkg.Payload, ([]byte)(txString))
+		copy(pkg.Payload, txString)
 		pkg.PayloadLength = len(pkg.Payload)
 
 		if eno := shell.P2pInfSendPackage(&pkg); eno != shell.P2pInfEnoNone {
