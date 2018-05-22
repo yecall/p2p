@@ -2659,7 +2659,7 @@ func SendPackage(pkg *P2pPackage2Peer) (PeMgrErrno, []*PeerId){
 		return PeMgrEnoNone, nil
 	}
 
-	yclog.LogCallerFileLine("SendPackage: seems failed to send package to nodes, check it pls")
+	yclog.LogCallerFileLine("SendPackage: seems failed to send packages to nodes, check it pls")
 
 	return PeMgrEnoUnknown, failed
 }

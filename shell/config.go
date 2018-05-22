@@ -43,16 +43,22 @@ func ShellDefaultConfig() *ycfg.Config {
 //
 // Set configuration
 //
-func ShellConfig(cfg *ycfg.Config) ycfg.P2pCfgErrno {
+func ShellSetConfig(cfg *ycfg.Config) ycfg.P2pCfgErrno {
 
 	if cfg == nil {
-		yclog.LogCallerFileLine("ShellConfig: invalid parameter")
+		yclog.LogCallerFileLine("ShellSetConfig: invalid parameter")
 		return ycfg.PcfgEnoParameter
 	}
 
-	yclog.LogCallerFileLine("ShellConfig: %s",
+	yclog.LogCallerFileLine("ShellSetConfig: %s",
 		fmt.Sprintf("%+v", *cfg))
 
-	return ycfg.P2pConfig(cfg)
+	return ycfg.P2pSetConfig(cfg)
 }
 
+//
+// Set configuration
+//
+func ShellGetConfig() *ycfg.Config {
+	return ycfg.P2pGetConfig()
+}

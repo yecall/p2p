@@ -29,9 +29,16 @@ import (
 	"os/signal"
 	"ycp2p/shell"
 	"ycp2p/peer"
+	ycfg	"ycp2p/config"
 	yclog	"ycp2p/logger"
 	sch		"ycp2p/scheduler"
 )
+
+
+//
+// Configuration pointer
+//
+var p2pCfg *ycfg.Config = nil
 
 
 //
@@ -103,14 +110,17 @@ txLoop:
 
 		seq++
 		pkg.IdList = make([]peer.PeerId, 0)
+		txString := ""
 		for id, _ := range doneMap {
 			pkg.IdList = append(pkg.IdList, id)
+			txString = tsString + fmt.Sprintf("node: %x\n", id)
 		}
 
-		txString := fmt.Sprintf("txProc: " +
-			"seq: %d, id: %s",
+		txString = fmt.Sprintf("txProc: send message to peers:\n<<<\n" +
+			"seq: %d\n" +
+			"local id: %s\n",
 			seq,
-			fmt.Sprintf("%x", id))
+			fmt.Sprintf("%x", p2pCfg.Local.ID)) + txString + ">>>"
 
 		pkg.Payload = []byte(txString)
 		pkg.PayloadLength = len(pkg.Payload)
@@ -281,11 +291,12 @@ func main() {
 
 	//
 	// one can then apply his configurations based on the default by calling
-	// ShellConfig with a defferent configuration if he likes to.
+	// ShellSetConfig with a defferent configuration if he likes to.
 	//
 
 	myCfg := *dftCfg
-	shell.ShellConfig(&myCfg)
+	shell.ShellSetConfig(&myCfg)
+	p2pCfg = shell.ShellGetConfig()
 
 	//
 	// init underlying p2p logic and then start

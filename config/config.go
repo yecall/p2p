@@ -257,9 +257,9 @@ func P2pDefaultConfig() *Config {
 }
 
 //
-// P2pConfig
+// P2pSetConfig
 //
-func P2pConfig(cfg *Config) P2pCfgErrno {
+func P2pSetConfig(cfg *Config) P2pCfgErrno {
 
 	//
 	// Update, one SHOULD first call P2pDefaultConfig to get default value, modify
@@ -268,7 +268,7 @@ func P2pConfig(cfg *Config) P2pCfgErrno {
 	//
 
 	if cfg == nil {
-		yclog.LogCallerFileLine("P2pConfig: invalid configuration")
+		yclog.LogCallerFileLine("P2pSetConfig: invalid configuration")
 		return PcfgEnoParameter
 	}
 	config = *cfg
@@ -281,33 +281,33 @@ func P2pConfig(cfg *Config) P2pCfgErrno {
 	//
 
 	if config.PrivateKey == nil {
-		yclog.LogCallerFileLine("P2pConfig: private key is empty")
+		yclog.LogCallerFileLine("P2pSetConfig: private key is empty")
 	}
 
 	if config.PublicKey == nil {
-		yclog.LogCallerFileLine("P2pConfig: public key is empty")
+		yclog.LogCallerFileLine("P2pSetConfig: public key is empty")
 	}
 
 	if config.MaxPeers == 0 ||
 		config.MaxOutbounds == 0 ||
 		config.MaxInbounds == 0	||
 		config.MaxPeers < config.MaxInbounds + config.MaxOutbounds {
-		yclog.LogCallerFileLine("P2pConfig: " +
+		yclog.LogCallerFileLine("P2pSetConfig: " +
 			"invalid peer number constraint, MaxPeers: %d, MaxOutbounds: %d, MaxInbounds: %d",
 			config.MaxPeers, config.MaxOutbounds, config.MaxInbounds)
 		return PcfgEnoParameter
 	}
 
 	if len(config.Name) == 0 {
-		yclog.LogCallerFileLine("P2pConfig: node name is empty")
+		yclog.LogCallerFileLine("P2pSetConfig: node name is empty")
 	}
 
 	if cap(config.BootstrapNodes) == 0 {
-		yclog.LogCallerFileLine("P2pConfig: BootstrapNodes is empty")
+		yclog.LogCallerFileLine("P2pSetConfig: BootstrapNodes is empty")
 	}
 
 	if cap(config.StaticNodes) == 0 {
-		yclog.LogCallerFileLine("P2pConfig: StaticNodes is empty")
+		yclog.LogCallerFileLine("P2pSetConfig: StaticNodes is empty")
 	}
 
 	//
@@ -315,17 +315,17 @@ func P2pConfig(cfg *Config) P2pCfgErrno {
 	//
 
 	if len(config.NodeDataDir) == 0 /*|| path.IsAbs(config.NodeDataDir) == false*/ {
-		yclog.LogCallerFileLine("P2pConfig: invaid data directory")
+		yclog.LogCallerFileLine("P2pSetConfig: invaid data directory")
 		return PcfgEnoDataDir
 	}
 
 	if len(config.NodeDatabase) == 0 {
-		yclog.LogCallerFileLine("P2pConfig: invalid database name")
+		yclog.LogCallerFileLine("P2pSetConfig: invalid database name")
 		return PcfgEnoDatabase
 	}
 
 	if config.Local.IP == nil {
-		yclog.LogCallerFileLine("P2pConfig: invalid ip address")
+		yclog.LogCallerFileLine("P2pSetConfig: invalid ip address")
 		return PcfgEnoIpAddr
 	}
 
@@ -334,11 +334,18 @@ func P2pConfig(cfg *Config) P2pCfgErrno {
 	//
 
 	if p2pSetupLocalNodeId() != PcfgEnoNone {
-		yclog.LogCallerFileLine("P2pConfig: invalid ip address")
+		yclog.LogCallerFileLine("P2pSetConfig: invalid ip address")
 		return PcfgEnoNodeId
 	}
 
 	return PcfgEnoNone
+}
+
+//
+// Get global configuration pointer
+//
+func P2pGetConfig() *Config {
+	return &config
 }
 
 //
