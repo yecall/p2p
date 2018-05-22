@@ -361,7 +361,7 @@ func (upkg *P2pPackage)ping(inst *peerInstance, ping *Pingpong) PeMgrErrno {
 	//
 
 	if inst.hto != 0 {
-		inst.conn.SetWriteDeadline(time.Now().Add(inst.hto))
+		inst.conn.SetWriteDeadline(time.Now().Add(inst.ato))
 	} else {
 		inst.conn.SetWriteDeadline(time.Time{})
 	}
@@ -433,7 +433,7 @@ func (upkg *P2pPackage)pong(inst *peerInstance, pong *Pingpong) PeMgrErrno {
 	//
 
 	if inst.hto != 0 {
-		inst.conn.SetWriteDeadline(time.Now().Add(inst.hto))
+		inst.conn.SetWriteDeadline(time.Now().Add(inst.ato))
 	} else {
 		inst.conn.SetWriteDeadline(time.Time{})
 	}
