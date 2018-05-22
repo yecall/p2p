@@ -107,32 +107,33 @@ txLoop:
 		}
 
 		time.Sleep(time.Second)
-
 		seq++
-		pkg.IdList = make([]peer.PeerId, 0)
-		txString := ""
+
+		pkg.IdList = make([]peer.PeerId, 1)
+
 		for id, _ := range doneMap {
-			pkg.IdList = append(pkg.IdList, id)
-			txString = txString + fmt.Sprintf("node: %x\n", id)
-		}
 
-		txString = fmt.Sprintf("txProc: send message to peers:\n<<<\n" +
-			"seq: %d\n" +
-			"local id: %s\n",
-			seq,
-			fmt.Sprintf("%x", p2pCfg.Local.ID)) + txString + ">>>"
-
-		pkg.Payload = []byte(txString)
-		pkg.PayloadLength = len(pkg.Payload)
-
-		if eno := shell.P2pInfSendPackage(&pkg); eno != shell.P2pInfEnoNone {
-			yclog.LogCallerFileLine("txProc: " +
-				"send package failed, eno: %d, id: %s",
-				eno,
+			txString := fmt.Sprintf("<<<<<<\nseq:%d\n" +
+				"from: %s\n" +
+				"to: %s\n" +
+				">>>>>>",
+				seq,
+				fmt.Sprintf("%x", p2pCfg.Local.ID),
 				fmt.Sprintf("%x", id))
-		}
 
-		yclog.LogCallerFileLine("txProc: string sent: %s", txString)
+			pkg.IdList[0] = id
+			pkg.Payload = []byte(txString)
+			pkg.PayloadLength = len(pkg.Payload)
+
+			if eno := shell.P2pInfSendPackage(&pkg); eno != shell.P2pInfEnoNone {
+				yclog.LogCallerFileLine("txProc: " +
+					"send package failed, eno: %d, id: %s",
+					eno,
+					fmt.Sprintf("%x", p2pCfg.Local.ID))
+			}
+
+			yclog.LogCallerFileLine("txProc: %s", txString)
+		}
 	}
 
 	close(done)
