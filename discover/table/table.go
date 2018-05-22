@@ -558,8 +558,10 @@ func TabMgrFindNodeRsp(msg *sch.NblFindNodeRsp)TabMgrErrno {
 	inst.rsp = msg
 
 	//
-	// obtain result. notice: if the result responed is "duplicated", we just need
+	// Obtain result. notice: if the result responed is "duplicated", we just need
 	// to delete the duplicated active query instance and try to activate more.
+	// Notice that the result reported here is combined with two 16bits word, the
+	// lower one is the errno for the table module.
 	//
 
 	var result = msg.Result & 0xffff

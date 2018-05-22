@@ -161,7 +161,7 @@ func (pum *UdpMsg) SetRawMessage(pbuf *[]byte, bytes int, from *net.UDPAddr) Udp
 //
 func (pum *UdpMsg) Decode() UdpMsgErrno {
 
-	if err := (&pum.Msg).Unmarshal(*pum.Pbuf); err != nil {
+	if err := (&pum.Msg).Unmarshal((*pum.Pbuf)[0:pum.Len]); err != nil {
 
 		yclog.LogCallerFileLine("Decode: " +
 			"Unmarshal failed, err: %s",

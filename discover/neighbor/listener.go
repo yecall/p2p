@@ -410,6 +410,7 @@ func (mgr *listenerManager) procStop() sch.SchErrno {
 // Reader task on UDP connection
 //
 const udpReaderName = sch.NgbReaderName
+const udpMaxMsgSize = 1024 * 32
 
 var noDog = sch.SchWatchDog {
 	HaveDog:false,
@@ -468,7 +469,7 @@ func udpReaderLoop(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	var _ = msg
 
 	eno := sch.SchEnoNone
-	buf := make([]byte, 2048)
+	buf := make([]byte, udpMaxMsgSize)
 
 	//
 	// get related task node pointers
@@ -533,7 +534,7 @@ _loop:
 
 			yclog.LogCallerFileLine("udpReaderLoop: bytes received: %d", bys)
 
-			buf = buf[0:bys]
+			//buf = buf[0:bys]
 			udpReader.msgHandler(&buf, bys, peer)
 		}
 	}

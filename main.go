@@ -112,7 +112,7 @@ txLoop:
 			seq,
 			fmt.Sprintf("%x", id))
 
-		copy(pkg.Payload, txString)
+		pkg.Payload = []byte(txString)
 		pkg.PayloadLength = len(pkg.Payload)
 
 		if eno := shell.P2pInfSendPackage(&pkg); eno != shell.P2pInfEnoNone {
