@@ -113,7 +113,7 @@ txLoop:
 		txString := ""
 		for id, _ := range doneMap {
 			pkg.IdList = append(pkg.IdList, id)
-			txString = tsString + fmt.Sprintf("node: %x\n", id)
+			txString = txString + fmt.Sprintf("node: %x\n", id)
 		}
 
 		txString = fmt.Sprintf("txProc: send message to peers:\n<<<\n" +
