@@ -179,17 +179,21 @@ func (mgr *listenerManager)setupUdpConn() sch.SchErrno {
 //
 func (mgr *listenerManager) start() sch.SchErrno {
 
-	//
-	// just send ourself a "start" message
-	//
-
 	var eno sch.SchErrno
 	var msg sch.SchMessage
+
+	//
+	// check if we can start
+	//
 
 	if eno = mgr.canStart(); eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("start: could not start")
 		return eno
 	}
+
+	//
+	// send ourself a "start" message
+	//
 
 	eno = sch.SchinfMakeMessage(&msg, mgr.ptnMe, mgr.ptnMe, sch.EvNblStart, nil)
 	if eno != sch.SchEnoNone {
@@ -293,15 +297,6 @@ func (mgr *listenerManager) procPoweron() sch.SchErrno {
 	}
 
 	//
-	// setup connection
-	//
-
-	if eno = lsnMgr.setupUdpConn(); eno != sch.SchEnoNone {
-		yclog.LogCallerFileLine("procPoweron：setupUdpConn failed, eno: %d", eno)
-		return eno
-	}
-
-	//
 	// update state
 	//
 
@@ -325,10 +320,21 @@ func (mgr *listenerManager) procPoweron() sch.SchErrno {
 func (mgr *listenerManager) procPoweroff() sch.SchErrno {
 
 	//
-	// not implemented, just debug out a message
+	// Stop reader task
 	//
-	yclog.LogCallerFileLine("procPoweroff：not implemented")
-	return sch.SchEnoNotImpl
+
+	if eno := mgr.procStop(); eno != sch.SchEnoNone {
+
+		yclog.LogCallerFileLine("procPoweroff: " +
+			"procStop failed, eno: %d",
+			eno)
+	}
+
+	//
+	// Done ourselves
+	//
+
+	return sch.SchinfTaskDone(mgr.ptnMe, sch.SchEnoKilled)
 }
 
 //
@@ -343,6 +349,19 @@ func (mgr *listenerManager) procStart() sch.SchErrno {
 
 	var eno = sch.SchEnoUnknown
 	var ptnLoop interface{} = nil
+
+	//
+	// setup connection
+	//
+
+	if eno = lsnMgr.setupUdpConn(); eno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("procStart：setupUdpConn failed, eno: %d", eno)
+		return eno
+	}
+
+	//
+	// create the reader task
+	//
 
 	udpReader.conn = mgr.conn
 	eno, ptnLoop = sch.SchinfCreateTask(&udpReader.desc)
@@ -371,6 +390,7 @@ func (mgr *listenerManager) procStart() sch.SchErrno {
 	//
 
 	mgr.ptnReader = ptnLoop
+
 	return mgr.nextState(LmsStarted)
 }
 
@@ -381,28 +401,40 @@ func (mgr *listenerManager) procStop() sch.SchErrno {
 
 	var eno sch.SchErrno
 
+	//
 	// check if we can stop
+	//
+
 	if eno = mgr.canStop(); eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("procStop: we can't stop, eno: %d", eno)
 		return eno
 	}
 
+	//
 	// stop reader by its' pointer: the reader might be blocked currently
-	// in reading, we close the connection to get it out firstly.
+	// in reading, we close the connection to get it out firstly. also
+	// notice that we set connection pointer to be nil to tell reader that
+	// it's is closed by the manager.
+	//
 
-	mgr.conn.Close()
 	mgr.conn = nil
+	mgr.conn.Close()
 
-	// stop task after connection had been closed
+	//
+	// stop task after connection had been closed. notice that the reader
+	// is in another routine than the its' task since it's a longlong loop,
+	// see scheduler for details pls.
+	//
 
 	if eno = sch.SchinfStopTask(mgr.ptnReader); eno != sch.SchEnoNone {
 		yclog.LogCallerFileLine("procStop: SchinfStopTask failed, eno: %d", eno)
 		return eno
 	}
 
-	mgr.ptnReader = nil
-
+	//
 	// update manager state
+	//
+
 	return mgr.nextState(LmsStopped)
 }
 
@@ -504,10 +536,14 @@ _loop:
 	for {
 
 		//
-		// try reading
+		// try reading. only (NgbProtoReadTimeout > 0) not true, we work in
+		// blocked mode while reading.
 		//
 
-		udpReader.conn.SetReadDeadline(time.Now().Add(NgbProtoReadTimeout))
+		if NgbProtoReadTimeout > 0 {
+			udpReader.conn.SetReadDeadline(time.Now().Add(NgbProtoReadTimeout))
+		}
+
 		bys, peer, err := udpReader.conn.ReadFromUDP(buf)
 
 		//
@@ -534,30 +570,39 @@ _loop:
 
 			yclog.LogCallerFileLine("udpReaderLoop: bytes received: %d", bys)
 
-			//buf = buf[0:bys]
 			udpReader.msgHandler(&buf, bys, peer)
 		}
 	}
 
 	//
-	// we get out of the loop, check if killed by manager, if it's really the
-	// case, we need not to fire the DONE signal since the killer would fire
-	// it to kill this task.
+	// here we get out, but this might be caused by abnormal cases than we
+	// are closed by manager task, we check this: if it is the later, the
+	// connection pointer held by manager must be nil, see lsnMgr.procStop
+	// for details pls.
+	//
+	// if it's an abnormal case that the reader task still in running, we
+	// need to make it done.
 	//
 
-	if sch.SchinfTaskKilled(ptn) != true {
+	if lsnMgr.conn == nil {
 
-		//
-		// not killed, we done with error then
-		//
+		yclog.LogCallerFileLine("udpReaderLoop: seems we are closed by manager task")
 
-		eno = sch.SchinfTaskDone(ptn, sch.SchEnoOS)
+	} else {
 
-		if eno != sch.SchEnoNone {
+		yclog.LogCallerFileLine("udpReaderLoop: abnormal case, stop the task")
 
-			yclog.LogCallerFileLine("udpReaderLoop: DONE failed, eno: %d", eno)
-		}
+		(&lsnMgr).procStop()
 	}
+
+	//
+	// always set connection to be nil here and we need not to do anything,
+	// just exit.
+	//
+
+	yclog.LogCallerFileLine("udpReaderLoop: exit ...")
+
+	udpReader.conn = nil
 
 	return eno
 }

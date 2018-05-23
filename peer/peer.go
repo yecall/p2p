@@ -117,6 +117,7 @@ const PeerMgrName = sch.PeerMgrName
 
 type peerManager struct {
 	name			string							// name
+	inited			chan PeMgrErrno					// result of initialization
 	tep				sch.SchUserTaskEp				// entry
 	cfg				peMgrConfig						// configuration
 	tidFindNode		int								// find node timer identity
@@ -139,6 +140,7 @@ type peerManager struct {
 
 var peMgr = peerManager{
 	name:			PeerMgrName,
+	inited:			make(chan PeMgrErrno),
 	tep:			nil,
 	cfg:			peMgrConfig{},
 	tidFindNode:	sch.SchInvalidTid,
@@ -250,6 +252,7 @@ func peMgrPoweron(ptn interface{}) PeMgrErrno {
 			"SchinfGetTaskNodeByName failed, eno: %df, target: %s",
 			eno, sch.TabMgrName)
 
+		peMgr.inited<-PeMgrEnoScheduler
 		return PeMgrEnoScheduler
 	}
 
@@ -260,6 +263,7 @@ func peMgrPoweron(ptn interface{}) PeMgrErrno {
 			"SchinfGetTaskNodeByName failed, eno: %df, target: %s",
 			eno, PeerLsnMgrName)
 
+		peMgr.inited<-PeMgrEnoScheduler
 		return PeMgrEnoScheduler
 	}
 
@@ -270,6 +274,7 @@ func peMgrPoweron(ptn interface{}) PeMgrErrno {
 			"SchinfGetTaskNodeByName failed, eno: %d, target: %s",
 			eno, sch.DcvMgrName)
 
+		peMgr.inited<-PeMgrEnoScheduler
 		return PeMgrEnoScheduler
 	}
 
@@ -280,7 +285,10 @@ func peMgrPoweron(ptn interface{}) PeMgrErrno {
 	var cfg *ycfg.Cfg4PeerManager = nil
 
 	if cfg = ycfg.P2pConfig4PeerManager(); cfg == nil {
+
 		yclog.LogCallerFileLine("peMgrPoweron: P2pConfig4PeerManager failed")
+
+		peMgr.inited<-PeMgrEnoConfig
 		return PeMgrEnoConfig
 	}
 
@@ -309,6 +317,33 @@ func peMgrPoweron(ptn interface{}) PeMgrErrno {
 	}
 
 	//
+	// tell initialization result
+	//
+
+	peMgr.inited<-PeMgrEnoNone
+
+	yclog.LogCallerFileLine("peMgrPoweron: " +
+		"EvPeMgrStartReq send ok, target: %s",
+		sch.SchinfGetTaskName(peMgr.ptnMe))
+
+	return PeMgrEnoNone
+}
+
+//
+// Get initialization result of peer manager. This function is exported to
+// outside telling the initialization result of peer manager.
+//
+func PeMgrInited() PeMgrErrno {
+	return <-peMgr.inited
+}
+
+//
+// Startup the peer manager. This function is exported to outside modules to
+// choose a "good" chance to start the manager up.
+//
+func PeMgrStart() PeMgrErrno {
+
+	//
 	// Notice: in current implement, the peer module would start its inbound and outbound
 	// procedures only after event sch.EvPeMgrStartReq received, and the inbound and outbound
 	// are carried out at the same time(see is event handler), this might be an issue leads to
@@ -321,28 +356,29 @@ func peMgrPoweron(ptn interface{}) PeMgrErrno {
 	if eno := sch.SchinfMakeMessage(&msg, peMgr.ptnMe, peMgr.ptnMe, sch.EvPeMgrStartReq, nil);
 
 		eno != sch.SchEnoNone {
-			yclog.LogCallerFileLine("peMgrPoweron: " +
-				"SchinfMakeMessage failed, eno: %d, target: %s",
-				eno, sch.SchinfGetTaskName(peMgr.ptnMe))
+		yclog.LogCallerFileLine("PeMgrStart: " +
+			"SchinfMakeMessage failed, eno: %d, target: %s",
+			eno, sch.SchinfGetTaskName(peMgr.ptnMe))
 
 		return PeMgrEnoScheduler
 	}
 
 	if eno := sch.SchinfSendMessage(&msg); eno != sch.SchEnoNone {
 
-		yclog.LogCallerFileLine("peMgrPoweron: " +
+		yclog.LogCallerFileLine("PeMgrStart: " +
 			"SchinfSendMessage failed, eno: %d, target: %s",
 			eno, sch.SchinfGetTaskName(peMgr.ptnMe))
 
 		return PeMgrEnoScheduler
 	}
 
-	yclog.LogCallerFileLine("peMgrPoweron: " +
-		"EvPeMgrStartReq send ok, target: %s",
+	yclog.LogCallerFileLine("PeMgrStart: " +
+		"EvPeMgrStartReq sent ok, target: %s",
 		sch.SchinfGetTaskName(peMgr.ptnMe))
 
 	return PeMgrEnoNone
 }
+
 
 //
 // Poweroff event handler

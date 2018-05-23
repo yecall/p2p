@@ -123,9 +123,59 @@ func P2pInit() sch.SchErrno {
 // Start p2p
 //
 func P2pStart() (sch.SchErrno, *map[string]interface{}) {
+
+	//
+	// Start all static tasks
+	//
+
 	var eno sch.SchErrno
+
 	eno, taskName2TasNode = sch.SchinfSchedulerStart(TaskStaticTab, TaskStaticPoweronOrder)
-	return eno, taskName2TasNode
+
+	if eno != sch.SchEnoNone {
+
+		yclog.LogCallerFileLine("P2pStart: " +
+			"SchinfSchedulerStart failed, eno: %d",
+			eno	)
+
+		return eno, taskName2TasNode
+	}
+
+	//
+	// Check peer manager init result, would be blocked until its init
+	// procedure ended.
+	//
+
+	var pmEno peer.PeMgrErrno
+
+	pmEno = peer.PeMgrInited()
+
+	if pmEno != peer.PeMgrEnoNone {
+
+		yclog.LogCallerFileLine("P2pStart: " +
+			"peer manager init failed, eno: %d",
+			pmEno)
+
+		return sch.SchEnoUserTask, taskName2TasNode
+	}
+
+	//
+	// Startup peer manager
+	//
+
+
+	pmEno = peer.PeMgrStart()
+
+	if pmEno != peer.PeMgrEnoNone {
+
+		yclog.LogCallerFileLine("P2pStart: " +
+			"PeMgrStart failed, eno: %d",
+			pmEno)
+
+		return sch.SchEnoUserTask, taskName2TasNode
+	}
+
+	return sch.SchEnoNone, taskName2TasNode
 }
 
 //

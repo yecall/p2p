@@ -137,9 +137,13 @@ func lsnMgrPoweron(ptn interface{}) sch.SchErrno {
 		return sch.SchEnoConfig
 	}
 
-	//
-	// Setup net lsitener
-	//
+	return sch.SchEnoNone
+}
+
+//
+// Setup net lsitener
+//
+func lsnMgrSetupListener() sch.SchErrno {
 
 	var err error
 
@@ -147,7 +151,7 @@ func lsnMgrPoweron(ptn interface{}) sch.SchErrno {
 
 	if lsnMgr.listener, err = net.Listen("tcp", lsnAddr); err != nil {
 
-		yclog.LogCallerFileLine("lsnMgrPoweron: " +
+		yclog.LogCallerFileLine("lsnMgrSetupListener: "+
 			"listen failed, addr: %s, err: %s",
 			lsnAddr, err.Error())
 
@@ -156,7 +160,7 @@ func lsnMgrPoweron(ptn interface{}) sch.SchErrno {
 
 	lsnMgr.listenAddr = lsnMgr.listener.Addr().(*net.TCPAddr)
 
-	yclog.LogCallerFileLine("lsnMgrPoweron: " +
+	yclog.LogCallerFileLine("lsnMgrSetupListener: "+
 		"task inited ok, listening address: %s",
 		lsnMgr.listenAddr.String())
 
@@ -197,6 +201,15 @@ func lsnMgrStart() sch.SchErrno {
 
 	yclog.LogCallerFileLine("lsnMgrStart: try to create accept task ...")
 
+	if eno := lsnMgrSetupListener(); eno != sch.SchEnoNone {
+
+		yclog.LogCallerFileLine("lsnMgrStart: " +
+			"setup listener failed, eno: %d",
+			eno)
+
+		return eno
+	}
+
 	var tskDesc = sch.SchTaskDescription{
 		Name:		PeerAccepterName,
 		MbSize:		0,
@@ -221,6 +234,7 @@ func lsnMgrStart() sch.SchErrno {
 	}
 
 	yclog.LogCallerFileLine("lsnMgrStart: accept task created")
+
 	return sch.SchEnoNone
 }
 
@@ -240,6 +254,7 @@ func lsnMgrStop() sch.SchErrno {
 	//
 
 	acceptTCB.event = sch.SchEnoKilled
+	acceptTCB.listener = nil
 
 	if err := lsnMgr.listener.Close(); err != nil {
 
@@ -248,6 +263,7 @@ func lsnMgrStop() sch.SchErrno {
 	}
 
 	yclog.LogCallerFileLine("lsnMgrStop: listner closed ok")
+
 	lsnMgr.listener = nil
 
 	return sch.SchEnoNone
@@ -306,7 +322,7 @@ func PeerAcceptProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 
 	_, acceptTCB.ptnPeMgr = sch.SchinfGetTaskNodeByName(PeerMgrName)
 
-	if acceptTCB.ptnPeMgr == nil || acceptTCB.ptnLsnMgr == nil {
+	if acceptTCB.ptnPeMgr == nil {
 		yclog.LogCallerFileLine("PeerAcceptProc: invalid peer manager task pointer")
 		sch.SchinfTaskDone(ptn, sch.SchEnoInternal)
 		return sch.SchEnoInternal
@@ -330,29 +346,39 @@ acceptLoop:
 	for {
 
 		//
+		// lock: to know if we are allowed to accept
+		//
+
+		acceptTCB.lockAccept.Lock()
+
+		//
 		// Check if had been kill by manager
 		//
 
 		if acceptTCB.listener == nil {
+
 			yclog.LogCallerFileLine("PeerAcceptProc: broken for nil listener, we might have been killed")
+
 			break acceptLoop
 		}
 
 		//
 		// Get lock to accept: unlock it at once since we just want to know if we
-		// are allowed to accept.
+		// are allowed to accept, and we might be blocked in calling to Accept().
 		//
 
-		acceptTCB.lockAccept.Lock()
 		acceptTCB.lockAccept.Unlock()
 
 		//
-		// Try to accept: can we be blocked in Accpet()?
-		// provide it would, so the listen manager might have to close the
-		// listener to get this task out.
+		// Try to accept. Since we had never set deadline for the listener, we
+		// would work in a blocked mode.
 		//
 
+		yclog.LogCallerFileLine("PeerAcceptProc: try Accept()")
+
 		conn, err := acceptTCB.listener.Accept()
+
+		yclog.LogCallerFileLine("PeerAcceptProc: get out from Accept()")
 
 		//
 		// Lock the control block since following statements need to access it
@@ -370,8 +396,6 @@ acceptLoop:
 				"break loop for non-temporary error while accepting, err: %s", err.Error())
 
 			acceptTCB.curError = err
-			acceptTCB.lockTcb.Unlock()
-
 			break acceptLoop
 		}
 
@@ -385,7 +409,6 @@ acceptLoop:
 				"break loop for null connection accepted without errors")
 
 			acceptTCB.event = sch.EvSchException
-			acceptTCB.lockTcb.Unlock()
 
 			break acceptLoop
 		}
@@ -432,14 +455,13 @@ acceptLoop:
 		yclog.LogCallerFileLine("PeerAcceptProc: " +
 			"send EvPeLsnConnAcceptedInd ok, target: %s",
 			sch.SchinfGetTaskName(acceptTCB.ptnPeMgr))
+
+		acceptTCB.lockTcb.Unlock()
 	}
 
 	//
-	// Lock the control block since following statements need to access it
-	//
-
-	acceptTCB.lockTcb.Lock()
-
+	// Notice: when loop is broken to here, the Lock is still obtained by us,
+	// see above pls, do not lock again.
 	//
 	// Here we get out! We should check what had happened to break the loop
 	// for accepting aboved.
@@ -465,9 +487,12 @@ acceptLoop:
 	//
 
 	if acceptTCB.curError != nil {
+
 		yclog.LogCallerFileLine("PeerAcceptProc: abnormal exit, event: %d, err: %s",
 			acceptTCB.event, acceptTCB.curError.Error())
+
 	} else {
+
 		yclog.LogCallerFileLine("PeerAcceptProc: abnormal exit, event: %d, err: nil",
 			acceptTCB.event)
 	}

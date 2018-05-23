@@ -91,11 +91,11 @@ const (
 type NgbProtoErrno int
 
 //
-// Timeouts
+// Timeouts, zero value would be no timeout
 //
 const (
 	NgbProtoWriteTimeout			= 8 * time.Second
-	NgbProtoReadTimeout				= NgbProtoWriteTimeout
+	NgbProtoReadTimeout				= 0
 	NgbProtoPingResponseTimeout		= 20 * time.Second
 	NgbProtoFindNodeResponseTimeout = 20 * time.Second
 )
@@ -1299,6 +1299,8 @@ func (ngbMgr *neighborManager)FindNodeReq(findNode *um.FindNode) NgbMgrErrno {
 		name:		strPeerNodeId,
 		msgType:	um.UdpMsgTypeFindNode,
 		msgBody:	findNode,
+		tidFN:		sch.SchInvalidTid,
+		tidPP:		sch.SchInvalidTid,
 	}
 
 	var noDog = sch.SchWatchDog {
@@ -1454,6 +1456,8 @@ func (ngbMgr *neighborManager)PingpongReq(ping *um.Ping) NgbMgrErrno {
 		name:		strPeerNodeId,
 		msgType:	um.UdpMsgTypePing,
 		msgBody:	ping,
+		tidFN:		sch.SchInvalidTid,
+		tidPP:		sch.SchInvalidTid,
 	}
 
 	var noDog = sch.SchWatchDog {

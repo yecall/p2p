@@ -359,13 +359,6 @@ func SchinfTaskDone(ptn interface{}, eno SchErrno) SchErrno {
 }
 
 //
-// Check if KILLED signal fired for task
-//
-func SchinfTaskKilled(ptn interface{}) bool {
-	return schimplTaskKilled(ptn.(*schTaskNode))
-}
-
-//
 // Get message sender
 //
 func SchinfGetMessageSender(msg *SchMessage) string {

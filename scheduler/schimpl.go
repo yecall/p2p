@@ -242,6 +242,12 @@ func schimplTimerCommonTask(ptm *schTmcbNode) SchErrno {
 		tn.tmcb.extra		= nil
 	}
 
+	//
+	// cleaning job for cyclic timers are same as those absolute ones
+	//
+
+	var funcCycTimerClean = funcAbsTimerClean
+
 	var tm *time.Ticker
 
 	//
@@ -303,7 +309,7 @@ timerLoop:
 
 					tm.Stop()
 					killed = true
-					funcAbsTimerClean(ptm)
+					funcCycTimerClean(ptm)
 
 					break timerLoop
 				}
@@ -582,11 +588,29 @@ func schimplRetTimerNode(ptm *schTmcbNode) SchErrno {
 //
 func schimplGetTaskNode() (SchErrno, *schTaskNode) {
 
-	var tkn *schTaskNode = nil
+	//
+	// for debug only
+	//
+
+	debugGet := func(tag string) {
+		yclog.LogCallerFileLine("schimplGetTaskNode: " +
+			"tag: %s, " +
+			"tkFrr: %p, freeSize: %d, tkBusy: %p, busySize: %d",
+			tag,
+			p2pSDL.tkFree,
+			p2pSDL.freeSize,
+			p2pSDL.tkBusy,
+			p2pSDL.busySize)
+	}
+
+	debugGet("enter")
+	defer debugGet("exit")
 
 	//
 	// lock/unlock schduler control block
 	//
+
+	var tkn *schTaskNode = nil
 
 	p2pSDL.lock.Lock()
 	defer p2pSDL.lock.Unlock()
@@ -647,6 +671,24 @@ func schimplRetTaskNode(ptn *schTaskNode) SchErrno {
 		yclog.LogCallerFileLine("schimplRetTaskNode: invalid task node pointer")
 		return SchEnoParameter
 	}
+
+	//
+	// for debug only
+	//
+
+	debugRet := func(tag string) {
+		yclog.LogCallerFileLine("schimplRetTaskNode: " +
+			"tag: %s, " +
+			"tkFrr: %p, freeSize: %d, tkBusy: %p, busySize: %d",
+			tag,
+			p2pSDL.tkFree,
+			p2pSDL.freeSize,
+			p2pSDL.tkBusy,
+			p2pSDL.busySize)
+	}
+
+	debugRet("enter")
+	defer debugRet("exit")
 
 	//
 	// lock/unlock scheduler control block
@@ -909,8 +951,8 @@ func schimplCreateTask(taskDesc *schTaskDescription) (SchErrno, interface{}){
 	mq 						:= make(chan schMessage, taskDesc.MbSize)
 	ptn.task.mailbox.que	= &mq
 	ptn.task.mailbox.size	= taskDesc.MbSize
-	ptn.task.done			= make(chan SchErrno)
-	ptn.task.stopped		= make(chan bool)
+	ptn.task.done			= make(chan SchErrno, 1)
+	ptn.task.stopped		= make(chan bool, 1)
 	ptn.task.dog			= schWatchDog(*taskDesc.Wd)
 	ptn.task.dieCb			= taskDesc.DieCb
 	ptn.task.userData		= taskDesc.UserDa
@@ -942,6 +984,7 @@ func schimplCreateTask(taskDesc *schTaskDescription) (SchErrno, interface{}){
 	//
 
 	p2pSDL.lock.Lock()
+
 	if len(ptn.task.name) <= 0 {
 
 		yclog.LogCallerFileLine("schimplCreateTask: task with empty name")
@@ -959,6 +1002,7 @@ func schimplCreateTask(taskDesc *schTaskDescription) (SchErrno, interface{}){
 
 		p2pSDL.tkMap[schTaskName(ptn.task.name)] = ptn
 	}
+
 	p2pSDL.lock.Unlock()
 
 	//
@@ -1243,10 +1287,16 @@ func schimplStartTaskGroup(grp string) (SchErrno, int) {
 func schimplStopTask(name string) SchErrno {
 
 	//
+	// Attention: this function MUST only be called to kill a task than the
+	// caller itself, or will get a deadlock.
+	//
+
+	//
 	// get task node pointer by name
 	//
 
 	eno, ptn := schimplGetTaskNodeByName(name)
+
 	if eno != SchEnoNone || ptn == nil {
 
 		yclog.LogCallerFileLine("schimplStopTask: " +
@@ -1257,10 +1307,11 @@ func schimplStopTask(name string) SchErrno {
 	}
 
 	//
-	// done with "killed" signal
+	// done with "killed" signal and then wait "stopped"
 	//
 
 	ptn.task.done<-SchEnoKilled
+
 	<-ptn.task.stopped
 
 	return SchEnoNone
@@ -1337,8 +1388,6 @@ func schimplStopTaskEx(ptn *schTaskNode) SchErrno {
 	// called here had applied the lock if necessary when they called in.
 	//
 
-	var ptm *schTmcbNode
-	var tid int
 	var eno SchErrno
 
 	if ptn == nil {
@@ -1364,7 +1413,7 @@ func schimplStopTaskEx(ptn *schTaskNode) SchErrno {
 
 	if ptn.task.dieCb != nil {
 
-		if eno = ptn.task.dieCb(&ptn.task); eno != SchEnoNone {
+		if eno = ptn.task.dieCb(ptn); eno != SchEnoNone {
 
 			yclog.LogCallerFileLine("schimplStopTaskEx: "+
 				"dieCb failed, task: %s, eno: %d",
@@ -1378,24 +1427,13 @@ func schimplStopTaskEx(ptn *schTaskNode) SchErrno {
 	// stop user timers
 	//
 
-	for ptm, tid = range ptn.task.tmIdxTab {
+	if eno = schimplKillTaskTimers(&ptn.task); eno != SchEnoNone {
 
-		if ptm == nil {
+		yclog.LogCallerFileLine("schimplStopTaskEx: " +
+			"schimplTcbClean faild, eno: %d",
+			eno)
 
-			yclog.LogCallerFileLine("schimplStopTaskEx: " +
-				"failed, nil timer control block pointer")
-
-			return SchEnoInternal
-		}
-
-		if eno = schimplKillTimer(ptn, tid); eno != SchEnoNone {
-
-			yclog.LogCallerFileLine("schimplStopTaskEx: " +
-				"schimplKillTimer failed, task: %s, eno: %d",
-				ptn.task.name, eno)
-
-			return eno
-		}
+		return eno
 	}
 
 	//
@@ -1425,12 +1463,14 @@ func schimplStopTaskEx(ptn *schTaskNode) SchErrno {
 	}
 
 	//
-	// remove name to task node ponter map
+	// remove name to task node pointer map
 	//
 
 	if len(ptn.task.name) > 0 {
 
+		p2pSDL.lock.Lock()
 		delete(p2pSDL.tkMap, schTaskName(ptn.task.name))
+		p2pSDL.lock.Unlock()
 	}
 
 	return SchEnoNone
@@ -1756,6 +1796,52 @@ func schimplKillTimer(ptn *schTaskNode, tid int) SchErrno {
 }
 
 //
+// Kill all active timers owned by a task
+//
+func schimplKillTaskTimers(task *schTask) SchErrno {
+
+	if task == nil {
+		yclog.LogCallerFileLine("schimplKillTaskTimers: nil task pointer")
+		return SchEnoParameter
+	}
+
+	task.lock.Lock()
+	defer task.lock.Unlock()
+
+	for tm, idx := range task.tmIdxTab {
+
+		//
+		// check
+		//
+
+		if tm != task.tmTab[idx] {
+			yclog.LogCallerFileLine("schimplKillTaskTimers: " +
+				"timer node pointer mismatched, tm: %p, idx: %d, tmTab: %p",
+				tm, idx, task.tmTab[idx])
+			return SchEnoInternal
+		}
+
+		//
+		// done the timer task
+		//
+
+		tm.tmcb.stop<-true
+
+		//
+		// wait until done
+		//
+
+		stopped := <-tm.tmcb.stopped
+
+		yclog.LogCallerFileLine("schimplKillTaskTimers: " +
+			"timer stopped with: %t", stopped)
+	}
+
+	return SchEnoNone
+}
+
+
+//
 // Get task node pointer by task name
 //
 func schimplGetTaskNodeByName(name string) (SchErrno, *schTaskNode) {
@@ -1773,6 +1859,12 @@ func schimplGetTaskNodeByName(name string) (SchErrno, *schTaskNode) {
 // Done a task
 //
 func schimplTaskDone(ptn *schTaskNode, eno SchErrno) SchErrno {
+
+	//
+	// Notice: this function should be called inside a task to kill itself, so it
+	// could not to poll the "stopped" signal, for this signal is fired by itself,
+	// to do this will result in a deadlock.
+	//
 
 	if ptn == nil {
 		yclog.LogCallerFileLine("schimplTaskDone: invalid task node pointer")
@@ -1798,52 +1890,21 @@ func schimplTaskDone(ptn *schTaskNode, eno SchErrno) SchErrno {
 	// see function schimplCommonTask for more please
 	//
 
+	yclog.LogCallerFileLine("schimplTaskDone: try done, task name: %s", tskName)
+
 	ptn.task.done<-eno
 
-	if <-ptn.task.stopped != true {
+	//
+	// when coming here, it just the "done" fired, it's still not killed really,
+	// see function schimplCommonTask for more pls. we could not try to poll the
+	// "stopped" signal here, since we need our task to try the "done" we fired
+	// above, there the "stopped" would be fired, but no one would care it is the
+	// case.
+	//
 
-		yclog.LogCallerFileLine("schimplTaskDone: it's done, but seems some errors")
-
-		ptn.task.stopped<-true
-		return SchEnoInternal
-	}
-
-	yclog.LogCallerFileLine("schimplTaskDone: done! task: %s", tskName)
+	yclog.LogCallerFileLine("schimplTaskDone: done fired, task name: %s", tskName)
 
 	return SchEnoNone
-}
-
-//
-// Check if KILLED signal fired for task
-//
-func schimplTaskKilled(ptn *schTaskNode) bool {
-
-	//
-	// Notice: this function only be applied for special case when the user task is
-	// designed as a longlong dead loop. To kill such a user task, the loop must be
-	// broken, and "done" signal also injected, when the user task gets out from the
-	// loop, it then queries the scheduler with this function if it's killed really.
-	//
-
-	if ptn == nil {
-		yclog.LogCallerFileLine("schimplTaskKilled: invalid parameter(s)")
-		return false
-	}
-
-	var killed = false
-
-	select {
-	case eno:= <-ptn.task.done:
-		ptn.task.done<-eno
-		if eno == SchEnoKilled {
-			killed = true
-		}
-	default:
-	}
-
-	yclog.LogCallerFileLine("schimplTaskKilled: killed: %d", killed)
-
-	return killed
 }
 
 //
