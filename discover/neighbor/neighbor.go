@@ -1027,7 +1027,8 @@ func (ngbMgr *neighborManager)FindNodeHandler(findNode *um.FindNode) NgbMgrErrno
 
 	if findNode.To.NodeId != lsnMgr.cfg.ID {
 		yclog.LogCallerFileLine("FindNodeHandler: " +
-			"not the target: %s", ycfg.P2pNodeId2HexString(lsnMgr.cfg.ID))
+				"local is not the destination: %s",
+				fmt.Sprintf("%x", findNode.To.NodeId))
 		return NgbMgrEnoParameter
 	}
 

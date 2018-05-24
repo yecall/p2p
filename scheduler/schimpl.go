@@ -166,11 +166,23 @@ taskLoop:
 
 		case msg := <-*queMsg:
 
+			//
+			// dog wakes up
+			//
+
 			ptn.task.dog.lock.Lock()
 			ptn.task.dog.Inited = ptn.task.dog.HaveDog
 			ptn.task.dog.lock.Unlock()
 
+			//
+			// call handler
+			//
+
 			ptn.task.utep(ptn, (*SchMessage)(&msg))
+
+			//
+			// dog sleeps
+			//
 
 			ptn.task.dog.lock.Lock()
 			ptn.task.dog.Inited = false
@@ -214,8 +226,11 @@ func schimplTimerCommonTask(ptm *schTmcbNode) SchErrno {
 
 	var tskName = ptm.tmcb.taskNode.task.name
 	var utid = ptm.tmcb.utid
-	var tid = ptm.tmcb.taskNode.task.tmIdxTab[ptm]
 	var tmName = ptm.tmcb.name
+
+	ptm.tmcb.taskNode.task.lock.Lock()
+	var tid = ptm.tmcb.taskNode.task.tmIdxTab[ptm]
+	ptm.tmcb.taskNode.task.lock.Unlock()
 
 	var killed = false
 

@@ -266,10 +266,6 @@ func p2pPkgProc(pkg *peer.P2pPackage4Callback) interface{} {
 	//
 
 	yclog.LogCallerFileLine("p2pPkgProc: " +
-		"package received: %s",
-		fmt.Sprintf("%+v", *pkg))
-
-	yclog.LogCallerFileLine("p2pPkgProc: " +
 		"paylod of package: %s",
 		fmt.Sprintf("%s", pkg.Payload))
 

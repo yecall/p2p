@@ -44,6 +44,7 @@ const (
 	PeMgrEnoResource
 	PeMgrEnoOs
 	PeMgrEnoMessage
+	PeMgrEnoDuplicaated
 	PeMgrEnoUnsup
 	PeMgrEnoInternal
 	PeMgrEnoPingpongTh
@@ -505,6 +506,7 @@ func peMgrDcvFindNodeRsp(msg interface{}) PeMgrErrno {
 	//
 
 	var appended = 0
+	var dup bool
 
 	for _, n := range rsp.Nodes {
 
@@ -524,6 +526,8 @@ func peMgrDcvFindNodeRsp(msg interface{}) PeMgrErrno {
 		// Check if duplicated randoms
 		//
 
+		dup = false
+
 		for _, rn := range peMgr.randoms {
 
 			if rn.ID == n.ID {
@@ -531,13 +535,18 @@ func peMgrDcvFindNodeRsp(msg interface{}) PeMgrErrno {
 				yclog.LogCallerFileLine("peMgrDcvFindNodeRsp: " +
 					"duplicated(randoms): %s", fmt.Sprintf("%X", n.ID))
 
-				continue
+				dup = true
+				break
 			}
 		}
+
+		if dup { continue }
 
 		//
 		// Check if duplicated statics
 		//
+
+		dup = false
 
 		for _, s := range peMgr.cfg.statics {
 
@@ -546,9 +555,12 @@ func peMgrDcvFindNodeRsp(msg interface{}) PeMgrErrno {
 				yclog.LogCallerFileLine("peMgrDcvFindNodeRsp: " +
 					"duplicated(statics): %s", fmt.Sprintf("%X", n.ID))
 
-				continue
+				dup = true
+				break
 			}
 		}
+
+		if dup { continue }
 
 		//
 		// backup node, max to the number of most peers can be
@@ -830,7 +842,7 @@ func peMgrOutboundReq(msg interface{}) PeMgrErrno {
 	}
 
 	//
-	// Collect all possible candidates
+	// Collect all possible candidates, duplicated nodes should be filtered out
 	//
 
 	var candidates = make([]*ycfg.Node, 0)
@@ -854,19 +866,11 @@ func peMgrOutboundReq(msg interface{}) PeMgrErrno {
 	}
 
 	if rdCnt > 0 {
-		peMgr.randoms = peMgr.randoms[rdCnt:]
+		peMgr.randoms = append(peMgr.randoms[:0], peMgr.randoms[rdCnt:]...)
 	}
 
 	yclog.LogCallerFileLine("peMgrOutboundReq: " +
 		"total number of candidates: %d", len(candidates))
-
-	//
-	// It might be too much, truncate candidates if needed
-	//
-
-	if len(candidates) > peMgr.cfg.maxOutbounds - peMgr.obpNum {
-		candidates = candidates[:peMgr.cfg.maxOutbounds - peMgr.obpNum]
-	}
 
 	//
 	// Create outbound instances for candidates if any
@@ -874,8 +878,27 @@ func peMgrOutboundReq(msg interface{}) PeMgrErrno {
 
 	var failed = 0
 	var ok = 0
+	var duped = 0;
 
 	for _, n := range candidates {
+
+		//
+		// Check duplicated: it's needed here, since candidate nodes might be duplicated
+		//
+
+		if _, dup := peMgr.nodes[n.ID]; dup {
+
+			yclog.LogCallerFileLine("peMgrOutboundReq: " +
+				"duplicated node: %s",
+				fmt.Sprintf("%x", n.ID))
+
+			duped++
+			continue
+		}
+
+		//
+		// Create instance
+		//
 
 		if eno := peMgrCreateOutboundInst(n); eno != PeMgrEnoNone {
 
@@ -886,12 +909,27 @@ func peMgrOutboundReq(msg interface{}) PeMgrErrno {
 			continue
 		}
 
-		ok++
+		ok++;
+
+		//
+		// Break if full
+		//
+
+		if peMgr.obpNum >= peMgr.cfg.maxOutbounds {
+
+			yclog.LogCallerFileLine("peMgrOutboundReq: " +
+				"too much candidates, the remains are discarded")
+
+			break
+		}
 	}
 
 	yclog.LogCallerFileLine("peMgrOutboundReq: " +
-		"create outbound intances end, failed: %d, ok: %d",
-		failed, ok)
+		"create outbound intances end, duped: %d, failed: %d, ok: %d, discarded: %d",
+		duped,
+		failed,
+		ok,
+		len(candidates) - duped - failed - ok)
 
 	//
 	// If outbounds are not enougth, ask discover to find more
@@ -993,6 +1031,7 @@ func peMgrHandshakeRsp(msg interface{}) PeMgrErrno {
 	//
 
 	var rsp = msg.(*msgHandshakeRsp)
+	var inst = peMgr.peers[rsp.ptn]
 
 	yclog.LogCallerFileLine("peMgrHandshakeRsp:" +
 		"response for handshake received: %s",
@@ -1005,14 +1044,45 @@ func peMgrHandshakeRsp(msg interface{}) PeMgrErrno {
 	if rsp.result != PeMgrEnoNone {
 
 		yclog.LogCallerFileLine("peMgrHandshakeRsp: " +
-			"outbound failed, result: %d, node: %s",
-			rsp.result, ycfg.P2pNodeId2HexString(rsp.peNode.ID))
+			"handshake failed, result: %d, node: %s",
+			rsp.result,
+			fmt.Sprintf("%x", rsp.peNode.ID))
 
 		if eno := peMgrKillInst(rsp.ptn, rsp.peNode); eno != PeMgrEnoNone {
-			yclog.LogCallerFileLine("")
+
+			yclog.LogCallerFileLine("peMgrHandshakeRsp: " +
+				"peMgrKillInst failed, node: %s",
+				fmt.Sprintf("%x", rsp.peNode.ID))
+
+			return eno
 		}
 
 		return PeMgrEnoNone
+	}
+
+	//
+	// Check duplicated for inbound instance
+	//
+
+	if inst.dir == PeInstDirInbound {
+
+		if _, dup := peMgr.nodes[rsp.peNode.ID]; dup {
+
+			yclog.LogCallerFileLine("peMgrHandshakeRsp: "+
+				"duplicated, node: %s",
+				fmt.Sprintf("%x", rsp.peNode.ID))
+
+			if eno := peMgrKillInst(rsp.ptn, rsp.peNode); eno != PeMgrEnoNone {
+
+				yclog.LogCallerFileLine("peMgrHandshakeRsp: "+
+					"peMgrKillInst failed, node: %s",
+					fmt.Sprintf("%x", rsp.peNode.ID))
+
+				return eno
+			}
+
+			return PeMgrEnoDuplicaated
+		}
 	}
 
 	//
@@ -1050,8 +1120,6 @@ func peMgrHandshakeRsp(msg interface{}) PeMgrErrno {
 	// identity of a inbound peer.
 	//
 
-	var inst = peMgr.peers[rsp.ptn]
-
 	peMgr.workers[rsp.peNode.ID] = inst
 	peMgr.wrkNum++
 
@@ -1080,13 +1148,9 @@ func peMgrHandshakeRsp(msg interface{}) PeMgrErrno {
 	if tabEno != tab.TabMgrEnoNone {
 
 		yclog.LogCallerFileLine("peMgrHandshakeRsp: " +
-			"TabBucketAddNode failed, eno: %d",
-			eno)
+			"TabBucketAddNode failed, node: %s",
+			fmt.Sprintf("%+v", *rsp.peNode))
 	}
-
-	yclog.LogCallerFileLine("peMgrHandshakeRsp: " +
-		"TabBucketAddNode ok, node: %s",
-		fmt.Sprintf("%+v", *rsp.peNode))
 
 	//
 	// Backup peer node to node database. Notice that this operation
@@ -1098,13 +1162,9 @@ func peMgrHandshakeRsp(msg interface{}) PeMgrErrno {
 	if tabEno != tab.TabMgrEnoNone {
 
 		yclog.LogCallerFileLine("peMgrHandshakeRsp: " +
-			"TabUpdateNode failed, eno: %d",
-			tabEno)
+			"TabUpdateNode failed, node: %s",
+			fmt.Sprintf("%+v", *rsp.peNode))
 	}
-
-	yclog.LogCallerFileLine("peMgrHandshakeRsp: " +
-		"TabUpdateNode ok, node: %s",
-		fmt.Sprintf("%+v", *rsp.peNode))
 
 	return PeMgrEnoNone
 }
@@ -1184,6 +1244,10 @@ func peMgrCloseReq(msg interface{}) PeMgrErrno {
 
 		return PeMgrEnoScheduler
 	}
+
+	yclog.LogCallerFileLine("peMgrCloseReq: " +
+		"SchinfSendMessage EvPeCloseReq ok, target: %s",
+		sch.SchinfGetTaskName(req.Ptn))
 
 	return PeMgrEnoNone
 }
@@ -1484,6 +1548,12 @@ func peMgrCreateOutboundInst(node *ycfg.Node) PeMgrErrno {
 func peMgrKillInst(ptn interface{}, node *ycfg.Node) PeMgrErrno {
 
 	//
+	// Notice: to kill an instance of peer, we can send message EvPeCloseReq to instance task
+	// than killing it directly here, seems that's a more better method. Also notice that, the
+	// instance will send EvPeCloseCfm to peer manager later when it's closed.
+	//
+
+	//
 	// Get task node pointer
 	//
 
@@ -1505,16 +1575,21 @@ func peMgrKillInst(ptn interface{}, node *ycfg.Node) PeMgrErrno {
 	}
 
 	//
-	// Get instance data area pointer, and if the connection is not null
+	// Get instance data area pointer, and if the connection is not nil
 	// we close it so the instance would get out event it's blocked in
-	// action on its' connection.
+	// actions on its' connection.
 	//
 
 	var peInst = peMgr.peers[ptn]
 
 	if peInst.conn != nil {
+
 		peInst.conn.Close()
 		peInst.conn = nil
+
+		yclog.LogCallerFileLine("peMgrKillInst: " +
+			"instance connection is closed and set to nil, peer: %s",
+			fmt.Sprintf("%x", peInst.node.ID	))
 	}
 
 	//
@@ -1529,6 +1604,10 @@ func peMgrKillInst(ptn interface{}, node *ycfg.Node) PeMgrErrno {
 
 		return PeMgrEnoScheduler
 	}
+
+	yclog.LogCallerFileLine("peMgrKillInst: " +
+		"done fired, peer: %s",
+		fmt.Sprintf("%x", peInst.node.ID	))
 
 	//
 	// Remove maps for the node
@@ -1558,12 +1637,16 @@ func peMgrKillInst(ptn interface{}, node *ycfg.Node) PeMgrErrno {
 	delete(peMgr.nodes, peInst.node.ID)
 	delete(peMgr.peers, ptn)
 
+	yclog.LogCallerFileLine("peMgrKillInst: " +
+		"map deleted, peer: %s",
+		fmt.Sprintf("%x", peInst.node.ID	))
+
 	//
 	// Check if the accepter task paused, resume it if necessary
 	//
 
 	if peMgr.acceptPaused == true {
-		ResumeAccept()
+		peMgr.acceptPaused = !ResumeAccept()
 	}
 
 	return PeMgrEnoNone
@@ -2725,7 +2808,7 @@ func ClosePeer(id *PeerId) PeMgrErrno {
 	//
 
 	var req = sch.MsgPeCloseReq {
-		Ptn:	nil,
+		Ptn:	inst.ptnMe,
 		Node:	inst.node,
 	}
 
@@ -2807,8 +2890,8 @@ txBreak:
 			//
 
 			yclog.LogCallerFileLine("piTx: " +
-				"send package: %s",
-				fmt.Sprintf("%+v", *upkg))
+				"send package, Pid: %d, PayloadLength: %d",
+				upkg.Pid, upkg.PayloadLength)
 
 			if eno := upkg.SendPackage(inst); eno != PeMgrEnoNone {
 
@@ -2945,8 +3028,8 @@ rxBreak:
 		}
 
 		yclog.LogCallerFileLine("piRx: " +
-			"package got: %s",
-			fmt.Sprintf("%+v", upkg))
+			"package got, Pid: %d, PayloadLength: %d",
+			upkg.Pid, upkg.PayloadLength)
 
 		//
 		// check the package received to filter out those not for p2p internal only
@@ -3140,6 +3223,11 @@ func piP2pPongProc(inst *peerInstance, pong *Pingpong) PeMgrErrno {
 	// Currently, the heartbeat checking does not apply pong message from
 	// peer, instead, a counter for ping messages and a timer are invoked,
 	// see it please. We just simply debug out the pong message here.
+	//
+	// A more better method is to check the sequences of the pong message
+	// against those of ping messages had been set, and then send evnet
+	// EvPePingpongRsp to peer manager. The event EvPePingpongRsp is not
+	// applied currently. We leave this work later.
 	//
 
 	yclog.LogCallerFileLine("piP2pPongProc: " +

@@ -23,7 +23,6 @@ package peer
 import (
 	"io"
 	"time"
-	"fmt"
 	ggio "github.com/gogo/protobuf/io"
 	ycfg	"ycp2p/config"
 	pb		"ycp2p/peer/pb"
@@ -556,9 +555,8 @@ func (upkg *P2pPackage)RecvPackage(inst *peerInstance) PeMgrErrno {
 	upkg.Payload		= append(upkg.Payload, pkg.Payload ...)
 
 	yclog.LogCallerFileLine("RecvPackage: " +
-		"package got: %s, source package: %s",
-		fmt.Sprintf("%+v", *upkg),
-		fmt.Sprintf("%+v", *pkg))
+		"package got, Pid: %d, PayloadLength: %d",
+		upkg.Pid, upkg.PayloadLength)
 
 	return PeMgrEnoNone
 }
