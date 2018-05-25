@@ -1099,7 +1099,7 @@ func (ngbMgr *neighborManager)FindNodeHandler(findNode *um.FindNode) NgbMgrErrno
 
 	yclog.LogCallerFileLine("FindNodeHandler: " +
 		"neighbors message to be sent: %s",
-		neighbors)
+		fmt.Sprintf("%+v", neighbors))
 
 	toAddr := net.UDPAddr {
 		IP: 	findNode.From.IP,
@@ -1297,7 +1297,7 @@ func (ngbMgr *neighborManager)FindNodeReq(findNode *um.FindNode) NgbMgrErrno {
 
 	strPeerNodeId := ycfg.P2pNodeId2HexString(findNode.To.NodeId)
 
-	if ngbMgr.checkMap(strPeerNodeId) {
+	if ngbMgr.checkMap(strPeerNodeId, um.UdpMsgTypeFindNode) {
 
 		yclog.LogCallerFileLine("FindNodeReq: duplicated neighbor instance: %s", strPeerNodeId)
 
@@ -1454,7 +1454,7 @@ func (ngbMgr *neighborManager)PingpongReq(ping *um.Ping) NgbMgrErrno {
 
 	strPeerNodeId := ycfg.P2pNodeId2HexString(ping.To.NodeId)
 
-	if ngbMgr.checkMap(strPeerNodeId) {
+	if ngbMgr.checkMap(strPeerNodeId, um.UdpMsgTypePing) {
 
 		yclog.LogCallerFileLine("PingpongReq: duplicated neighbor instance: %s", strPeerNodeId)
 

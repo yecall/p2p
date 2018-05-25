@@ -1783,10 +1783,7 @@ func schimplKillTimer(ptn *schTaskNode, tid int) SchErrno {
 	}
 
 	//
-	// emit stop signal and wait stopped signal. notice: we have gain the task
-	// lock, so timer task might blocked currently, if tcp.stop is an unbuffered
-	// channel, we then trap into a deadlock, since we need timer task to fetch
-	// this stop signal but it's blocked currently, so "stop" must be bufferized.
+	// emit stop signal and wait stopped signal
 	//
 
 	var tcb = &ptn.task.tmTab[tid].tmcb

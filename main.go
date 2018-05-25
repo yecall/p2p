@@ -121,7 +121,7 @@ func txProc(id peer.PeerId) {
 		}
 	}
 
-	tm := time.NewTimer(time.Second * 1)
+	tm := time.NewTicker(time.Second * 1)
 	defer tm.Stop()
 
 txLoop:

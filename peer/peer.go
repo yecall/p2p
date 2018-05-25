@@ -26,11 +26,13 @@ import (
 	"time"
 	"fmt"
 	"sync"
+	ggio "github.com/gogo/protobuf/io"
 	ycfg	"ycp2p/config"
 	sch 	"ycp2p/scheduler"
 	tab		"ycp2p/discover/table"
 	um		"ycp2p/discover/udpmsg"
 	yclog	"ycp2p/logger"
+	"io"
 )
 
 //
@@ -1770,9 +1772,10 @@ const PeInstDirNull			= 0		// null, so connection should be nil
 const PeInstDirOutbound		= +1	// outbound connection
 const PeInstDirInbound		= -1	// inbound connection
 
-const PeInstMailboxSize 	= 32	// mailbox size
-const PeInstMaxP2packages	= 32	// max p2p packages pending to be sent
-const PeInstMaxPingpongCnt	= 4		// max pingpong counter value
+const PeInstMailboxSize 	= 32				// mailbox size
+const PeInstMaxP2packages	= 32				// max p2p packages pending to be sent
+const PeInstMaxPingpongCnt	= 4					// max pingpong counter value
+const PeInstPingpongCycle	= time.Second *2	// pingpong period
 
 type peerInstance struct {
 	name		string						// name
@@ -1785,6 +1788,8 @@ type peerInstance struct {
 	ato			time.Duration				// active peer connection read/write timeout value
 	dialer		*net.Dialer					// dialer to make outbound connection
 	conn		net.Conn					// connection
+	iow			ggio.WriteCloser			// IO writer
+	ior			ggio.ReadCloser				// IO reader
 	laddr		*net.TCPAddr				// local ip address
 	raddr		*net.TCPAddr				// remote ip address
 	dir			int							// direction: outbound(+1) or inbound(-1)
@@ -1804,6 +1809,9 @@ type peerInstance struct {
 	ppCnt		int							// pingpong counter
 }
 
+//
+// Clear seen with Explicit initialization
+//
 var peerInstDefault = peerInstance {
 	name:		peInstTaskName,
 	tep:		PeerInstProc,
@@ -1814,6 +1822,8 @@ var peerInstDefault = peerInstance {
 	hto:		0,
 	dialer:		nil,
 	conn:		nil,
+	iow:		nil,
+	ior:		nil,
 	laddr:		nil,
 	raddr:		nil,
 	dir:		PeInstDirNull,
@@ -2276,6 +2286,8 @@ func piCloseReq(inst *peerInstance, msg interface{}) PeMgrErrno {
 
 			return PeMgrEnoScheduler
 		}
+
+		inst.ppTid = sch.SchInvalidTid
 	}
 
 	//
@@ -2365,7 +2377,7 @@ func piEstablishedInd(inst *peerInstance, msg interface{}) PeMgrErrno {
 		Name:	PeerMgrName + "_PePingpong",
 		Utid:	sch.PePingpongTimerId,
 		Tmt:	sch.SchTmTypePeriod,
-		Dur:	time.Second * 2,
+		Dur:	PeInstPingpongCycle,
 		Extra:	nil,
 	}
 
@@ -2393,6 +2405,16 @@ func piEstablishedInd(inst *peerInstance, msg interface{}) PeMgrErrno {
 
 	inst.conn.SetDeadline(time.Time{})
 	inst.state = peInstStateActivated
+
+	//
+	// setup IO writer and reader
+	//
+
+	w := inst.conn.(io.Writer)
+	inst.iow = ggio.NewDelimitedWriter(w)
+
+	r := inst.conn.(io.Reader)
+	inst.ior = ggio.NewDelimitedReader(r, inst.maxPkgSize)
 
 	yclog.LogCallerFileLine("piEstablishedInd: " +
 		"instance is in service now, inst: %s",
@@ -2458,6 +2480,20 @@ func piPingpongTimerHandler(inst *peerInstance) PeMgrErrno {
 		"pingpong timer expired for inst: %s",
 		fmt.Sprintf("%+v", *inst))
 
+	//
+	// Check the pingpong timer: when this expired event comes, the timer
+	// might have been stop for instance currently in closing procedure.
+	// We discard this event in this case.
+	//
+
+	if inst.ppTid == sch.SchInvalidTid {
+		yclog.LogCallerFileLine("piPingpongTimerHandler: no timer, discarded")
+		return PeMgrEnoNone
+	}
+
+	//
+	// Check pingpong counter with the threshold
+	//
 
 	if inst.ppCnt++; inst.ppCnt > PeInstMaxPingpongCnt {
 
@@ -2520,6 +2556,10 @@ func piPingpongTimerHandler(inst *peerInstance) PeMgrErrno {
 
 		return PeMgrEnoNone
 	}
+
+	//
+	// Send pingpong request
+	//
 
 	if eno := sch.SchinfMakeMessage(&schMsg, inst.ptnMe, inst.ptnMe, sch.EvPePingpongReq, nil);
 	eno != sch.SchEnoNone {
@@ -2831,7 +2871,7 @@ func ClosePeer(id *PeerId) PeMgrErrno {
 	eno = sch.SchinfMakeMessage(&schMsg, peMgr.ptnMe, peMgr.ptnMe, sch.EvPeCloseReq, &req)
 	if eno != sch.SchEnoNone {
 
-		yclog.LogCallerFileLine("peMgrCloseReq: " +
+		yclog.LogCallerFileLine("ClosePeer: " +
 			"SchinfMakeMessage failed, eno: %d",
 			eno)
 
@@ -2840,14 +2880,14 @@ func ClosePeer(id *PeerId) PeMgrErrno {
 
 	if eno = sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
 
-		yclog.LogCallerFileLine("peMgrCloseReq: " +
+		yclog.LogCallerFileLine("ClosePeer: " +
 			"SchinfSendMessage EvPeCloseReq failed, eno: %d, target: %s",
 			eno, sch.SchinfGetTaskName(peMgr.ptnMe))
 
 		return PeMgrEnoScheduler
 	}
 
-	yclog.LogCallerFileLine("peMgrCloseReq: " +
+	yclog.LogCallerFileLine("ClosePeer: " +
 		"EvPeCloseReq sent ok, target: %s",
 		sch.SchinfGetTaskName(peMgr.ptnMe))
 

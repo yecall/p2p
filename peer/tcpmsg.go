@@ -366,20 +366,24 @@ func (upkg *P2pPackage)ping(inst *peerInstance, ping *Pingpong) PeMgrErrno {
 	}
 
 	//
-	// Create writer and then write package to peer
+	// write package to peer. in practice, we find that two routines can not
+	// share a conection to write without sync.
 	//
 
-	w := inst.conn.(io.Writer)
-	gw := ggio.NewDelimitedWriter(w)
+	inst.p2pkgLock.Lock()
 
-	if err := gw.WriteMsg(&pbPkg); err != nil {
+	if err := inst.iow.WriteMsg(&pbPkg); err != nil {
 
 		yclog.LogCallerFileLine("ping:" +
 			"Write failed, err: %s",
 			err.Error())
 
+		inst.p2pkgLock.Unlock()
+
 		return PeMgrEnoOs
 	}
+
+	inst.p2pkgLock.Unlock()
 
 	return PeMgrEnoNone
 }
@@ -438,20 +442,24 @@ func (upkg *P2pPackage)pong(inst *peerInstance, pong *Pingpong) PeMgrErrno {
 	}
 
 	//
-	// Create writer and then write package to peer
+	// write package to peer. in practice, we find that two routines can not
+	// share a conection to write without sync.
 	//
 
-	w := inst.conn.(io.Writer)
-	gw := ggio.NewDelimitedWriter(w)
+	inst.p2pkgLock.Lock()
 
-	if err := gw.WriteMsg(&pbPkg); err != nil {
+	if err := inst.iow.WriteMsg(&pbPkg); err != nil {
 
 		yclog.LogCallerFileLine("pong:" +
 			"Write failed, err: %s",
 			err.Error())
 
+		inst.p2pkgLock.Unlock()
+
 		return PeMgrEnoOs
 	}
+
+	inst.p2pkgLock.Unlock()
 
 	return PeMgrEnoNone
 }
@@ -489,13 +497,13 @@ func (upkg *P2pPackage)SendPackage(inst *peerInstance) PeMgrErrno {
 	}
 
 	//
-	// Create writer and then write package to peer
+	// Write package to peer. In practice, we find that two routines can not
+	// share a conection to write without sync. But sync is unnecessary here
+	// for this function here had enter the critical section, see how it is
+	// called pls.
 	//
 
-	w := inst.conn.(io.Writer)
-	gw := ggio.NewDelimitedWriter(w)
-
-	if err := gw.WriteMsg(pbPkg); err != nil {
+	if err := inst.iow.WriteMsg(pbPkg); err != nil {
 
 		yclog.LogCallerFileLine("SendPackage:" +
 			"Write failed, err: %s",
@@ -527,8 +535,9 @@ func (upkg *P2pPackage)RecvPackage(inst *peerInstance) PeMgrErrno {
 		inst.conn.SetReadDeadline(time.Time{})
 	}
 
-	r := inst.conn.(io.Reader)
-	gr := ggio.NewDelimitedReader(r, inst.maxPkgSize)
+	//r := inst.conn.(io.Reader)
+	//gr := ggio.NewDelimitedReader(r, inst.maxPkgSize)
+	gr := inst.ior
 
 	//
 	// New protobuf "package" and read peer into it
