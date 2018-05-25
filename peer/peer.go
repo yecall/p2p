@@ -1548,13 +1548,14 @@ func peMgrCreateOutboundInst(node *ycfg.Node) PeMgrErrno {
 func peMgrKillInst(ptn interface{}, node *ycfg.Node) PeMgrErrno {
 
 	//
-	// Notice: to kill an instance of peer, we can send message EvPeCloseReq to instance task
-	// than killing it directly here, seems that's a more better method. Also notice that, the
-	// instance will send EvPeCloseCfm to peer manager later when it's closed.
+	// Notice: when an instance is activated into state peInstStateActivated,
+	// it then must not be killed by calling this function directly, instead,
+	// peer.ClosePeer should be called, and this function would be invoked
+	// later when evnet EvPeCloseCfm received.
 	//
 
 	//
-	// Get task node pointer
+	// Get task node pointer, if "ptn" is nil, we try to get it by "node"
 	//
 
 	if ptn == nil && node == nil {
@@ -2238,11 +2239,14 @@ func piCloseReq(inst *peerInstance, msg interface{}) PeMgrErrno {
 	// stop tx/rx rontines
 	//
 
-	inst.rxDone<-PeMgrEnoNone
-	<-inst.rxExit
+	if inst.state == peInstStateActivated {
 
-	inst.txDone<-PeMgrEnoNone
-	<-inst.txExit
+		inst.rxDone <- PeMgrEnoNone
+		<-inst.rxExit
+
+		inst.txDone <- PeMgrEnoNone
+		<-inst.txExit
+	}
 
 	close(inst.rxDone)
 	inst.rxDone = nil
@@ -2288,6 +2292,8 @@ func piCloseReq(inst *peerInstance, msg interface{}) PeMgrErrno {
 
 			return PeMgrEnoOs
 		}
+
+		inst.conn = nil
 	}
 
 	//
@@ -2297,8 +2303,9 @@ func piCloseReq(inst *peerInstance, msg interface{}) PeMgrErrno {
 	var req = MsgCloseCfm {
 		result: PeMgrEnoNone,
 		peNode:	&node,
-		ptn:	nil,
+		ptn:	inst.ptnMe,
 	}
+
 	var schMsg = sch.SchMessage{}
 
 	eno = sch.SchinfMakeMessage(&schMsg, peMgr.ptnMe, peMgr.ptnMe, sch.EvPeCloseCfm, &req)
@@ -2787,6 +2794,12 @@ func SendPackage(pkg *P2pPackage2Peer) (PeMgrErrno, []*PeerId){
 // Close connection to a peer
 //
 func ClosePeer(id *PeerId) PeMgrErrno {
+
+	//
+	// Notice: this function should only be called to kill instance when it
+	// is in active state(peInstStateActivated), if it's not the case, one
+	// should call peMgrKillInst to do that, see it pls.
+	//
 
 	//
 	// get instance by its' identity passed in

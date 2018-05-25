@@ -1933,6 +1933,25 @@ func schimplGetUserDataArea(ptn *schTaskNode) interface{} {
 }
 
 //
+// Set user data area pointer
+//
+func schimplSetUserDataArea(ptn *schTaskNode, uda interface{}) SchErrno {
+	if ptn == nil {
+		yclog.LogCallerFileLine("schimplSetUserDataArea: invalid task node pointer")
+		return SchEnoParameter
+	}
+	ptn.task.userData = uda
+	return SchEnoNone
+}
+
+//
+// Remove user data area pointer
+//
+func schimplDelUserDataArea(ptn *schTaskNode) SchErrno {
+	return schimplSetUserDataArea(ptn, nil)
+}
+
+//
 // Get task name
 //
 func schimplGetTaskName(ptn *schTaskNode) string {

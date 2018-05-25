@@ -163,7 +163,7 @@ func P2pInfSendPackage(pkg *peer.P2pPackage2Peer) P2pInfErrno {
 // Disconnect peer
 //
 func P2pInfClosePeer(id *peer.PeerId) P2pInfErrno {
-	if eno := peer.ClosePeer((*peer.PeerId)(id)); eno != peer.PeMgrEnoNone {
+	if eno := peer.ClosePeer(id); eno != peer.PeMgrEnoNone {
 		yclog.LogCallerFileLine("P2pInfSendPackage: " +
 			"ClosePeer failed, eno: %d, peer: %s",
 			eno,

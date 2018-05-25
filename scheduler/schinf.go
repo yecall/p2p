@@ -386,6 +386,20 @@ func SchinfGetUserDataArea(ptn interface{}) interface{} {
 }
 
 //
+// Set user data area pointer
+//
+func SchinfSetUserDataArea(ptn interface{}, uda interface{}) SchErrno {
+	return schimplSetUserDataArea(ptn.(*schTaskNode), uda)
+}
+
+//
+// Remove user data area pointer
+//
+func SchinfDelUserDataArea(ptn interface{}) SchErrno {
+	return SchinfSetUserDataArea(ptn.(*schTaskNode), nil)
+}
+
+//
 // Get task name
 //
 func SchinfGetTaskName(ptn interface{}) string {

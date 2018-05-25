@@ -60,9 +60,9 @@ var doneMap = make(map[peer.PeerId] chan bool)
 func txProc(id peer.PeerId) {
 
 	//
-	// This demo simply sleeps one secode and then sends a string again and again;
-	// The "done" signal is also checked to determine if task is done;
-	// See bellow pls.
+	// This demo simply apply timer with 1s cycle and then sends a string
+	// again and again; The "done" signal is also checked to determine if
+	// task is done. See bellow pls.
 	//
 
 	if _, dup := doneMap[id]; dup == true {
@@ -76,9 +76,7 @@ func txProc(id peer.PeerId) {
 
 	done := make(chan bool, 1)
 	doneMap[id] = done
-
 	seq := 0
-
 	pkg := peer.P2pPackage2Peer {
 		IdList: 		make([]peer.PeerId, 0),
 		ProtoId:		int(peer.PID_EXT),
@@ -91,31 +89,18 @@ func txProc(id peer.PeerId) {
 		"entered, id: %s",
 		fmt.Sprintf("%x", id))
 
-txLoop:
 
-	for {
+	var tmHandler = func() {
 
-		select {
-		case isDone := <-done:
-			if isDone {
-				yclog.LogCallerFileLine("txProc: " +
-					"it's done, isDone: %s",
-					fmt.Sprintf("%t", isDone))
-				break txLoop
-			}
-		default:
-		}
-
-		time.Sleep(time.Second)
 		seq++
 
 		pkg.IdList = make([]peer.PeerId, 1)
 
 		for id, _ := range doneMap {
 
-			txString := fmt.Sprintf("<<<<<<\nseq:%d\n" +
-				"from: %s\n" +
-				"to: %s\n" +
+			txString := fmt.Sprintf("<<<<<<\nseq:%d\n"+
+				"from: %s\n"+
+				"to: %s\n"+
 				">>>>>>",
 				seq,
 				fmt.Sprintf("%x", p2pCfg.Local.ID),
@@ -126,13 +111,39 @@ txLoop:
 			pkg.PayloadLength = len(pkg.Payload)
 
 			if eno := shell.P2pInfSendPackage(&pkg); eno != shell.P2pInfEnoNone {
-				yclog.LogCallerFileLine("txProc: " +
+				yclog.LogCallerFileLine("txProc: "+
 					"send package failed, eno: %d, id: %s",
 					eno,
 					fmt.Sprintf("%x", p2pCfg.Local.ID))
 			}
 
 			yclog.LogCallerFileLine("txProc: %s", txString)
+		}
+	}
+
+	tm := time.NewTimer(time.Second * 1)
+	defer tm.Stop()
+
+txLoop:
+
+	for {
+
+		select {
+
+		case isDone := <-done:
+
+			if isDone {
+				yclog.LogCallerFileLine("txProc: "+
+					"it's done, isDone: %s",
+					fmt.Sprintf("%t", isDone))
+				break txLoop
+			}
+
+		case <-tm.C:
+
+			tmHandler()
+
+		default:
 		}
 	}
 

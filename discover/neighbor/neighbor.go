@@ -893,7 +893,7 @@ func (ngbMgr *neighborManager)PingHandler(ping *um.Ping) NgbMgrErrno {
 	//
 
 	strPeerNodeId := ycfg.P2pNodeId2HexString(ping.From.NodeId)
-	if ngbMgr.checkMap(strPeerNodeId) == true {
+	if ngbMgr.checkMap(strPeerNodeId, um.UdpMsgTypePing) == true {
 		yclog.LogCallerFileLine("PingHandler: neighbor instance exist: %s", strPeerNodeId)
 		return NgbMgrEnoNone
 	}
@@ -952,7 +952,7 @@ func (ngbMgr *neighborManager)PongHandler(pong *um.Pong) NgbMgrErrno {
 
 	strPeerNodeId := ycfg.P2pNodeId2HexString(pong.From.NodeId)
 
-	if ngbMgr.checkMap(strPeerNodeId) == false {
+	if ngbMgr.checkMap(strPeerNodeId, um.UdpMsgTypePing) == false {
 
 		yclog.LogCallerFileLine("PongHandler: " +
 			"neighbor instance not exist, start bounding precedure for it: %s",
@@ -1023,7 +1023,9 @@ func (ngbMgr *neighborManager)FindNodeHandler(findNode *um.FindNode) NgbMgrErrno
 	// to add the sender node to bucket and node database.
 	//
 
-	yclog.LogCallerFileLine("FindNodeHandler: handle FindNode message from peer")
+	yclog.LogCallerFileLine("FindNodeHandler: " +
+		"handle FindNode message from peer: %s",
+		fmt.Sprintf("%+v", *findNode))
 
 	if findNode.To.NodeId != lsnMgr.cfg.ID {
 		yclog.LogCallerFileLine("FindNodeHandler: " +
@@ -1060,6 +1062,10 @@ func (ngbMgr *neighborManager)FindNodeHandler(findNode *um.FindNode) NgbMgrErrno
 
 	} else if findNode.From.NodeId == findNode.Target {
 
+		yclog.LogCallerFileLine("FindNodeHandler: " +
+			"the sender is the target: %s",
+			fmt.Sprintf("%x", findNode.Target	))
+
 		num := len(nodes)
 		if num < tab.TabInstQPendingMax {
 
@@ -1090,6 +1096,10 @@ func (ngbMgr *neighborManager)FindNodeHandler(findNode *um.FindNode) NgbMgrErrno
 		Extra:		nil,
 
 	}
+
+	yclog.LogCallerFileLine("FindNodeHandler: " +
+		"neighbors message to be sent: %s",
+		neighbors)
 
 	toAddr := net.UDPAddr {
 		IP: 	findNode.From.IP,
@@ -1130,7 +1140,11 @@ func (ngbMgr *neighborManager)FindNodeHandler(findNode *um.FindNode) NgbMgrErrno
 	}
 
 	//
-	// Add sender node to bucket
+	// Add sender node to bucket: notice this action might cause security issues,
+	// for someone can send huge number of FindNode messages to us so to full fill
+	// our buckets with his nodes. We can add some filters (for example to limit
+	// the nodes with same IP address, or something else), or remove the following
+	// statements which updates bucket and database.
 	//
 
 	lastPing := time.Now()
@@ -1187,7 +1201,9 @@ func (ngbMgr *neighborManager)NeighborsHandler(nbs *um.Neighbors) NgbMgrErrno {
 	// instead, we discard this "Neighbors" message then return at once.
 	//
 
-	yclog.LogCallerFileLine("NeighborsHandler: handle Neighbors message from peer")
+	yclog.LogCallerFileLine("NeighborsHandler: " +
+		"handle Neighbors message from peer: %s",
+		fmt.Sprintf("%+v", *nbs))
 
 	if nbs.To.NodeId != lsnMgr.cfg.ID {
 
@@ -1204,10 +1220,10 @@ func (ngbMgr *neighborManager)NeighborsHandler(nbs *um.Neighbors) NgbMgrErrno {
 	}
 
 	strPeerNodeId := ycfg.P2pNodeId2HexString(nbs.From.NodeId)
-	if ngbMgr.checkMap(strPeerNodeId) == false {
+	if ngbMgr.checkMap(strPeerNodeId, um.UdpMsgTypeFindNode) == false {
 
 		yclog.LogCallerFileLine("NeighborsHandler: " +
-			"neighbor isntance not exist: %s",
+			"discarded for neighbor instance not exist: %s",
 			strPeerNodeId)
 
 		return NgbMgrEnoMismatched
@@ -1535,11 +1551,17 @@ func (ngbMgr *neighborManager) cleanMap(name string) {
 //
 // Check map for neighbor instance
 //
-func (ngbMgr *neighborManager) checkMap(name string) bool {
+func (ngbMgr *neighborManager) checkMap(name string, umt um.UdpMsgType) bool {
+
 	ngbMgr.lock.Lock()
 	defer ngbMgr.lock.Unlock()
-	 _, ok := ngbMgr.ngbMap[name]
-	 return ok
+
+	 ngb, ok := ngbMgr.ngbMap[name]
+	 if ok {
+	 	return ngb.msgType == umt
+	 }
+
+	 return false
 }
 
 //
