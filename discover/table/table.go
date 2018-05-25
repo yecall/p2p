@@ -1150,12 +1150,46 @@ func tabRefresh(tid *NodeID) TabMgrErrno {
 		target = NodeID(tabMgr.cfg.local.ID)
 
 		seeds := tabSeedsFromDb(TabInstQPendingMax, seedMaxAge)
+		var seedsBackup = make([]*Node, 0)
+
 		if len(seeds) == 0 {
+
 			yclog.LogCallerFileLine("tabRefresh: empty seeds set from nodes database")
+
+		} else {
+
+			//
+			// Check if seeds from database need to be bound, if false, means
+			// that those seeds can be connected to without bounding procedure,
+			// we report them to discover task to speed up our p2p network.
+			//
+
+			for _, dbn := range seeds {
+
+				if tabShouldBoundDbNode(NodeID(dbn.ID)) == false {
+
+					var umNode = um.Node {
+						IP:		dbn.IP,
+						UDP:	dbn.UDP,
+						TCP:	dbn.TCP,
+						NodeId:	dbn.ID,
+					}
+
+					if eno := tabDiscoverResp(&umNode); eno != TabMgrEnoNone {
+						yclog.LogCallerFileLine("tabRefresh: " +
+							"tabDiscoverResp failed, eno: %d",
+							eno)
+					}
+
+					continue
+				}
+
+				seedsBackup = append(seedsBackup, dbn)
+			}
 		}
 
 		nodes = append(nodes, tabMgr.cfg.bootstrapNodes...)
-		nodes = append(nodes, seeds...)
+		nodes = append(nodes, seedsBackup...)
 
 		if len(nodes) == 0 {
 			yclog.LogCallerFileLine("tabRefresh: we can't do refreshing without any seeds")
@@ -1163,9 +1197,11 @@ func tabRefresh(tid *NodeID) TabMgrErrno {
 		}
 
 		if len(nodes) > TabInstQPendingMax {
+
 			yclog.LogCallerFileLine("tabRefresh: " +
 				"too much seeds, truncated: %d",
 				len(nodes) - TabInstQPendingMax)
+
 			nodes = nodes[:TabInstQPendingMax]
 		}
 	}
@@ -2466,6 +2502,8 @@ func tabActiveBoundInst() TabMgrErrno {
 	// Try to activate as most as possible
 	//
 
+	var dup bool
+
 	for ; len(tabMgr.boundPending) > 0 && len(tabMgr.boundIcb) < TabInstBondingMax; {
 
 		var pn = tabMgr.boundPending[0]
@@ -2492,6 +2530,8 @@ func tabActiveBoundInst() TabMgrErrno {
 		// check duplicated
 		//
 
+		dup = false
+
 		for _, bi := range tabMgr.boundIcb {
 
 			if bi.req.(*um.Ping).To.NodeId == pn.ID {
@@ -2501,9 +2541,12 @@ func tabActiveBoundInst() TabMgrErrno {
 					fmt.Sprintf("%x", pn.ID))
 
 				tabMgr.boundPending = append(tabMgr.boundPending[:0], tabMgr.boundPending[1:]...)
-				continue
+				dup = true
+				break
 			}
 		}
+
+		if dup { continue }
 
 		//
 		// Check if bounding needed
@@ -2516,6 +2559,26 @@ func tabActiveBoundInst() TabMgrErrno {
 				fmt.Sprintf("%x", pn.ID))
 
 			tabMgr.boundPending = append(tabMgr.boundPending[:0], tabMgr.boundPending[1:]...)
+
+			//
+			// This neighbor is likely to be successfully connected to, see function
+			// tabShouldBound for more about this pls. We report this to the discover
+			// directly here and then continue.
+			//
+
+			var umNode = um.Node {
+				IP:		pn.IP,
+				UDP:	pn.UDP,
+				TCP:	pn.TCP,
+				NodeId:	pn.ID,
+			}
+
+			if eno := tabDiscoverResp(&umNode); eno != TabMgrEnoNone {
+				yclog.LogCallerFileLine("tabActiveBoundInst: " +
+					"tabDiscoverResp failed, eno: %d",
+					eno)
+			}
+
 			continue
 		}
 
@@ -2564,8 +2627,6 @@ func tabActiveBoundInst() TabMgrErrno {
 		// tabBucketUpdateBoundTime can get errno "not found", we check if it is
 		// the case to ignore it.
 		//
-
-		time.Now().UnixNano()
 
 		pot	:= time.Time{}
 		pit := time.Now()
@@ -2693,6 +2754,27 @@ func tabShouldBound(id NodeID) bool {
 	needed := failCnt > 0 || age > nodeReboundDuration
 
 	yclog.LogCallerFileLine("tabShouldBound: " +
+		"needed: %t, failCnt: %d, age: %d",
+		needed, failCnt, age)
+
+	return needed
+}
+
+//
+// Check if node from database needs to be bound
+//
+func tabShouldBoundDbNode(id NodeID) bool {
+
+	//
+	// If find node fail counter not be zero, bounding needed
+	//
+
+	failCnt := tabMgr.nodeDb.findFails(id)
+	age := time.Since(tabMgr.nodeDb.lastPong(id))
+
+	needed := failCnt > 0 || age > nodeReboundDuration
+
+	yclog.LogCallerFileLine("tabShouldBoundDbNode: " +
 		"needed: %t, failCnt: %d, age: %d",
 		needed, failCnt, age)
 

@@ -30,7 +30,7 @@ var dhtpMgr = dhtProviderManager{
 //
 // Table manager entry
 //
-func DhtpMgrProc(ptn interface{}, msg sch.SchMessage) sch.SchErrno {
+func DhtpMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	yclog.LogCallerFileLine("DhtpMgrProc: scheduled, msg: %d", msg.Id)
 	return sch.SchEnoNone
 }
