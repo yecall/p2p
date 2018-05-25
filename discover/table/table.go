@@ -1226,9 +1226,9 @@ func tabRefresh(tid *NodeID) TabMgrErrno {
 func tabLog2Dist(h1 Hash, h2 Hash) int {
 	var d = 0
 	for i, b := range h2 {
-		x := h1[i] ^ b
-		d += tabMgr.dlkTab[x]
-		if x != 8 {
+		delta := tabMgr.dlkTab[h1[i] ^ b]
+		d += delta
+		if delta != 8 {
 			break
 		}
 	}
@@ -1274,8 +1274,8 @@ func tabClosest(target NodeID, size int) []*Node {
 				})
 
 				yclog.LogCallerFileLine("tabClosest: " +
-					"node appended: %s",
-					fmt.Sprintf("%x", ne.ID))
+					"node appended, dt: %d, node: %s",
+					dt, fmt.Sprintf("%x", ne.ID))
 
 				if count++; count >= size {
 					break
@@ -1315,8 +1315,8 @@ func tabClosest(target NodeID, size int) []*Node {
 	// the last bank
 	//
 
-	for loop := dt - 1; loop >= 0; loop-- {
-		if bk := tabMgr.buckets[loop]; bk != nil {
+	for dt--; dt >= 0; dt-- {
+		if bk := tabMgr.buckets[dt]; bk != nil {
 			if addClosest(bk) >= size {
 				return closest
 			}
@@ -1930,16 +1930,12 @@ func tabStartTimer(inst *instCtrlBlock, tmt int, dur time.Duration) TabMgrErrno 
 //
 func tabBucketFindNode(id NodeID) (int, int, TabMgrErrno) {
 
-	for bidx, b := range tabMgr.buckets {
+	h := tabNodeId2Hash(id)
+	d := tabLog2Dist(tabMgr.shaLocal, *h)
+	b := tabMgr.buckets[d]
 
-		if b == nil { continue }
-
-		for nidx, n := range b.nodes {
-
-			if NodeID(n.ID) == id {
-				return bidx, nidx, TabMgrEnoNone
-			}
-		}
+	if nidx, eno := b.findNode(id); eno == TabMgrEnoNone {
+		return d, nidx, TabMgrEnoNone
 	}
 
 	return -1, -1, TabMgrEnoNotFound
@@ -1961,8 +1957,13 @@ func tabBucketRemoveNode(id NodeID) TabMgrErrno {
 		return eno
 	}
 
+	yclog.LogCallerFileLine("tabBucketRemoveNode: " +
+		"bidx: %d, nidx: %d, id: %s",
+		bidx, nidx, fmt.Sprintf("%x", id)	)
+
 	nodes := tabMgr.buckets[bidx].nodes
 	nodes = append(nodes[0:nidx], nodes[nidx+1:] ...)
+	tabMgr.buckets[bidx].nodes = nodes
 
 	return TabMgrEnoNone
 }
@@ -2214,6 +2215,10 @@ func tabBucketAddNode(n *um.Node, lastPing *time.Time, lastPong *time.Time) TabM
 		be.failCount = 0
 
 		b.nodes = append(b.nodes, be)
+
+		yclog.LogCallerFileLine("tabBucketAddNode: " +
+			"appended, d: %d, node: %s",
+			d, fmt.Sprintf("%x", n.NodeId))
 
 		return TabMgrEnoNone
 	}
