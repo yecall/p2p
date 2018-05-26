@@ -223,7 +223,7 @@ func lsnMgrStart() sch.SchErrno {
 	if eno, ptn := sch.SchinfCreateTask(&tskDesc); eno != sch.SchEnoNone || ptn == nil {
 
 		yclog.LogCallerFileLine("lsnMgrStart: " +
-			"SchinfCreateTask failed, eno: %d, ptn: %x",
+			"SchinfCreateTask failed, eno: %d, ptn: %X",
 			eno, ptn.(*interface{}))
 
 		if ptn == nil {

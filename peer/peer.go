@@ -880,7 +880,7 @@ func peMgrOutboundReq(msg interface{}) PeMgrErrno {
 
 	var failed = 0
 	var ok = 0
-	var duped = 0;
+	var duped = 0
 
 	for _, n := range candidates {
 
@@ -892,7 +892,7 @@ func peMgrOutboundReq(msg interface{}) PeMgrErrno {
 
 			yclog.LogCallerFileLine("peMgrOutboundReq: " +
 				"duplicated node: %s",
-				fmt.Sprintf("%x", n.ID))
+				fmt.Sprintf("%X", n.ID))
 
 			duped++
 			continue
@@ -911,7 +911,7 @@ func peMgrOutboundReq(msg interface{}) PeMgrErrno {
 			continue
 		}
 
-		ok++;
+		ok++
 
 		//
 		// Break if full
@@ -1048,13 +1048,13 @@ func peMgrHandshakeRsp(msg interface{}) PeMgrErrno {
 		yclog.LogCallerFileLine("peMgrHandshakeRsp: " +
 			"handshake failed, result: %d, node: %s",
 			rsp.result,
-			fmt.Sprintf("%x", rsp.peNode.ID))
+			fmt.Sprintf("%X", rsp.peNode.ID))
 
 		if eno := peMgrKillInst(rsp.ptn, rsp.peNode); eno != PeMgrEnoNone {
 
 			yclog.LogCallerFileLine("peMgrHandshakeRsp: " +
 				"peMgrKillInst failed, node: %s",
-				fmt.Sprintf("%x", rsp.peNode.ID))
+				fmt.Sprintf("%X", rsp.peNode.ID))
 
 			return eno
 		}
@@ -1072,13 +1072,13 @@ func peMgrHandshakeRsp(msg interface{}) PeMgrErrno {
 
 			yclog.LogCallerFileLine("peMgrHandshakeRsp: "+
 				"duplicated, node: %s",
-				fmt.Sprintf("%x", rsp.peNode.ID))
+				fmt.Sprintf("%X", rsp.peNode.ID))
 
 			if eno := peMgrKillInst(rsp.ptn, rsp.peNode); eno != PeMgrEnoNone {
 
 				yclog.LogCallerFileLine("peMgrHandshakeRsp: "+
 					"peMgrKillInst failed, node: %s",
-					fmt.Sprintf("%x", rsp.peNode.ID))
+					fmt.Sprintf("%X", rsp.peNode.ID))
 
 				return eno
 			}
@@ -1136,36 +1136,39 @@ func peMgrHandshakeRsp(msg interface{}) PeMgrErrno {
 	// should not care the result returned from interface of table module.
 	//
 
-	lastPing := time.Now()
-	lastPong := time.Now()
+	if inst.dir == PeInstDirInbound {
 
-	n := um.Node{
-		IP:		rsp.peNode.IP,
-		UDP:	rsp.peNode.UDP,
-		TCP:	rsp.peNode.TCP,
-		NodeId:	rsp.peNode.ID,
-	}
+		lastPing := time.Now()
+		lastPong := time.Now()
 
-	tabEno := tab.TabBucketAddNode(&n, &lastPing, &lastPong)
-	if tabEno != tab.TabMgrEnoNone {
+		n := um.Node{
+			IP:     rsp.peNode.IP,
+			UDP:    rsp.peNode.UDP,
+			TCP:    rsp.peNode.TCP,
+			NodeId: rsp.peNode.ID,
+		}
 
-		yclog.LogCallerFileLine("peMgrHandshakeRsp: " +
-			"TabBucketAddNode failed, node: %s",
-			fmt.Sprintf("%+v", *rsp.peNode))
-	}
+		tabEno := tab.TabBucketAddNode(&n, &lastPing, &lastPong)
+		if tabEno != tab.TabMgrEnoNone {
 
-	//
-	// Backup peer node to node database. Notice that this operation
-	// possible fail for some reasons such as it's a duplicated one. We
-	// should not care the result returned from interface of table module.
-	//
+			yclog.LogCallerFileLine("peMgrHandshakeRsp: "+
+				"TabBucketAddNode failed, node: %s",
+				fmt.Sprintf("%+v", *rsp.peNode))
+		}
 
-	tabEno = tab.TabUpdateNode(&n)
-	if tabEno != tab.TabMgrEnoNone {
+		//
+		// Backup peer node to node database. Notice that this operation
+		// possible fail for some reasons such as it's a duplicated one. We
+		// should not care the result returned from interface of table module.
+		//
 
-		yclog.LogCallerFileLine("peMgrHandshakeRsp: " +
-			"TabUpdateNode failed, node: %s",
-			fmt.Sprintf("%+v", *rsp.peNode))
+		tabEno = tab.TabUpdateNode(&n)
+		if tabEno != tab.TabMgrEnoNone {
+
+			yclog.LogCallerFileLine("peMgrHandshakeRsp: "+
+				"TabUpdateNode failed, node: %s",
+				fmt.Sprintf("%+v", *rsp.peNode))
+		}
 	}
 
 	return PeMgrEnoNone
@@ -1531,7 +1534,7 @@ func peMgrCreateOutboundInst(node *ycfg.Node) PeMgrErrno {
 
 	yclog.LogCallerFileLine("peMgrCreateOutboundInst: " +
 		"send EvPeConnOutReq ok, node: %s",
-		fmt.Sprintf("%x", peInst.node	))
+		fmt.Sprintf("%X", peInst.node	))
 
 	//
 	// Map the instance
@@ -1592,7 +1595,7 @@ func peMgrKillInst(ptn interface{}, node *ycfg.Node) PeMgrErrno {
 
 		yclog.LogCallerFileLine("peMgrKillInst: " +
 			"instance connection is closed and set to nil, peer: %s",
-			fmt.Sprintf("%x", peInst.node.ID	))
+			fmt.Sprintf("%X", peInst.node.ID	))
 	}
 
 	//
@@ -1610,7 +1613,7 @@ func peMgrKillInst(ptn interface{}, node *ycfg.Node) PeMgrErrno {
 
 	yclog.LogCallerFileLine("peMgrKillInst: " +
 		"done fired, peer: %s",
-		fmt.Sprintf("%x", peInst.node.ID	))
+		fmt.Sprintf("%X", peInst.node.ID	))
 
 	//
 	// Remove maps for the node
@@ -1642,7 +1645,7 @@ func peMgrKillInst(ptn interface{}, node *ycfg.Node) PeMgrErrno {
 
 	yclog.LogCallerFileLine("peMgrKillInst: " +
 		"map deleted, peer: %s",
-		fmt.Sprintf("%x", peInst.node.ID	))
+		fmt.Sprintf("%X", peInst.node.ID	))
 
 	//
 	// Check if the accepter task paused, resume it if necessary
@@ -2186,7 +2189,7 @@ func piPingpongReq(inst *peerInstance, msg interface{}) PeMgrErrno {
 		yclog.LogCallerFileLine("piPingpongReq: " +
 			"upkg.ping failed, eno: %d, peer: %s",
 			eno,
-			fmt.Sprintf("%x", inst.node.ID))
+			fmt.Sprintf("%X", inst.node.ID))
 
 		Lock4Cb.Lock()
 
@@ -2218,7 +2221,7 @@ func piPingpongReq(inst *peerInstance, msg interface{}) PeMgrErrno {
 	yclog.LogCallerFileLine("piPingpongReq: " +
 		"ping sent ok: %s, peer: %s",
 		fmt.Sprintf("%+v", ping),
-		fmt.Sprintf("%x", inst.node.ID))
+		fmt.Sprintf("%X", inst.node.ID))
 
 	return PeMgrEnoNone
 }
@@ -2626,6 +2629,9 @@ func piHandshakeInbound(inst *peerInstance) PeMgrErrno {
 	inst.protoNum = hs.ProtoNum
 	inst.protocols = hs.Protocols
 	inst.node.ID = hs.NodeId
+	inst.node.IP = append(inst.node.IP, inst.raddr.IP...)
+	inst.node.TCP = uint16(inst.raddr.Port)
+	inst.node.UDP = uint16(inst.raddr.Port)
 
 	//
 	// write outbound handshake to remote peer
@@ -2797,7 +2803,7 @@ func SendPackage(pkg *P2pPackage2Peer) (PeMgrErrno, []*PeerId){
 
 			yclog.LogCallerFileLine("SendPackage: " +
 				"instance not exist, id: %s",
-				fmt.Sprintf("%x", pid))
+				fmt.Sprintf("%X", pid))
 
 			failed = append(failed, &pid)
 			continue
@@ -2851,7 +2857,7 @@ func ClosePeer(id *PeerId) PeMgrErrno {
 
 		yclog.LogCallerFileLine("ClosePeer: " +
 			"instance not exist, id: %s",
-			fmt.Sprintf("%x", *id))
+			fmt.Sprintf("%X", *id))
 
 		return PeMgrEnoUnknown
 	}

@@ -36,6 +36,7 @@ const (
 	UdpMsgTypeFindNode
 	UdpMsgTypeNeighbors
 	UdpMsgTypeUnknown
+	UdpMsgTypeAny
 )
 
 type UdpMsgType int

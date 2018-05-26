@@ -142,6 +142,9 @@ const (
 	EvNblFindNodeRsp		= EvNblUdpBase	+ 2
 	EvNblPingpongReq		= EvNblUdpBase	+ 3
 	EvNblPingpongRsp		= EvNblUdpBase	+ 4
+	EvNblPingedInd			= EvNblUdpBase + 5
+	EvNblPongedInd			= EvNblUdpBase + 6
+	EvNblQueriedInd		= EvNblUdpBase + 7
 )
 
 //
@@ -160,6 +163,27 @@ type NblPingRsp struct {
 	Result		int			// result, 0: ok, others: errno
 	Ping		*um.Ping	// Ping message from table task
 	Pong		*um.Pong	// Pong message from peer
+}
+
+//
+// EvNblPingedInd
+//
+type NblPingedInd struct {
+	Ping		*um.Ping		// ping from remote node
+}
+
+//
+// EvNblPongedInd
+//
+type NblPongedInd struct {
+	Pong		*um.Pong		// pong from remote node
+}
+
+//
+// EvNblQueriedInd
+//
+type NblQueriedInd struct {
+	FindNode	*um.FindNode	// findnode from remote node
 }
 
 //

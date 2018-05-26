@@ -146,7 +146,7 @@ func P2pInfSendPackage(pkg *peer.P2pPackage2Peer) P2pInfErrno {
 		var str = ""
 
 		for _, f := range failed {
-			str = str + fmt.Sprintf("%x", *f)
+			str = str + fmt.Sprintf("%X", *f)
 		}
 
 		yclog.LogCallerFileLine("P2pInfSendPackage: " +

@@ -163,7 +163,6 @@ func P2pStart() (sch.SchErrno, *map[string]interface{}) {
 	// Startup peer manager
 	//
 
-
 	pmEno = peer.PeMgrStart()
 
 	if pmEno != peer.PeMgrEnoNone {

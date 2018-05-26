@@ -1157,7 +1157,7 @@ func schimplStartTask(name string) SchErrno {
 	if eno != SchEnoNone || ptn == nil {
 
 		yclog.LogCallerFileLine("schimplStartTask: " +
-			"schimplGetTaskNodeByName failed, name: %s, eno: %d, ptn: %x",
+			"schimplGetTaskNodeByName failed, name: %s, eno: %d, ptn: %X",
 			name, eno, ptn)
 
 		return eno
@@ -1315,7 +1315,7 @@ func schimplStopTask(name string) SchErrno {
 	if eno != SchEnoNone || ptn == nil {
 
 		yclog.LogCallerFileLine("schimplStopTask: " +
-			"schimplGetTaskNodeByName failed, name: %s, eno: %d, ptn: %x",
+			"schimplGetTaskNodeByName failed, name: %s, eno: %d, ptn: %X",
 			name, eno, ptn)
 
 		return eno
@@ -1487,6 +1487,8 @@ func schimplStopTaskEx(ptn *schTaskNode) SchErrno {
 		delete(p2pSDL.tkMap, schTaskName(ptn.task.name))
 		p2pSDL.lock.Unlock()
 	}
+
+	yclog.LogCallerFileLine("schimplStopTaskEx: task stopped, it's cleaned ok")
 
 	return SchEnoNone
 }

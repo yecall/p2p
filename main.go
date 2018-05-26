@@ -69,7 +69,7 @@ func txProc(id peer.PeerId) {
 
 		yclog.LogCallerFileLine("txProc: " +
 			"duplicated, id: %s",
-			fmt.Sprintf("%x", id))
+			fmt.Sprintf("%X", id))
 
 		return
 	}
@@ -87,7 +87,7 @@ func txProc(id peer.PeerId) {
 
 	yclog.LogCallerFileLine("txProc: " +
 		"entered, id: %s",
-		fmt.Sprintf("%x", id))
+		fmt.Sprintf("%X", id))
 
 
 	var tmHandler = func() {
@@ -103,8 +103,8 @@ func txProc(id peer.PeerId) {
 				"to: %s\n"+
 				">>>>>>",
 				seq,
-				fmt.Sprintf("%x", p2pCfg.Local.ID),
-				fmt.Sprintf("%x", id))
+				fmt.Sprintf("%X", p2pCfg.Local.ID),
+				fmt.Sprintf("%X", id))
 
 			pkg.IdList[0] = id
 			pkg.Payload = []byte(txString)
@@ -114,7 +114,7 @@ func txProc(id peer.PeerId) {
 				yclog.LogCallerFileLine("txProc: "+
 					"send package failed, eno: %d, id: %s",
 					eno,
-					fmt.Sprintf("%x", p2pCfg.Local.ID))
+					fmt.Sprintf("%X", p2pCfg.Local.ID))
 			}
 
 			yclog.LogCallerFileLine("txProc: %s", txString)
@@ -152,7 +152,7 @@ txLoop:
 
 	yclog.LogCallerFileLine("txProc: " +
 		"exit, id: %s",
-		fmt.Sprintf("%x", id))
+		fmt.Sprintf("%X", id))
 }
 
 
@@ -214,20 +214,20 @@ func p2pIndProc(what int, para interface{}) interface{} {
 			yclog.LogCallerFileLine("p2pIndProc: " +
 				"status: %d, close peer: %s",
 				psp.Status,
-				fmt.Sprintf("%x", psp.PeerInfo.NodeId	))
+				fmt.Sprintf("%X", psp.PeerInfo.NodeId	))
 
 			if psp.Flag == false {
 
 				yclog.LogCallerFileLine("p2pIndProc: " +
 					"try to close the instance, peer: %s",
-					fmt.Sprintf("%x", (*peer.PeerId)(&psp.PeerInfo.NodeId)))
+					fmt.Sprintf("%X", (*peer.PeerId)(&psp.PeerInfo.NodeId)))
 
 				if eno := shell.P2pInfClosePeer((*peer.PeerId)(&psp.PeerInfo.NodeId));
 					eno != shell.P2pInfEnoNone {
 					yclog.LogCallerFileLine("p2pIndProc: "+
 						"P2pInfClosePeer failed, eno: %d, peer: %s",
 						eno,
-						fmt.Sprintf("%x", psp.PeerInfo.NodeId))
+						fmt.Sprintf("%X", psp.PeerInfo.NodeId))
 				}
 			}
 		}
@@ -253,7 +253,7 @@ func p2pIndProc(what int, para interface{}) interface{} {
 
 		yclog.LogCallerFileLine("p2pIndProc: " +
 			"done failed, id: %s",
-			fmt.Sprintf("%x", pcp.PeerId))
+			fmt.Sprintf("%X", pcp.PeerId))
 
 
 	default:

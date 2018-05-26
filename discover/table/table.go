@@ -51,6 +51,7 @@ const (
 	TabMgrEnoPingpongFailed
 	TabMgrEnoTimeout
 	TabMgrEnoResource
+	TabMgrEnoRemove
 )
 
 type TabMgrErrno int
@@ -254,45 +255,42 @@ func TabMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 		return TabMgrEnoParameter
 	}
 
-	//
-	// Notice: this table module had exported some functions to access the bucket
-	// and the node database, such as function TabBucketAddNode, and so on. The
-	// other tasks, for example, the neighbor manager "NgbMgr"(sch.NgbMgrName),
-	// would call those shared functions. To sync the accessing, here we apply a
-	// simple(but not a good) method: obtain the lock at the task entry and free
-	// it until leaving.
-	//
-
-	tabMgr.lock.Lock()
-	defer tabMgr.lock.Unlock()
-
 	var eno TabMgrErrno = TabMgrEnoNone
 
 	switch msg.Id {
 
 	case sch.EvSchPoweron:
-		eno = TabMgrPoweron(ptn)
+		eno = tabMgrPoweron(ptn)
 
 	case sch.EvSchPoweroff:
-		eno = TabMgrPoweroff(ptn)
+		eno = tabMgrPoweroff(ptn)
 
 	case sch.EvTabRefreshTimer:
-		eno = TabMgrRefreshTimerHandler()
+		eno = tabMgrRefreshTimerHandler()
 
 	case sch.EvTabPingpongTimer:
-		eno = TabMgrPingpongTimerHandler(msg.Body.(*instCtrlBlock))
+		eno = tabMgrPingpongTimerHandler(msg.Body.(*instCtrlBlock))
 
 	case sch.EvTabFindNodeTimer:
-		eno = TabMgrFindNodeTimerHandler(msg.Body.(*instCtrlBlock))
+		eno = tabMgrFindNodeTimerHandler(msg.Body.(*instCtrlBlock))
 
 	case sch.EvTabRefreshReq:
-		eno = TabMgrRefreshReq(msg.Body.(*sch.MsgTabRefreshReq))
+		eno = tabMgrRefreshReq(msg.Body.(*sch.MsgTabRefreshReq))
 
 	case sch.EvNblFindNodeRsp:
-		eno = TabMgrFindNodeRsp(msg.Body.(*sch.NblFindNodeRsp))
+		eno = tabMgrFindNodeRsp(msg.Body.(*sch.NblFindNodeRsp))
 
 	case sch.EvNblPingpongRsp:
-		eno = TabMgrPingpongRsp(msg.Body.(*sch.NblPingRsp))
+		eno = tabMgrPingpongRsp(msg.Body.(*sch.NblPingRsp))
+
+	case sch.EvNblPingedInd:
+		eno = tabMgrPingedInd(msg.Body.(*um.Ping))
+
+	case sch.EvNblPongedInd:
+		eno = tabMgrPongedInd(msg.Body.(*um.Pong))
+
+	case sch.EvNblQueriedInd:
+		eno = tabMgrQueriedInd(msg.Body.(*um.FindNode))
 
 	default:
 		yclog.LogCallerFileLine("TabMgrProc: invalid message: %d", msg.Id)
@@ -310,10 +308,10 @@ func TabMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 //
 // Poweron handler
 //
-func TabMgrPoweron(ptn interface{}) TabMgrErrno {
+func tabMgrPoweron(ptn interface{}) TabMgrErrno {
 
 	if ptn == nil {
-		yclog.LogCallerFileLine("TabMgrPoweron: invalid parameters")
+		yclog.LogCallerFileLine("tabMgrPoweron: invalid parameters")
 		return TabMgrEnoParameter
 	}
 
@@ -324,7 +322,7 @@ func TabMgrPoweron(ptn interface{}) TabMgrErrno {
 	//
 
 	if eno = tabGetConfig(&tabMgr.cfg); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("TabMgrPoweron: tabGetConfig failed, eno: %d", eno)
+		yclog.LogCallerFileLine("tabMgrPoweron: tabGetConfig failed, eno: %d", eno)
 		return eno
 	}
 
@@ -333,7 +331,7 @@ func TabMgrPoweron(ptn interface{}) TabMgrErrno {
 	//
 
 	if eno = tabNodeDbPrepare(); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("TabMgrPoweron: tabNodeDbPrepare failed, eno: %d", eno)
+		yclog.LogCallerFileLine("tabMgrPoweron: tabNodeDbPrepare failed, eno: %d", eno)
 		return eno
 	}
 
@@ -342,7 +340,7 @@ func TabMgrPoweron(ptn interface{}) TabMgrErrno {
 	//
 
 	if eno = tabSetupLocalHashId(); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("TabMgrPoweron: tabSetupLocalHash failed, eno: %d", eno)
+		yclog.LogCallerFileLine("tabMgrPoweron: tabSetupLocalHash failed, eno: %d", eno)
 		return eno
 	}
 
@@ -351,7 +349,7 @@ func TabMgrPoweron(ptn interface{}) TabMgrErrno {
 	//
 
 	if eno = tabRelatedTaskPrepare(ptn); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("TabMgrPoweron: tabRelatedTaskPrepare failed, eno: %d", eno)
+		yclog.LogCallerFileLine("tabMgrPoweron: tabRelatedTaskPrepare failed, eno: %d", eno)
 		return eno
 	}
 
@@ -360,7 +358,7 @@ func TabMgrPoweron(ptn interface{}) TabMgrErrno {
 	//
 
 	if eno = tabSetupLog2DistanceLookupTable(tabMgr.dlkTab); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("TabMgrPoweron: tabSetupLog2DistanceLookupTable failed, eno: %d", eno)
+		yclog.LogCallerFileLine("tabMgrPoweron: tabSetupLog2DistanceLookupTable failed, eno: %d", eno)
 		return eno
 	}
 
@@ -374,7 +372,7 @@ func TabMgrPoweron(ptn interface{}) TabMgrErrno {
 	}
 
 	if eno = tabStartTimer(nil, sch.TabRefreshTimerId, cycle); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("TabMgrPoweron: tabStartTimer failed, eno: %d", eno)
+		yclog.LogCallerFileLine("tabMgrPoweron: tabStartTimer failed, eno: %d", eno)
 		return eno
 	}
 
@@ -388,7 +386,7 @@ func TabMgrPoweron(ptn interface{}) TabMgrErrno {
 	tabMgr.refreshing = false
 
 	if eno = tabRefresh(nil); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("TabMgrPoweron: tabRefresh failed, eno: %d", eno)
+		yclog.LogCallerFileLine("tabMgrPoweron: tabRefresh failed, eno: %d", eno)
 		return eno
 	}
 
@@ -398,10 +396,10 @@ func TabMgrPoweron(ptn interface{}) TabMgrErrno {
 //
 // Poweroff handler
 //
-func TabMgrPoweroff(ptn interface{}) TabMgrErrno {
+func tabMgrPoweroff(ptn interface{}) TabMgrErrno {
 
 	if ptn == nil {
-		yclog.LogCallerFileLine("TabMgrPoweroff: invalid parameters")
+		yclog.LogCallerFileLine("tabMgrPoweroff: invalid parameters")
 		return TabMgrEnoParameter
 	}
 
@@ -411,31 +409,31 @@ func TabMgrPoweroff(ptn interface{}) TabMgrErrno {
 	}
 
 	if sch.SchinfTaskDone(ptn, sch.SchEnoKilled) == sch.SchEnoNone {
-		yclog.LogCallerFileLine("TabMgrPoweroff: done task failed")
+		yclog.LogCallerFileLine("tabMgrPoweroff: done task failed")
 		return TabMgrEnoNone
 	}
 
-	yclog.LogCallerFileLine("TabMgrPoweroff: task done")
+	yclog.LogCallerFileLine("tabMgrPoweroff: task done")
 	return TabMgrEnoScheduler
 }
 
 //
 // Auto-Refresh timer handler
 //
-func TabMgrRefreshTimerHandler()TabMgrErrno {
-	yclog.LogCallerFileLine("TabMgrRefreshTimerHandler: atuo refresh timer expired, refresh table ...")
+func tabMgrRefreshTimerHandler()TabMgrErrno {
+	yclog.LogCallerFileLine("tabMgrRefreshTimerHandler: atuo refresh timer expired, refresh table ...")
 	return tabRefresh(nil)
 }
 
 //
 // Pingpong timer expired event handler
 //
-func TabMgrPingpongTimerHandler(inst *instCtrlBlock) TabMgrErrno {
+func tabMgrPingpongTimerHandler(inst *instCtrlBlock) TabMgrErrno {
 
-	yclog.LogCallerFileLine("TabMgrPingpongTimerHandler: timer expired")
+	yclog.LogCallerFileLine("tabMgrPingpongTimerHandler: timer expired")
 
 	if inst == nil {
-		yclog.LogCallerFileLine("TabMgrPingpongTimerHandler: invalid parameters")
+		yclog.LogCallerFileLine("tabMgrPingpongTimerHandler: invalid parameters")
 		return TabMgrEnoParameter
 	}
 
@@ -444,7 +442,7 @@ func TabMgrPingpongTimerHandler(inst *instCtrlBlock) TabMgrErrno {
 	//
 
 	if eno := tabUpdateBucket(inst, TabMgrEnoTimeout); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("TabMgrPingpongTimerHandler: tabUpdateBucket failed, eno: %d", eno)
+		yclog.LogCallerFileLine("tabMgrPingpongTimerHandler: tabUpdateBucket failed, eno: %d", eno)
 		return eno
 	}
 
@@ -453,7 +451,7 @@ func TabMgrPingpongTimerHandler(inst *instCtrlBlock) TabMgrErrno {
 	//
 
 	if eno := tabDeleteActiveBoundInst(inst); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("TabMgrPingpongTimerHandler: tabDeleteActiveQueryInst failed, eno: %d", eno)
+		yclog.LogCallerFileLine("tabMgrPingpongTimerHandler: tabDeleteActiveQueryInst failed, eno: %d", eno)
 		return eno
 	}
 
@@ -462,7 +460,7 @@ func TabMgrPingpongTimerHandler(inst *instCtrlBlock) TabMgrErrno {
 	//
 
 	if eno := tabActiveBoundInst(); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("TabMgrPingpongTimerHandler: tabActiveQueryInst failed, eno: %d", eno)
+		yclog.LogCallerFileLine("tabMgrPingpongTimerHandler: tabActiveQueryInst failed, eno: %d", eno)
 		return eno
 	}
 
@@ -472,12 +470,12 @@ func TabMgrPingpongTimerHandler(inst *instCtrlBlock) TabMgrErrno {
 //
 // FindNode timer expired event handler
 //
-func TabMgrFindNodeTimerHandler(inst *instCtrlBlock) TabMgrErrno {
+func tabMgrFindNodeTimerHandler(inst *instCtrlBlock) TabMgrErrno {
 
-	yclog.LogCallerFileLine("TabMgrFindNodeTimerHandler: timer expired")
+	yclog.LogCallerFileLine("tabMgrFindNodeTimerHandler: timer expired")
 
 	if inst == nil {
-		yclog.LogCallerFileLine("TabMgrFindNodeTimerHandler: invalid parameters")
+		yclog.LogCallerFileLine("tabMgrFindNodeTimerHandler: invalid parameters")
 		return TabMgrEnoParameter
 	}
 
@@ -488,7 +486,7 @@ func TabMgrFindNodeTimerHandler(inst *instCtrlBlock) TabMgrErrno {
 	inst.state = TabInstStateQTimeout
 	inst.rsp = nil
 	if eno := tabUpdateNodeDb4Query(inst, TabMgrEnoTimeout); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("TabMgrFindNodeTimerHandler: tabUpdateNodeDb4Query failed, eno: %d", eno)
+		yclog.LogCallerFileLine("tabMgrFindNodeTimerHandler: tabUpdateNodeDb4Query failed, eno: %d", eno)
 		return eno
 	}
 
@@ -497,7 +495,7 @@ func TabMgrFindNodeTimerHandler(inst *instCtrlBlock) TabMgrErrno {
 	//
 
 	if eno := tabUpdateBucket(inst, TabMgrEnoTimeout); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("TabMgrFindNodeTimerHandler: tabUpdateBucket failed, eno: %d", eno)
+		yclog.LogCallerFileLine("tabMgrFindNodeTimerHandler: tabUpdateBucket failed, eno: %d", eno)
 		return eno
 	}
 
@@ -506,7 +504,7 @@ func TabMgrFindNodeTimerHandler(inst *instCtrlBlock) TabMgrErrno {
 	//
 
 	if eno := tabDeleteActiveQueryInst(inst); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("TabMgrFindNodeTimerHandler: tabDeleteActiveQueryInst failed, eno: %d", eno)
+		yclog.LogCallerFileLine("tabMgrFindNodeTimerHandler: tabDeleteActiveQueryInst failed, eno: %d", eno)
 		return eno
 	}
 
@@ -515,7 +513,7 @@ func TabMgrFindNodeTimerHandler(inst *instCtrlBlock) TabMgrErrno {
 	//
 
 	if eno := tabActiveQueryInst(); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("TabMgrFindNodeTimerHandler: tabActiveQueryInst failed, eno: %d", eno)
+		yclog.LogCallerFileLine("tabMgrFindNodeTimerHandler: tabActiveQueryInst failed, eno: %d", eno)
 		return eno
 	}
 
@@ -525,8 +523,8 @@ func TabMgrFindNodeTimerHandler(inst *instCtrlBlock) TabMgrErrno {
 //
 // Refresh request handler
 //
-func TabMgrRefreshReq(msg *sch.MsgTabRefreshReq)TabMgrErrno {
-	yclog.LogCallerFileLine("TabMgrRefreshReq: requst to refresh table ...")
+func tabMgrRefreshReq(msg *sch.MsgTabRefreshReq)TabMgrErrno {
+	yclog.LogCallerFileLine("tabMgrRefreshReq: requst to refresh table ...")
 	_ = msg
 	return tabRefresh(nil)
 }
@@ -534,12 +532,12 @@ func TabMgrRefreshReq(msg *sch.MsgTabRefreshReq)TabMgrErrno {
 //
 // FindNode response handler
 //
-func TabMgrFindNodeRsp(msg *sch.NblFindNodeRsp)TabMgrErrno {
+func tabMgrFindNodeRsp(msg *sch.NblFindNodeRsp)TabMgrErrno {
 
-	yclog.LogCallerFileLine("TabMgrFindNodeRsp: FindNode response received")
+	yclog.LogCallerFileLine("tabMgrFindNodeRsp: FindNode response received")
 
 	if msg == nil {
-		yclog.LogCallerFileLine("TabMgrFindNodeRsp: invalid parameters")
+		yclog.LogCallerFileLine("tabMgrFindNodeRsp: invalid parameters")
 		return TabMgrEnoParameter
 	}
 
@@ -551,7 +549,7 @@ func TabMgrFindNodeRsp(msg *sch.NblFindNodeRsp)TabMgrErrno {
 
 	inst = tabFindInst(&msg.FindNode.To, TabInstStateQuering)
 	if inst == nil {
-		yclog.LogCallerFileLine("TabMgrFindNodeRsp: instance not found")
+		yclog.LogCallerFileLine("tabMgrFindNodeRsp: instance not found")
 		return TabMgrEnoNotFound
 	}
 
@@ -568,9 +566,9 @@ func TabMgrFindNodeRsp(msg *sch.NblFindNodeRsp)TabMgrErrno {
 
 	if result == TabMgrEnoDuplicated {
 
-		yclog.LogCallerFileLine("TabMgrFindNodeRsp: " +
+		yclog.LogCallerFileLine("tabMgrFindNodeRsp: " +
 			"duplicated, try to remove the instance and activate more" +
-			"msg.Result: %x, result: %d",
+			"msg.Result: %X, result: %d",
 			msg.Result, result)
 
 		//
@@ -578,7 +576,7 @@ func TabMgrFindNodeRsp(msg *sch.NblFindNodeRsp)TabMgrErrno {
 		//
 
 		if eno := tabDeleteActiveQueryInst(inst); eno != TabMgrEnoNone {
-			yclog.LogCallerFileLine("TabMgrFindNodeRsp: tabDeleteActiveQueryInst failed, eno: %d", eno)
+			yclog.LogCallerFileLine("tabMgrFindNodeRsp: tabDeleteActiveQueryInst failed, eno: %d", eno)
 			return eno
 		}
 
@@ -587,7 +585,7 @@ func TabMgrFindNodeRsp(msg *sch.NblFindNodeRsp)TabMgrErrno {
 		//
 
 		if eno := tabActiveQueryInst(); eno != TabMgrEnoNone {
-			yclog.LogCallerFileLine("TabMgrFindNodeRsp: tabActiveQueryInst failed, eno: %d", eno)
+			yclog.LogCallerFileLine("tabMgrFindNodeRsp: tabActiveQueryInst failed, eno: %d", eno)
 			return eno
 		}
 
@@ -601,7 +599,7 @@ func TabMgrFindNodeRsp(msg *sch.NblFindNodeRsp)TabMgrErrno {
 	//
 
 	if eno := tabUpdateNodeDb4Query(inst, result); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("TabMgrFindNodeRsp: tabUpdateNodeDb4Query failed, eno: %d", eno)
+		yclog.LogCallerFileLine("tabMgrFindNodeRsp: tabUpdateNodeDb4Query failed, eno: %d", eno)
 	}
 
 	//
@@ -610,7 +608,7 @@ func TabMgrFindNodeRsp(msg *sch.NblFindNodeRsp)TabMgrErrno {
 	//
 
 	if eno := tabUpdateBucket(inst, result); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("TabMgrFindNodeRsp: tabUpdateBucket failed, eno: %d", eno)
+		yclog.LogCallerFileLine("tabMgrFindNodeRsp: tabUpdateBucket failed, eno: %d", eno)
 	}
 
 	//
@@ -618,7 +616,7 @@ func TabMgrFindNodeRsp(msg *sch.NblFindNodeRsp)TabMgrErrno {
 	//
 
 	if eno := tabDeleteActiveQueryInst(inst); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("TabMgrFindNodeRsp: tabDeleteActiveQueryInst failed, eno: %d", eno)
+		yclog.LogCallerFileLine("tabMgrFindNodeRsp: tabDeleteActiveQueryInst failed, eno: %d", eno)
 		return eno
 	}
 
@@ -627,8 +625,7 @@ func TabMgrFindNodeRsp(msg *sch.NblFindNodeRsp)TabMgrErrno {
 	//
 
 	if eno := tabActiveQueryInst(); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("TabMgrFindNodeRsp: tabActiveQueryInst failed, eno: %d", eno)
-		return eno
+		yclog.LogCallerFileLine("tabMgrFindNodeRsp: tabActiveQueryInst failed, eno: %d", eno)
 	}
 
 	//
@@ -636,7 +633,7 @@ func TabMgrFindNodeRsp(msg *sch.NblFindNodeRsp)TabMgrErrno {
 	//
 
 	if result != 0 {
-		yclog.LogCallerFileLine("TabMgrFindNodeRsp: fail reported, result: %d", result)
+		yclog.LogCallerFileLine("tabMgrFindNodeRsp: fail reported, result: %d", result)
 		return TabMgrEnoNone
 	}
 
@@ -646,7 +643,7 @@ func TabMgrFindNodeRsp(msg *sch.NblFindNodeRsp)TabMgrErrno {
 
 	for _, node := range msg.Neighbors.Nodes {
 		if eno := tabAddPendingBoundInst(node); eno != TabMgrEnoNone {
-			yclog.LogCallerFileLine("TabMgrFindNodeRsp: tabAddPendingBoundInst failed, eno: %d", eno)
+			yclog.LogCallerFileLine("tabMgrFindNodeRsp: tabAddPendingBoundInst failed, eno: %d", eno)
 			break
 		}
 	}
@@ -656,7 +653,7 @@ func TabMgrFindNodeRsp(msg *sch.NblFindNodeRsp)TabMgrErrno {
 	//
 
 	if eno := tabActiveBoundInst(); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("TabMgrFindNodeRsp: tabActiveBoundInst failed, eno: %d", eno)
+		yclog.LogCallerFileLine("tabMgrFindNodeRsp: tabActiveBoundInst failed, eno: %d", eno)
 		return eno
 	}
 
@@ -666,7 +663,7 @@ func TabMgrFindNodeRsp(msg *sch.NblFindNodeRsp)TabMgrErrno {
 //
 // Pingpong respone handler
 //
-func TabMgrPingpongRsp(msg *sch.NblPingRsp) TabMgrErrno {
+func tabMgrPingpongRsp(msg *sch.NblPingRsp) TabMgrErrno {
 
 	//
 	// Lookup active instance for the response. Notice: some respons without actived
@@ -680,7 +677,7 @@ func TabMgrPingpongRsp(msg *sch.NblPingRsp) TabMgrErrno {
 	//
 
 	if msg == nil {
-		yclog.LogCallerFileLine("TabMgrPingpongRsp: invalid parameters")
+		yclog.LogCallerFileLine("tabMgrPingpongRsp: invalid parameters")
 		return TabMgrEnoParameter
 	}
 
@@ -695,14 +692,10 @@ func TabMgrPingpongRsp(msg *sch.NblPingRsp) TabMgrErrno {
 
 		if tabMgr.cfg.bootstrapNode == false {
 
-			yclog.LogCallerFileLine("TabMgrPingpongRsp: " +
+			yclog.LogCallerFileLine("tabMgrPingpongRsp: " +
 				"instance not found and local is not a bootstrap node")
 
-			//
-			// Comment the following statement to act like a bootstrap node
-			//
-
-			/*return TabMgrEnoNotFound*/
+			return TabMgrEnoNotFound
 		}
 
 		//
@@ -711,7 +704,7 @@ func TabMgrPingpongRsp(msg *sch.NblPingRsp) TabMgrErrno {
 
 		if msg.Result != 0 {
 
-			yclog.LogCallerFileLine("TabMgrPingpongRsp: " +
+			yclog.LogCallerFileLine("tabMgrPingpongRsp: " +
 				"pong response discarded for result: %d",
 				msg.Result)
 
@@ -720,14 +713,14 @@ func TabMgrPingpongRsp(msg *sch.NblPingRsp) TabMgrErrno {
 
 		if msg.Pong == nil {
 
-			yclog.LogCallerFileLine("TabMgrPingpongRsp: " +
+			yclog.LogCallerFileLine("tabMgrPingpongRsp: " +
 				"invalid pong response, result: %d, pong: %p",
 				msg.Result, msg.Pong)
 
 			return TabMgrEnoInternal
 		}
 
-		yclog.LogCallerFileLine("TabMgrPingpongRsp: " +
+		yclog.LogCallerFileLine("tabMgrPingpongRsp: " +
 			"update node without an instance, put it into bucket and database\n" +
 			"node: %s",
 			fmt.Sprintf("%+v", msg.Pong.From))
@@ -750,7 +743,7 @@ func TabMgrPingpongRsp(msg *sch.NblPingRsp) TabMgrErrno {
 	//
 
 	if eno := tabUpdateBucket(inst, result); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("TabMgrPingpongRsp: tabUpdateBucket failed, eno: %d", eno)
+		yclog.LogCallerFileLine("tabMgrPingpongRsp: tabUpdateBucket failed, eno: %d", eno)
 	}
 
 	//
@@ -758,7 +751,7 @@ func TabMgrPingpongRsp(msg *sch.NblPingRsp) TabMgrErrno {
 	//
 
 	if eno := tabDeleteActiveBoundInst(inst); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("TabMgrPingpongRsp: tabDeleteActiveQueryInst failed, eno: %d", eno)
+		yclog.LogCallerFileLine("tabMgrPingpongRsp: tabDeleteActiveQueryInst failed, eno: %d", eno)
 		return eno
 	}
 
@@ -767,7 +760,7 @@ func TabMgrPingpongRsp(msg *sch.NblPingRsp) TabMgrErrno {
 	//
 
 	if eno := tabActiveBoundInst(); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("TabMgrPingpongRsp: tabActiveBoundInst failed, eno: %d", eno)
+		yclog.LogCallerFileLine("tabMgrPingpongRsp: tabActiveBoundInst failed, eno: %d", eno)
 		return eno
 	}
 
@@ -776,7 +769,7 @@ func TabMgrPingpongRsp(msg *sch.NblPingRsp) TabMgrErrno {
 	//
 
 	if msg.Result != 0 {
-		yclog.LogCallerFileLine("TabMgrPingpongRsp: fail reported, result: %d", msg.Result)
+		yclog.LogCallerFileLine("tabMgrPingpongRsp: fail reported, result: %d", msg.Result)
 		return TabMgrEnoNone
 	}
 
@@ -789,7 +782,7 @@ func TabMgrPingpongRsp(msg *sch.NblPingRsp) TabMgrErrno {
 	if eno := tabBucketUpdateBoundTime(NodeID(inst.req.(*um.Ping).To.NodeId), nil, &pot);
 	eno != TabMgrEnoNone {
 
-		yclog.LogCallerFileLine("TabMgrPingpongRsp: " +
+		yclog.LogCallerFileLine("tabMgrPingpongRsp: " +
 			"tabBucketUpdateBoundTime failed, eno: %d",
 			eno)
 
@@ -813,7 +806,7 @@ func TabMgrPingpongRsp(msg *sch.NblPingRsp) TabMgrErrno {
 	if eno := tabUpdateNodeDb4Bounding(&n, nil, &pot);
 		eno != TabMgrEnoNone {
 
-		yclog.LogCallerFileLine("TabMgrPingpongRsp: " +
+		yclog.LogCallerFileLine("tabMgrPingpongRsp: " +
 			"tabUpdateNodeDb4Bounding failed, eno: %d",
 			eno)
 
@@ -824,12 +817,12 @@ func TabMgrPingpongRsp(msg *sch.NblPingRsp) TabMgrErrno {
 	// response to the discover manager task
 	//
 
-	yclog.LogCallerFileLine("TabMgrPingpongRsp: " +
+	yclog.LogCallerFileLine("tabMgrPingpongRsp: " +
 		"going to response discover task with the node bound: %s",
 		fmt.Sprintf("%+v", msg.Pong.From))
 
 	if eno := tabDiscoverResp(&msg.Pong.From); eno != TabMgrEnoNone {
-		yclog.LogCallerFileLine("TabMgrPingpongRsp: tabDiscoverResp failed, eno: %d", eno)
+		yclog.LogCallerFileLine("tabMgrPingpongRsp: tabDiscoverResp failed, eno: %d", eno)
 		return eno
 	}
 
@@ -837,7 +830,183 @@ func TabMgrPingpongRsp(msg *sch.NblPingRsp) TabMgrErrno {
 }
 
 //
-// Static task to clean the node database
+// Pinged indication handler
+//
+func tabMgrPingedInd(ping *um.Ping) TabMgrErrno {
+
+	//
+	// check if remote node should be bound
+	//
+
+	yclog.LogCallerFileLine("tabMgrPingedInd: " +
+		"check if should be bound: %s",
+		fmt.Sprintf("%X", ping.From.NodeId))
+
+	if tabShouldBound(NodeID(ping.From.NodeId)) != true {
+
+		yclog.LogCallerFileLine("tabMgrPingedInd: " +
+			"node should not be bound: %s",
+			fmt.Sprintf("%X", ping.From.NodeId))
+
+		return TabMgrEnoNone
+	}
+
+	//
+	// add node into pending queue for bounding
+	//
+
+	yclog.LogCallerFileLine("tabMgrPingedInd: " +
+		"add node to pending queue for bounding: %s",
+		fmt.Sprintf("%X", ping.From.NodeId))
+
+	if eno := tabAddPendingBoundInst(&ping.From); eno != TabMgrEnoNone {
+
+		yclog.LogCallerFileLine("tabMgrPingedInd: " +
+			"tabAddPendingBoundInst failed, eno: %d",
+			eno)
+
+		return eno
+	}
+
+	//
+	// try to active more bounding instances
+	//
+
+	yclog.LogCallerFileLine("tabMgrPingedInd: " +
+		"try more for active bounding")
+
+	if eno := tabActiveBoundInst(); eno != TabMgrEnoNone {
+
+		yclog.LogCallerFileLine("tabMgrPingedInd: " +
+			"tabActiveBoundInst failed, eno: %d",
+			eno)
+
+		return eno
+	}
+
+	return TabMgrEnoNone
+}
+
+//
+// Ponged indication handler
+//
+func tabMgrPongedInd(pong *um.Pong) TabMgrErrno {
+
+	//
+	// check if remote node should be bound
+	//
+
+	yclog.LogCallerFileLine("tabMgrPongedInd: " +
+		"check if should be bound: %s",
+		fmt.Sprintf("%X", pong.From.NodeId))
+
+	if tabShouldBound(NodeID(pong.From.NodeId)) != true {
+
+		yclog.LogCallerFileLine("tabMgrPongedInd: " +
+			"node should not be bound: %s",
+			fmt.Sprintf("%X", pong.From.NodeId))
+
+		return TabMgrEnoNone
+	}
+
+	//
+	// add node into pending queue for bounding
+	//
+
+	yclog.LogCallerFileLine("tabMgrPongedInd: " +
+		"add node to pending queue for bounding: %s",
+		fmt.Sprintf("%X", pong.From.NodeId))
+
+	if eno := tabAddPendingBoundInst(&pong.From); eno != TabMgrEnoNone {
+
+		yclog.LogCallerFileLine("tabMgrPongedInd: " +
+			"tabAddPendingBoundInst failed, eno: %d",
+			eno)
+
+		return eno
+	}
+
+	//
+	// try to active more bounding instances
+	//
+
+	yclog.LogCallerFileLine("tabMgrPongedInd: " +
+		"try more for active bounding")
+
+	if eno := tabActiveBoundInst(); eno != TabMgrEnoNone {
+
+		yclog.LogCallerFileLine("tabMgrPongedInd: " +
+			"tabActiveBoundInst failed, eno: %d",
+			eno)
+
+		return eno
+	}
+
+	return TabMgrEnoNone
+}
+
+//
+// Queried indication handler
+//
+func tabMgrQueriedInd(findNode *um.FindNode) TabMgrErrno {
+
+	//
+	// check if remote node should be bound
+	//
+
+	yclog.LogCallerFileLine("tabMgrQueriedInd: " +
+		"check if should be bound: %s",
+		fmt.Sprintf("%X", findNode.From.NodeId))
+
+	if tabShouldBound(NodeID(findNode.From.NodeId)) != true {
+
+		yclog.LogCallerFileLine("tabMgrQueriedInd: " +
+			"node should not be bound: %s",
+			fmt.Sprintf("%X", findNode.From.NodeId))
+
+		return TabMgrEnoNone
+	}
+
+	//
+	// add node into pending queue for bounding
+	//
+
+	yclog.LogCallerFileLine("tabMgrQueriedInd: " +
+		"add node to pending queue for bounding: %s",
+		fmt.Sprintf("%X", findNode.From.NodeId))
+
+	if eno := tabAddPendingBoundInst(&findNode.From); eno != TabMgrEnoNone {
+
+		yclog.LogCallerFileLine("tabMgrQueriedInd: " +
+			"tabAddPendingBoundInst failed, eno: %d",
+			eno)
+
+		return eno
+	}
+
+	//
+	// try to active more bounding instances
+	//
+
+	yclog.LogCallerFileLine("tabMgrQueriedInd: " +
+		"try more for active bounding")
+
+	if eno := tabActiveBoundInst(); eno != TabMgrEnoNone {
+
+		yclog.LogCallerFileLine("tabMgrQueriedInd: " +
+			"tabActiveBoundInst failed, eno: %d",
+			eno)
+
+		return eno
+	}
+
+	return TabMgrEnoNone
+}
+
+
+
+//
+// Static task to keep the node database clean
 //
 const NdbcName = "ndbCleaner"
 
@@ -872,13 +1041,13 @@ func NdbcProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	switch msg.Id {
 
 	case sch.EvSchPoweron:
-		eno = NdbcPoweron(ptn)
+		eno = ndbcPoweron(ptn)
 
 	case sch.EvSchPoweroff:
-		eno = NdbcPoweroff(ptn)
+		eno = ndbcPoweroff(ptn)
 
 	case sch.EvNdbCleanerTimer:
-		eno = NdbcAutoCleanTimerHandler()
+		eno = ndbcAutoCleanTimerHandler()
 
 	default:
 		yclog.LogCallerFileLine("NdbcProc: invalid message: %d", msg.Id)
@@ -896,10 +1065,10 @@ func NdbcProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 //
 // Pwoeron handler
 //
-func NdbcPoweron(ptn interface{}) TabMgrErrno {
+func ndbcPoweron(ptn interface{}) TabMgrErrno {
 
 	if ptn == nil {
-		yclog.LogCallerFileLine("NdbcPoweron: invalid parameters")
+		yclog.LogCallerFileLine("ndbcPoweron: invalid parameters")
 		return TabMgrEnoParameter
 	}
 
@@ -917,7 +1086,7 @@ func NdbcPoweron(ptn interface{}) TabMgrErrno {
 	)
 
 	if eno, tid = sch.SchInfSetTimer(ptn, &tmd); eno != sch.SchEnoNone {
-		yclog.LogCallerFileLine("NdbcPoweron: set timer failed, eno: %d", eno)
+		yclog.LogCallerFileLine("ndbcPoweron: set timer failed, eno: %d", eno)
 		return TabMgrEnoScheduler
 	}
 
@@ -929,23 +1098,23 @@ func NdbcPoweron(ptn interface{}) TabMgrErrno {
 //
 // Poweroff handler
 //
-func NdbcPoweroff(ptn interface{}) TabMgrErrno {
+func ndbcPoweroff(ptn interface{}) TabMgrErrno {
 
 	if ptn == nil {
-		yclog.LogCallerFileLine("NdbcPoweroff: invalid parameters")
+		yclog.LogCallerFileLine("ndbcPoweroff: invalid parameters")
 		return TabMgrEnoParameter
 	}
 
 	if ndbCleaner.tid != sch.SchInvalidTid {
 		if eno := sch.SchinfKillTimer(ptn, ndbCleaner.tid); eno != sch.SchEnoNone {
-			yclog.LogCallerFileLine("NdbcPoweroff: SchinfKillTimer failed, eno: %d", eno)
+			yclog.LogCallerFileLine("ndbcPoweroff: SchinfKillTimer failed, eno: %d", eno)
 			return TabMgrEnoScheduler
 		}
 		ndbCleaner.tid = sch.SchInvalidTid
 	}
 
 	if eno := sch.SchinfTaskDone(ptn, sch.SchEnoKilled); eno != sch.SchEnoNone {
-		yclog.LogCallerFileLine("NdbcPoweroff: SchinfTaskDone failed, eno: %d", eno)
+		yclog.LogCallerFileLine("ndbcPoweroff: SchinfTaskDone failed, eno: %d", eno)
 		return TabMgrEnoScheduler
 	}
 
@@ -955,27 +1124,27 @@ func NdbcPoweroff(ptn interface{}) TabMgrErrno {
 //
 // Auto clean timer handler
 //
-func NdbcAutoCleanTimerHandler() TabMgrErrno {
+func ndbcAutoCleanTimerHandler() TabMgrErrno {
 
 	//
 	// Carry out cleanup procedure
 	//
 
-	yclog.LogCallerFileLine("NdbcAutoCleanTimerHandler: " +
+	yclog.LogCallerFileLine("ndbcAutoCleanTimerHandler: " +
 		"auto cleanup timer expired, it's time to clean ...")
 
 	err := tabMgr.nodeDb.expireNodes()
 
 	if err != nil {
 
-		yclog.LogCallerFileLine("NdbcAutoCleanTimerHandler: " +
+		yclog.LogCallerFileLine("ndbcAutoCleanTimerHandler: " +
 			"cleanup failed, err: %s",
 			err.Error())
 
 		return TabMgrEnoDatabase
 	}
 
-	yclog.LogCallerFileLine("NdbcAutoCleanTimerHandler: cleanup ok")
+	yclog.LogCallerFileLine("ndbcAutoCleanTimerHandler: cleanup ok")
 
 	return TabMgrEnoNone
 }
@@ -1275,7 +1444,7 @@ func tabClosest(target NodeID, size int) []*Node {
 
 				yclog.LogCallerFileLine("tabClosest: " +
 					"node appended, dt: %d, node: %s",
-					dt, fmt.Sprintf("%x", ne.ID))
+					dt, fmt.Sprintf("%X", ne.ID))
 
 				if count++; count >= size {
 					break
@@ -1405,7 +1574,7 @@ func tabQuery(target *NodeID, nodes []*Node) TabMgrErrno {
 
 				yclog.LogCallerFileLine("tabQuery: " +
 					"not to query ourselves: %s",
-					fmt.Sprintf("%x", nodes[loop].ID))
+					fmt.Sprintf("%X", nodes[loop].ID))
 
 				continue
 			}
@@ -1422,7 +1591,7 @@ func tabQuery(target *NodeID, nodes []*Node) TabMgrErrno {
 
 					yclog.LogCallerFileLine("tabQuery: " +
 						"not to query duplicated: %s",
-						fmt.Sprintf("%x", nodes[loop].ID))
+						fmt.Sprintf("%X", nodes[loop].ID))
 
 					dup = true
 					break
@@ -1510,7 +1679,7 @@ func tabQuery(target *NodeID, nodes []*Node) TabMgrErrno {
 
 			yclog.LogCallerFileLine("tabQuery: " +
 				"not to query ourselves: %s",
-				fmt.Sprintf("%x", nodes[loop].ID))
+				fmt.Sprintf("%X", nodes[loop].ID))
 
 			continue
 		}
@@ -1527,7 +1696,7 @@ func tabQuery(target *NodeID, nodes []*Node) TabMgrErrno {
 
 				yclog.LogCallerFileLine("tabQuery: " +
 					"not to query duplicated: %s",
-					fmt.Sprintf("%x", nodes[loop].ID))
+					fmt.Sprintf("%X", nodes[loop].ID))
 
 				dup = true
 				break
@@ -1624,8 +1793,10 @@ func tabUpdateNodeDb4Query(inst *instCtrlBlock, result int) TabMgrErrno {
 		id := NodeID(inst.req.(*um.FindNode).To.NodeId)
 
 		if node := tabMgr.nodeDb.node(id); node == nil {
+
 			yclog.LogCallerFileLine("tabUpdateNodeDb4Query: " +
 				"fnFailUpdate: node not exist, do nothing")
+
 			return TabMgrEnoNone
 		}
 
@@ -1640,10 +1811,13 @@ func tabUpdateNodeDb4Query(inst *instCtrlBlock, result int) TabMgrErrno {
 			return TabMgrEnoDatabase
 		}
 
+		yclog.LogCallerFileLine("tabUpdateNodeDb4Query: update ok, fails: %d", fails)
+
 		return TabMgrEnoNone
 	}
 
 	switch {
+
 	case inst.state == TabInstStateQuering && result == TabMgrEnoNone:
 		yclog.LogCallerFileLine("tabUpdateNodeDb4Query: need not to do anything")
 		return TabMgrEnoNone
@@ -1680,19 +1854,20 @@ func tabUpdateNodeDb4Bounding(pn *Node, pit *time.Time, pot *time.Time) TabMgrEr
 
 			yclog.LogCallerFileLine("tabUpdateNodeDb4Bounding: " +
 				"updateNode fialed, err: %s, node: %s",
-				err.Error(), fmt.Sprintf("%x", pn.ID)	)
+				err.Error(), fmt.Sprintf("%X", pn.ID)	)
 
 			return TabMgrEnoDatabase
 		}
 
 		yclog.LogCallerFileLine("tabUpdateNodeDb4Bounding: " +
 			"new node added: %s",
-			fmt.Sprintf("%x", pn.ID)	)
+			fmt.Sprintf("%X", pn.ID)	)
+
 	} else {
 
 		yclog.LogCallerFileLine("tabUpdateNodeDb4Bounding: " +
 			"it's an old node: %s",
-			fmt.Sprintf("%x", pn.ID)	)
+			fmt.Sprintf("%X", pn.ID)	)
 	}
 
 	if pit != nil {
@@ -1700,14 +1875,14 @@ func tabUpdateNodeDb4Bounding(pn *Node, pit *time.Time, pot *time.Time) TabMgrEr
 
 			yclog.LogCallerFileLine("tabUpdateNodeDb4Bounding: " +
 				"updateLastPing fialed, err: %s, node: %s",
-				err.Error(), fmt.Sprintf("%x", pn.ID)	)
+				err.Error(), fmt.Sprintf("%X", pn.ID)	)
 
 			return TabMgrEnoDatabase
 		}
 
 		yclog.LogCallerFileLine("tabUpdateNodeDb4Bounding: " +
 			"updateLastPing ok, last ping time: %s, node: %s",
-			pit.String(), fmt.Sprintf("%x", pn.ID))
+			pit.String(), fmt.Sprintf("%X", pn.ID))
 	}
 
 	if pot != nil {
@@ -1715,15 +1890,29 @@ func tabUpdateNodeDb4Bounding(pn *Node, pit *time.Time, pot *time.Time) TabMgrEr
 
 			yclog.LogCallerFileLine("tabUpdateNodeDb4Bounding: " +
 				"updateLastPong fialed, err: %s, node: %s",
-				err.Error(), fmt.Sprintf("%x", pn.ID)	)
+				err.Error(), fmt.Sprintf("%X", pn.ID)	)
 
 			return TabMgrEnoDatabase
 		}
 
 		yclog.LogCallerFileLine("tabUpdateNodeDb4Bounding: " +
 			"updateLastPong ok, last pong time: %s, node: %s",
-			pot.String(), fmt.Sprintf("%x", pn.ID))
+			pot.String(), fmt.Sprintf("%X", pn.ID))
 	}
+
+	fails := 0
+	if err := tabMgr.nodeDb.updateFindFails(NodeID(pn.ID), fails); err != nil {
+
+		yclog.LogCallerFileLine("tabUpdateNodeDb4Bounding: " +
+			"fnFailUpdate: updateFindFails failed, err: %s",
+			err.Error())
+
+		return TabMgrEnoDatabase
+	}
+
+	yclog.LogCallerFileLine("tabUpdateNodeDb4Bounding: " +
+		"updateFindFails ok, fails: %d",
+		fails)
 
 	return TabMgrEnoNone
 }
@@ -1742,8 +1931,12 @@ func tabUpdateBucket(inst *instCtrlBlock, result int) TabMgrErrno {
 	// The logic:
 	// 1) When pingpong ok, add peer node to a bucket;
 	// 2) When pingpong failed, add peer node to a bucket;
-	// 3) When findnode failed counter reash the threshold, remove peer node from bucket;
+	// 3) When findnode failed counter reach the threshold, remove peer node from bucket;
 	//
+
+	yclog.LogCallerFileLine("tabUpdateBucket: state: %d, result: %d", inst.state, result)
+
+	var eno TabMgrErrno
 
 	switch {
 
@@ -1752,61 +1945,33 @@ func tabUpdateBucket(inst *instCtrlBlock, result int) TabMgrErrno {
 		yclog.LogCallerFileLine("tabUpdateBucket: need not to do anything")
 		return TabMgrEnoNone
 
-	case inst.state == TabInstStateQuering && result == TabMgrEnoFindNodeFailed:
+	case (inst.state == TabInstStateQuering || inst.state == TabInstStateQTimeout) && result != TabMgrEnoNone:
 
 		id := NodeID(inst.req.(*um.FindNode).To.NodeId)
 
-		if fails := tabMgr.nodeDb.findFails(id) + 1; fails >= maxFindnodeFailures {
+		if eno = tabBucketUpdateFailCounter(id, +1); eno == TabMgrEnoRemove {
+
+			yclog.LogCallerFileLine("tabUpdateBucket: " +
+				"remove node: %s",
+				fmt.Sprintf("%X", id))
 
 			return tabBucketRemoveNode(id)
 		}
 
-		if eno := tabBucketUpdateFailCounter(id, +1); eno != TabMgrEnoNone {
+		yclog.LogCallerFileLine("tabUpdateBucket: eno: %d", eno)
 
-			yclog.LogCallerFileLine("tabUpdateBucket: " +
-				"update FindNode failed counter failed, eno: %d",
-				eno)
-
-			return eno
-		}
-
-		return TabMgrEnoNone
-
-	case inst.state == TabInstStateQuering && result == TabMgrEnoTimeout:
-
-		id := NodeID(inst.req.(*um.FindNode).To.NodeId)
-
-		if fails := tabMgr.nodeDb.findFails(id) + 1; fails >= maxFindnodeFailures {
-			return tabBucketRemoveNode(id)
-		}
-
-		if eno := tabBucketUpdateFailCounter(id, +1); eno != TabMgrEnoNone {
-
-			yclog.LogCallerFileLine("tabUpdateBucket: " +
-				"update FindNode failed counter failed, eno: %d",
-				eno)
-
-			return eno
-		}
-
-		return TabMgrEnoNone
+		return eno
 
 	case inst.state == TabInstStateBonding && result == TabMgrEnoNone:
 
 		node := &inst.req.(*um.Ping).To
 		inst.pot = time.Now()
+		return TabBucketAddNode(node, &inst.pit, &inst.pot)
 
-		return tabBucketAddNode(node, &inst.pit, &inst.pot)
-
-	case inst.state == TabInstStateBonding && result == TabMgrEnoPingpongFailed:
-
-		node := &inst.req.(*um.Ping).To
-		return tabBucketAddNode(node, &inst.pit,nil)
-
-	case inst.state == TabInstStateBonding && result == TabMgrEnoTimeout:
+	case (inst.state == TabInstStateBonding || inst.state == TabInstStateBTimeout) && result != TabMgrEnoNone:
 
 		node := &inst.req.(*um.Ping).To
-		return tabBucketAddNode(node, &inst.pit, nil)
+		return TabBucketAddNode(node, &inst.pit,nil)
 
 	default:
 
@@ -1816,9 +1981,6 @@ func tabUpdateBucket(inst *instCtrlBlock, result int) TabMgrErrno {
 
 		return TabMgrEnoInternal
 	}
-
-	yclog.LogCallerFileLine("tabUpdateBucket: should never come here")
-	return TabMgrEnoInternal
 }
 
 //
@@ -1870,7 +2032,7 @@ func tabUpdateBootstarpNode(n *um.Node) TabMgrErrno {
 		NodeId:	node.ID,
 	}
 
-	return tabBucketAddNode(&umn, &now, &now)
+	return TabBucketAddNode(&umn, &now, &now)
 }
 
 //
@@ -1959,7 +2121,7 @@ func tabBucketRemoveNode(id NodeID) TabMgrErrno {
 
 	yclog.LogCallerFileLine("tabBucketRemoveNode: " +
 		"bidx: %d, nidx: %d, id: %s",
-		bidx, nidx, fmt.Sprintf("%x", id)	)
+		bidx, nidx, fmt.Sprintf("%X", id)	)
 
 	nodes := tabMgr.buckets[bidx].nodes
 	nodes = append(nodes[0:nidx], nodes[nidx+1:] ...)
@@ -1985,6 +2147,15 @@ func tabBucketUpdateFailCounter(id NodeID, delta int) TabMgrErrno {
 	}
 
 	tabMgr.buckets[bidx].nodes[nidx].failCount += delta
+	if tabMgr.buckets[bidx].nodes[nidx].failCount >= maxFindnodeFailures {
+		yclog.LogCallerFileLine("tabBucketUpdateFailCounter: threshold reached")
+		return TabMgrEnoRemove
+	}
+
+	yclog.LogCallerFileLine("tabBucketUpdateFailCounter: " +
+		"delta: %d, current fail counter: %d",
+		delta,
+		tabMgr.buckets[bidx].nodes[nidx].failCount)
 
 	return TabMgrEnoNone
 }
@@ -2172,6 +2343,8 @@ func tabBucketAddNode(n *um.Node, lastPing *time.Time, lastPong *time.Time) TabM
 	// locate bucket for node
 	//
 
+	yclog.LogCallerFileLine("tabBucketAddNode: node: %s", fmt.Sprintf("%+v", *n))
+
 	id := NodeID(n.NodeId)
 	h := tabNodeId2Hash(id)
 	d := tabLog2Dist(tabMgr.shaLocal, *h)
@@ -2218,7 +2391,7 @@ func tabBucketAddNode(n *um.Node, lastPing *time.Time, lastPong *time.Time) TabM
 
 		yclog.LogCallerFileLine("tabBucketAddNode: " +
 			"appended, d: %d, node: %s",
-			d, fmt.Sprintf("%x", n.NodeId))
+			d, fmt.Sprintf("%X", n.NodeId))
 
 		return TabMgrEnoNone
 	}
@@ -2361,7 +2534,7 @@ func tabActiveQueryInst() TabMgrErrno {
 
 			yclog.LogCallerFileLine("tabActiveQueryInst: " +
 				"not to query ourselves: %s",
-				fmt.Sprintf("%x", p.node.ID))
+				fmt.Sprintf("%X", p.node.ID))
 
 			tabMgr.queryPending = append(tabMgr.queryPending[:0], tabMgr.queryPending[1:]...)
 			continue
@@ -2377,7 +2550,7 @@ func tabActiveQueryInst() TabMgrErrno {
 
 				yclog.LogCallerFileLine("tabActiveQueryInst: " +
 					"not to query duplicated: %s",
-					fmt.Sprintf("%x", p.node.ID))
+					fmt.Sprintf("%X", p.node.ID))
 
 				tabMgr.queryPending = append(tabMgr.queryPending[:0], tabMgr.queryPending[1:]...)
 				continue
@@ -2466,7 +2639,7 @@ func tabAddPendingBoundInst(node *um.Node) TabMgrErrno {
 
 			yclog.LogCallerFileLine("tabAddPendingBoundInst: " +
 				"not to bound duplicated: %s",
-				fmt.Sprintf("%x", bp.ID))
+				fmt.Sprintf("%X", bp.ID))
 
 			return TabMgrEnoDuplicated
 		}
@@ -2525,7 +2698,7 @@ func tabActiveBoundInst() TabMgrErrno {
 
 			yclog.LogCallerFileLine("tabActiveBoundInst: " +
 				"not to bound ourselves: %s",
-				fmt.Sprintf("%x", pn.ID))
+				fmt.Sprintf("%X", pn.ID))
 
 			tabMgr.boundPending = tabMgr.boundPending[1:]
 			continue
@@ -2543,7 +2716,7 @@ func tabActiveBoundInst() TabMgrErrno {
 
 				yclog.LogCallerFileLine("tabActiveBoundInst: " +
 					"not to bound duplicated: %s",
-					fmt.Sprintf("%x", pn.ID))
+					fmt.Sprintf("%X", pn.ID))
 
 				tabMgr.boundPending = append(tabMgr.boundPending[:0], tabMgr.boundPending[1:]...)
 				dup = true
@@ -2561,7 +2734,7 @@ func tabActiveBoundInst() TabMgrErrno {
 
 			yclog.LogCallerFileLine("tabActiveBoundInst: " +
 				"need not to bound, peer: %s",
-				fmt.Sprintf("%x", pn.ID))
+				fmt.Sprintf("%X", pn.ID))
 
 			tabMgr.boundPending = append(tabMgr.boundPending[:0], tabMgr.boundPending[1:]...)
 
@@ -2754,13 +2927,14 @@ func tabShouldBound(id NodeID) bool {
 	//
 
 	failCnt := tabMgr.nodeDb.findFails(id)
-	age := time.Since(tabMgr.nodeDb.lastPong(id))
+	agePong := time.Since(tabMgr.nodeDb.lastPong(id))
+	agePing := time.Since(tabMgr.nodeDb.lastPing(id))
 
-	needed := failCnt > 0 || age > nodeReboundDuration
+	needed := failCnt > 0 || agePong > nodeReboundDuration || agePing > nodeReboundDuration
 
 	yclog.LogCallerFileLine("tabShouldBound: " +
-		"needed: %t, failCnt: %d, age: %d",
-		needed, failCnt, age)
+		"needed: %t, failCnt: %d, agePing: %s, agePong: %s",
+		needed, failCnt, agePing.Seconds(), agePing.Seconds())
 
 	return needed
 }
@@ -2769,21 +2943,7 @@ func tabShouldBound(id NodeID) bool {
 // Check if node from database needs to be bound
 //
 func tabShouldBoundDbNode(id NodeID) bool {
-
-	//
-	// If find node fail counter not be zero, bounding needed
-	//
-
-	failCnt := tabMgr.nodeDb.findFails(id)
-	age := time.Since(tabMgr.nodeDb.lastPong(id))
-
-	needed := failCnt > 0 || age > nodeReboundDuration
-
-	yclog.LogCallerFileLine("tabShouldBoundDbNode: " +
-		"needed: %t, failCnt: %d, age: %d",
-		needed, failCnt, age)
-
-	return needed
+	return tabShouldBound(id)
 }
 
 //

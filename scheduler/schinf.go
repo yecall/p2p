@@ -134,7 +134,7 @@ const SchMaxGroupSize = 64			// max number of group members
 //
 // max mail box size
 //
-const SchMaxMbSize	 = 1024
+const SchMaxMbSize	 = 256
 
 type SchTaskDescription struct {
 	Name	string						// user task name
