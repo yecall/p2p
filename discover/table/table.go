@@ -2933,7 +2933,7 @@ func tabShouldBound(id NodeID) bool {
 	needed := failCnt > 0 || agePong > nodeReboundDuration || agePing > nodeReboundDuration
 
 	yclog.LogCallerFileLine("tabShouldBound: " +
-		"needed: %t, failCnt: %d, agePing: %s, agePong: %s",
+		"needed: %t, failCnt: %d, agePing: %f, agePong: %f",
 		needed, failCnt, agePing.Seconds(), agePing.Seconds())
 
 	return needed

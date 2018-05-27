@@ -1714,7 +1714,7 @@ func peMgrAsk4More() PeMgrErrno {
 
 	more := peMgr.cfg.maxOutbounds - peMgr.obpNum
 
-	if more >= 0 {
+	if more <= 0 {
 
 		yclog.LogCallerFileLine("peMgrAsk4More: " +
 			"no more needed, obpNum: %d, max: %d",
