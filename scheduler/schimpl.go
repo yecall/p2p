@@ -191,7 +191,9 @@ taskLoop:
 		case eno = <-*done:
 
 			yclog.LogCallerFileLine("schimplCommonTask: "+
-				"task done, name: %s, eno: %d", ptn.task.name, eno)
+				"task done, name: %s, eno: %d",
+				ptn.task.name,
+				eno)
 
 			break taskLoop
 		}
@@ -299,12 +301,14 @@ timerLoop:
 				yclog.LogCallerFileLine("schimplTimerCommonTask: " +
 					"expired, tid: %d, utid: %d, timer:%s, task: %s",
 					ptm.tmcb.taskNode.task.tmIdxTab[ptm],
-					ptm.tmcb.utid, ptm.tmcb.name, ptm.tmcb.taskNode.task.name)
+					ptm.tmcb.utid, ptm.tmcb.name,
+					ptm.tmcb.taskNode.task.name)
 
 				if eno := schimplSendTimerEvent(ptm); eno != SchEnoNone {
 					yclog.LogCallerFileLine("schimplTimerCommonTask: " +
 						"send timer event failed, eno: %d, task: %s",
-						eno, ptm.tmcb.taskNode.task.name)
+						eno,
+						ptm.tmcb.taskNode.task.name)
 				}
 
 			case stop := <-ptm.tmcb.stop:
@@ -312,7 +316,8 @@ timerLoop:
 				yclog.LogCallerFileLine("schimplTimerCommonTask: " +
 					"stop, tid: %d, utid: %d, timer:%s, task: %s",
 					ptm.tmcb.taskNode.task.tmIdxTab[ptm],
-					ptm.tmcb.utid, ptm.tmcb.name, ptm.tmcb.taskNode.task.name)
+					ptm.tmcb.utid, ptm.tmcb.name,
+					ptm.tmcb.taskNode.task.name)
 
 				ptm.tmcb.taskNode.task.lock.Lock()
 
@@ -320,7 +325,8 @@ timerLoop:
 
 					yclog.LogCallerFileLine("schimplTimerCommonTask: " +
 						"timer killed, tid: %d, task: %s",
-						ptm.tmcb.utid, ptm.tmcb.taskNode.task.name)
+						ptm.tmcb.utid,
+						ptm.tmcb.taskNode.task.name)
 
 					tm.Stop()
 					killed = true
@@ -345,7 +351,8 @@ timerLoop:
 		if dur <= 0 {
 
 			yclog.LogCallerFileLine("schimplTimerCommonTask: " +
-				"invalid absolute timer duration:%d", ptm.tmcb.dur)
+				"invalid absolute timer duration:%d",
+				ptm.tmcb.dur)
 
 			ptm.tmcb.taskNode.task.lock.Unlock()
 
@@ -382,15 +389,18 @@ absTimerLoop:
 				yclog.LogCallerFileLine("schimplTimerCommonTask: "+
 					"expired, tid: %d, utid: %d, timer:%s, task: %s",
 					ptm.tmcb.taskNode.task.tmIdxTab[ptm],
-					ptm.tmcb.utid, ptm.tmcb.name, ptm.tmcb.taskNode.task.name)
+					ptm.tmcb.utid, ptm.tmcb.name,
+					ptm.tmcb.taskNode.task.name)
 
 				ptm.tmcb.taskNode.task.lock.Lock()
 				p2pSDL.lock.Lock()
 
 				if eno := schimplSendTimerEvent(ptm); eno != SchEnoNone {
+
 					yclog.LogCallerFileLine("schimplTimerCommonTask: "+
 						"send timer event failed, eno: %d, task: %s",
-						eno, ptm.tmcb.taskNode.task.name)
+						eno,
+						ptm.tmcb.taskNode.task.name)
 				}
 
 				funcAbsTimerClean(ptm)
@@ -403,7 +413,9 @@ absTimerLoop:
 				yclog.LogCallerFileLine("schimplTimerCommonTask: "+
 					"stop, tid: %d, utid: %d, timer:%s, task: %s",
 					ptm.tmcb.taskNode.task.tmIdxTab[ptm],
-					ptm.tmcb.utid, ptm.tmcb.name, ptm.tmcb.taskNode.task.name)
+					ptm.tmcb.utid,
+					ptm.tmcb.name,
+					ptm.tmcb.taskNode.task.name)
 
 				ptm.tmcb.taskNode.task.lock.Lock()
 				p2pSDL.lock.Lock()
@@ -413,7 +425,8 @@ absTimerLoop:
 					yclog.LogCallerFileLine("schimplTimerCommonTask: "+
 						"timer killed, tid: %d, utid: %d, task: %s",
 						ptm.tmcb.taskNode.task.tmIdxTab[ptm],
-						ptm.tmcb.utid, ptm.tmcb.taskNode.task.name)
+						ptm.tmcb.utid,
+						ptm.tmcb.taskNode.task.name)
 
 					funcAbsTimerClean(ptm)
 					killed = true
@@ -431,7 +444,8 @@ absTimerLoop:
 		//
 
 		yclog.LogCallerFileLine("schimplTimerCommonTask: " +
-			"invalid timer type: %d", ptm.tmcb.tmt)
+			"invalid timer type: %d",
+			ptm.tmcb.tmt)
 
 		return SchEnoParameter
 	}
@@ -496,7 +510,8 @@ func schimplGetTimerNode() (SchErrno, *schTmcbNode) {
 
 	yclog.LogCallerFileLine("schimplGetTimerNode: " +
 		"entered, free size: %d, free_ptr: %p",
-		p2pSDL.tmFreeSize, p2pSDL.tmFree)
+		p2pSDL.tmFreeSize,
+		p2pSDL.tmFree)
 
 	//
 	// dequeue one node
@@ -543,7 +558,8 @@ func schimplGetTimerNode() (SchErrno, *schTmcbNode) {
 
 	yclog.LogCallerFileLine("schimplGetTimerNode: " +
 		"exit, free size: %d, free_ptr: %p",
-		p2pSDL.tmFreeSize, p2pSDL.tmFree)
+		p2pSDL.tmFreeSize,
+		p2pSDL.tmFree)
 
 	return SchEnoNone, tmn
 }
@@ -567,7 +583,8 @@ func schimplRetTimerNode(ptm *schTmcbNode) SchErrno {
 
 	yclog.LogCallerFileLine("schimplRetTimerNode: " +
 		"entered, free size: %d, free_ptr: %p",
-		p2pSDL.tmFreeSize, p2pSDL.tmFree)
+		p2pSDL.tmFreeSize,
+		p2pSDL.tmFree)
 
 	//
 	// enqueue a node
@@ -593,7 +610,8 @@ func schimplRetTimerNode(ptm *schTmcbNode) SchErrno {
 
 	yclog.LogCallerFileLine("schimplRetTimerNode: " +
 		"exit, free size: %d, free_ptr: %p",
-		p2pSDL.tmFreeSize, p2pSDL.tmFree)
+		p2pSDL.tmFreeSize,
+		p2pSDL.tmFree)
 
 	return SchEnoNone
 }
@@ -946,13 +964,17 @@ func schimplCreateTask(taskDesc *schTaskDescription) (SchErrno, interface{}){
 	//
 
 	if ptn.task.done != nil {
+
 		yclog.LogCallerFileLine("schimplCreateTask: raw task node channel done not nil")
+
 		close(ptn.task.done)
 		ptn.task.done = nil
 	}
 
 	if ptn.task.stopped != nil {
+
 		yclog.LogCallerFileLine("schimplCreateTask: raw task node channel stopped not nil")
+
 		close(ptn.task.stopped)
 		ptn.task.stopped = nil
 	}
@@ -977,8 +999,11 @@ func schimplCreateTask(taskDesc *schTaskDescription) (SchErrno, interface{}){
 	//
 
 	for idx, ptm := range ptn.task.tmTab {
+
 		if ptm != nil {
+
 			yclog.LogCallerFileLine("schimplCreateTask: not nil task timer pointer")
+
 			ptn.task.tmTab[idx] = nil
 		}
 	}
@@ -988,7 +1013,9 @@ func schimplCreateTask(taskDesc *schTaskDescription) (SchErrno, interface{}){
 	//
 
 	for k := range ptn.task.tmIdxTab {
+
 		yclog.LogCallerFileLine("schimplCreateTask: user task timer map is not empty")
+
 		delete(ptn.task.tmIdxTab, k)
 	}
 
@@ -1011,6 +1038,7 @@ func schimplCreateTask(taskDesc *schTaskDescription) (SchErrno, interface{}){
 			ptn.task.name)
 
 		p2pSDL.lock.Unlock()
+
 		return SchEnoDuplicated, nil
 
 	} else {
@@ -1079,6 +1107,7 @@ func schimplCreateTaskGroup(taskGrpDesc *schTaskGroupDescription)(SchErrno, inte
 	//
 
 	mbCount := len(taskGrpDesc.MbList)
+
 	if mbCount > schMaxGroupSize {
 		yclog.LogCallerFileLine("schimplCreateTaskGroup: too much group members")
 		return SchEnoResource, nil
@@ -1102,6 +1131,7 @@ func schimplCreateTaskGroup(taskGrpDesc *schTaskGroupDescription)(SchErrno, inte
 	for _, mbName := range taskGrpDesc.MbList {
 
 		tkDesc.Name = mbName
+
 		if eno, ptn := schimplCreateTask(&tkDesc); eno != SchEnoNone || ptn == nil {
 
 			//
@@ -1170,7 +1200,8 @@ func schimplStartTask(name string) SchErrno {
 	if ptn.task.goStatus != SchCreatedSuspend {
 
 		yclog.LogCallerFileLine("schimplStartTask: " +
-			"invalid user task status: %d", ptn.task.goStatus)
+			"invalid user task status: %d",
+			ptn.task.goStatus)
 
 		return SchEnoMismatched
 	}
@@ -1182,7 +1213,10 @@ func schimplStartTask(name string) SchErrno {
 	ptn.task.goStatus = SchCreatedGo
 	go schimplCommonTask(ptn)
 
-	yclog.LogCallerFileLine("schimplStartTask: start ok, task: %s", name)
+	yclog.LogCallerFileLine("schimplStartTask:" +
+		"start ok, task: %s",
+		name)
+
 	return SchEnoNone
 }
 
@@ -1268,13 +1302,15 @@ func schimplStartTaskGroup(grp string) (SchErrno, int) {
 
 		yclog.LogCallerFileLine("schimplStartTaskGroup: s" +
 			"tart member task: %s of group: %s",
-			ptn.task.name, grp)
+			ptn.task.name,
+			grp)
 
 		if eno := schimplStartTask(ptn.task.name); eno != SchEnoNone {
 
 			yclog.LogCallerFileLine("schimplStartTaskGroup: " +
 				"schimplStartTask failed, task: %s, group: %s",
-				ptn.task.name, grp)
+				ptn.task.name,
+				grp)
 
 			failedCount++
 		}
@@ -1368,7 +1404,8 @@ func schimplStopTaskGroup(grp string) SchErrno {
 	for mbName, mbTaskNode := range mbTaskMap {
 
 		yclog.LogCallerFileLine("schimplStopTaskGroup: " +
-			"stop member task: %s of group: %s", mbName, grp)
+			"stop member task: %s of group: %s",
+			mbName, grp)
 
 		if eno := schimplTaskDone(mbTaskNode, SchEnoKilled); eno != SchEnoNone {
 
@@ -1417,7 +1454,8 @@ func schimplStopTaskEx(ptn *schTaskNode) SchErrno {
 	if eno := schimplTaskBusyDeque(ptn); eno != SchEnoNone {
 
 		yclog.LogCallerFileLine("schimplStopTaskEx: " +
-			"schimplTaskBusyDeque failed, eno: %d", eno)
+			"schimplTaskBusyDeque failed, eno: %d",
+			eno)
 
 		return eno
 	}
@@ -1432,7 +1470,8 @@ func schimplStopTaskEx(ptn *schTaskNode) SchErrno {
 
 			yclog.LogCallerFileLine("schimplStopTaskEx: "+
 				"dieCb failed, task: %s, eno: %d",
-				ptn.task.name, eno)
+				ptn.task.name,
+				eno)
 
 			return eno
 		}
@@ -1445,7 +1484,7 @@ func schimplStopTaskEx(ptn *schTaskNode) SchErrno {
 	if eno = schimplKillTaskTimers(&ptn.task); eno != SchEnoNone {
 
 		yclog.LogCallerFileLine("schimplStopTaskEx: " +
-			"schimplTcbClean faild, eno: %d",
+			"schimplKillTaskTimers faild, eno: %d",
 			eno)
 
 		return eno
@@ -1472,7 +1511,8 @@ func schimplStopTaskEx(ptn *schTaskNode) SchErrno {
 
 		yclog.LogCallerFileLine("schimplStopTaskEx: " +
 			"schimplRetTimerNode failed, task: %s, eno: %d",
-			ptn.task.name, eno)
+			ptn.task.name,
+			eno)
 
 		return  eno
 	}
@@ -1497,6 +1537,9 @@ func schimplStopTaskEx(ptn *schTaskNode) SchErrno {
 // Make user task control block clean
 //
 func schimplTcbClean(tcb *schTask) SchErrno {
+
+	tcb.lock.Lock()
+	defer tcb.lock.Unlock()
 
 	if tcb == nil {
 		yclog.LogCallerFileLine("schimplTcbClean: invalid task control block pointer")
@@ -1584,7 +1627,9 @@ func schimplSendMsg(msg *schMessage) (eno SchErrno) {
 
 	yclog.LogCallerFileLine("schimplSendMsg: " +
 		"sender: %s, recver: %s, msg: %d",
-		msg.sender.task.name, msg.recver.task.name, msg.Id)
+		msg.sender.task.name,
+		msg.recver.task.name,
+		msg.Id)
 
 	//
 	// put message to receiver mailbox. More work might be needed, such as
@@ -1646,7 +1691,8 @@ func schimplSendMsg2TaskGroup(grp string, msg *schMessage) (SchErrno, int) {
 
 			yclog.LogCallerFileLine("schimplSendMsg2TaskGroup: " +
 				"send failed, group: %s, member: %s",
-				grp, ptn.task.name)
+				grp,
+				ptn.task.name)
 
 			failedCount++
 		}
@@ -1705,7 +1751,8 @@ func schimplSetTimer(ptn *schTaskNode, tdc *timerDescription) (SchErrno, int) {
 	if eno, ptm = schimplGetTimerNode(); eno != SchEnoNone || ptm == nil {
 
 		yclog.LogCallerFileLine("schimplSetTimer: " +
-			"schimplGetTimerNode failed, eno: %d", eno)
+			"schimplGetTimerNode failed, eno: %d",
+			eno)
 
 		return eno, schInvalidTid
 	}
@@ -1741,7 +1788,9 @@ func schimplSetTimer(ptn *schTaskNode, tdc *timerDescription) (SchErrno, int) {
 
 	yclog.LogCallerFileLine("schimplSetTimer: " +
 		"timer started, tid: %d, name: %s, owner: %s",
-		tid, tdc.Name, ptn.task.name)
+		tid,
+		tdc.Name,
+		ptn.task.name)
 
 	return SchEnoNone, tid
 }
@@ -1797,14 +1846,16 @@ func schimplKillTimer(ptn *schTaskNode, tid int) SchErrno {
 
 		yclog.LogCallerFileLine("schimplKillTimer: " +
 			"timer killed ok, tid: %d, task: %s",
-			tid, ptn.task.name)
+			tid,
+			ptn.task.name)
 
 		return SchEnoNone
 	}
 
 	yclog.LogCallerFileLine("schimplKillTimer: " +
 		"timer killed, but seems some errors, tid: %d, task: %s",
-		tid, ptn.task.name)
+		tid,
+		ptn.task.name)
 
 	return SchEnoInternal
 }
@@ -1829,9 +1880,13 @@ func schimplKillTaskTimers(task *schTask) SchErrno {
 		//
 
 		if tm != task.tmTab[idx] {
+
 			yclog.LogCallerFileLine("schimplKillTaskTimers: " +
 				"timer node pointer mismatched, tm: %p, idx: %d, tmTab: %p",
-				tm, idx, task.tmTab[idx])
+				tm,
+				idx,
+				task.tmTab[idx])
+
 			return SchEnoInternal
 		}
 
@@ -1848,7 +1903,8 @@ func schimplKillTaskTimers(task *schTask) SchErrno {
 		stopped := <-tm.tmcb.stopped
 
 		yclog.LogCallerFileLine("schimplKillTaskTimers: " +
-			"timer stopped with: %t", stopped)
+			"timer stopped with: %t",
+			stopped)
 	}
 
 	return SchEnoNone
@@ -1897,14 +1953,18 @@ func schimplTaskDone(ptn *schTaskNode, eno SchErrno) SchErrno {
 
 	} else {
 
-		yclog.LogCallerFileLine("schimplTaskDone: task name: %s", tskName)
+		yclog.LogCallerFileLine("schimplTaskDone: " +
+			"task name: %s",
+			tskName)
 	}
 
 	//
 	// see function schimplCommonTask for more please
 	//
 
-	yclog.LogCallerFileLine("schimplTaskDone: try done, task name: %s", tskName)
+	yclog.LogCallerFileLine("schimplTaskDone: " +
+		"try done, task name: %s",
+		tskName)
 
 	ptn.task.done<-eno
 
@@ -1916,7 +1976,9 @@ func schimplTaskDone(ptn *schTaskNode, eno SchErrno) SchErrno {
 	// case.
 	//
 
-	yclog.LogCallerFileLine("schimplTaskDone: done fired, task name: %s", tskName)
+	yclog.LogCallerFileLine("schimplTaskDone: " +
+		"done fired, task name: %s",
+		tskName)
 
 	return SchEnoNone
 }
@@ -2000,7 +2062,9 @@ func schimplSchedulerStart(tsd []TaskStaticDescription, tpo []string) (eno SchEr
 	for loop, desc := range tsd {
 
 		yclog.LogCallerFileLine("schimplSchedulerStart: " +
-			"start a static task, idx: %d, name: %s", loop, desc.Name)
+			"start a static task, idx: %d, name: %s",
+			loop,
+			desc.Name)
 
 		//
 		// setup task description. notice here the "Flag" always set to SchCreatedGo,
@@ -2027,7 +2091,8 @@ func schimplSchedulerStart(tsd []TaskStaticDescription, tpo []string) (eno SchEr
 		if eno, ptn = schimplCreateTask(&tkd); eno != SchEnoNone {
 
 			yclog.LogCallerFileLine("schimplSchedulerStart: " +
-				"schimplCreateTask failed, task: %s", tkd.Name)
+				"schimplCreateTask failed, task: %s",
+				tkd.Name)
 
 			return SchEnoParameter, nil
 		}
@@ -2052,7 +2117,8 @@ func schimplSchedulerStart(tsd []TaskStaticDescription, tpo []string) (eno SchEr
 
 				yclog.LogCallerFileLine("schimplSchedulerStart: "+
 					"schimplSendMsg failed, event: EvSchPoweron, eno: %d, task: %s",
-					eno,tkd.Name)
+					eno,
+					tkd.Name)
 
 				return eno, nil
 			}
@@ -2073,7 +2139,8 @@ func schimplSchedulerStart(tsd []TaskStaticDescription, tpo []string) (eno SchEr
 
 			yclog.LogCallerFileLine("schimplSchedulerStart: " +
 				"schimplGetTaskNodeByName failed, eno: %d, name: %s",
-				eno, name)
+				eno,
+				name)
 
 			continue
 		}
@@ -2082,7 +2149,8 @@ func schimplSchedulerStart(tsd []TaskStaticDescription, tpo []string) (eno SchEr
 
 			yclog.LogCallerFileLine("schimplSchedulerStart: " +
 				"nil task node pointer, eno: %d, name: %s",
-				eno, name)
+				eno,
+				name)
 
 			continue
 		}
@@ -2093,7 +2161,8 @@ func schimplSchedulerStart(tsd []TaskStaticDescription, tpo []string) (eno SchEr
 
 			yclog.LogCallerFileLine("schimplSchedulerStart: "+
 				"schimplSendMsg failed, event: EvSchPoweron, eno: %d, task: %s",
-				eno,name)
+				eno,
+				name)
 
 			return eno, nil
 		}
@@ -2150,7 +2219,9 @@ dogKilled:
 		}
 	}
 
-	yclog.LogCallerFileLine("watchDogProc: dog killed, why: %d", why)
+	yclog.LogCallerFileLine("watchDogProc: " +
+		"dog killed, why: %d",
+		why)
 
 	return SchEnoKilled
 }
@@ -2189,10 +2260,13 @@ func (wd watchDogCtrlBlock) dogWatch() SchErrno {
 			ptn.task.dog.lock.Lock()
 
 			if ptn.task.dog.BiteCounter++; ptn.task.dog.BiteCounter >= ptn.task.dog.DieThreshold {
+
 				yclog.LogCallerFileLine("dogWatch: "+
 					"in flying? task: %s, BiteCounter: %d",
-					ptn.task.name, ptn.task.dog.BiteCounter)
+					ptn.task.name,
+					ptn.task.dog.BiteCounter)
 			}
+
 			ptn.task.dog.BiteCounter = 0
 
 			ptn.task.dog.lock.Unlock()
