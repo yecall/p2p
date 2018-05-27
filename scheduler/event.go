@@ -120,6 +120,7 @@ const (
 
 // EvDcvFindNodeReq
 type MsgDcvFindNodeReq struct {
+	More	int				// number of more peers needed
 	Include	[]*ycfg.NodeID	// wanted, it can be an advice for discover
 	Exclude	[]*ycfg.NodeID	// filter out from response if any
 }

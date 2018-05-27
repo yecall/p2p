@@ -535,17 +535,13 @@ func (upkg *P2pPackage)RecvPackage(inst *peerInstance) PeMgrErrno {
 		inst.conn.SetReadDeadline(time.Time{})
 	}
 
-	//r := inst.conn.(io.Reader)
-	//gr := ggio.NewDelimitedReader(r, inst.maxPkgSize)
-	gr := inst.ior
-
 	//
 	// New protobuf "package" and read peer into it
 	//
 
 	pkg := new(pb.P2PPackage)
 
-	if err := gr.ReadMsg(pkg); err != nil {
+	if err := inst.ior.ReadMsg(pkg); err != nil {
 
 		yclog.LogCallerFileLine("RecvPackage: " +
 			"ReadMsg faied, err: %s",

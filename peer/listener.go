@@ -287,7 +287,7 @@ type acceptTskCtrlBlock struct {
 var acceptTCB = acceptTskCtrlBlock {
 	ptnLsnMgr:	nil,
 	listener:	nil,
-	event:		sch.EvSchNull,
+	event:		sch.SchEnoNone,
 	curError:	nil,
 }
 
@@ -352,15 +352,24 @@ acceptLoop:
 		acceptTCB.lockAccept.Lock()
 
 		//
-		// Check if had been kill by manager
+		// Check if had been kill by manager: we first obtain the lock then check the listener and
+		// event to see if we hav been killed, if not, we backup the listener for later accept operation
+		// and free the lock. See function lsnMgrStop for more please.
+		//
+		// Notice: seems we can apply "chan" to implement the "stop" logic moer better than what we
+		// do currently.
 		//
 
-		if acceptTCB.listener == nil {
+		acceptTCB.lockTcb.Lock()
 
-			yclog.LogCallerFileLine("PeerAcceptProc: broken for nil listener, we might have been killed")
-
+		if acceptTCB.listener == nil || acceptTCB.event != sch.SchEnoNone {
+			yclog.LogCallerFileLine("PeerAcceptProc: break the loop, for we might have been killed")
 			break acceptLoop
 		}
+
+		listener := acceptTCB.listener
+
+		acceptTCB.lockTcb.Unlock()
 
 		//
 		// Get lock to accept: unlock it at once since we just want to know if we
@@ -371,12 +380,13 @@ acceptLoop:
 
 		//
 		// Try to accept. Since we had never set deadline for the listener, we
-		// would work in a blocked mode.
+		// would work in a blocked mode; and if here the manager had close the
+		// listener, accept would get errors from underlying network.
 		//
 
 		yclog.LogCallerFileLine("PeerAcceptProc: try Accept()")
 
-		conn, err := acceptTCB.listener.Accept()
+		conn, err := listener.Accept()
 
 		yclog.LogCallerFileLine("PeerAcceptProc: get out from Accept()")
 
@@ -418,7 +428,8 @@ acceptLoop:
 			conn.RemoteAddr().String())
 
 		//
-		// Connection got, hand it up to peer manager task
+		// Connection got, hand it up to peer manager task, notice that we will continue the loop
+		// event when we get errors to make and send the message to peer manager, see bellow.
 		//
 
 		var msg = sch.SchMessage{}
@@ -464,14 +475,14 @@ acceptLoop:
 	// see above pls, do not lock again.
 	//
 	// Here we get out! We should check what had happened to break the loop
-	// for accepting aboved.
+	// for accepting above.
 	//
 
-	if acceptTCB.curError != nil && acceptTCB.event != sch.EvSchNull {
+	if acceptTCB.curError != nil && acceptTCB.event != sch.SchEnoNone {
 
 		//
 		// This is the normal case: the loop is broken by manager task, or
-		// errors fired from underlaying network.
+		// errors fired from underlying network.
 		//
 
 		yclog.LogCallerFileLine("PeerAcceptProc: broken for event: %d", acceptTCB.event)
@@ -483,7 +494,8 @@ acceptLoop:
 	}
 
 	//
-	// Abnormal case, we should never come here
+	// Abnormal case, we should never come here, debug out and then done the
+	// accepter task.
 	//
 
 	if acceptTCB.curError != nil {

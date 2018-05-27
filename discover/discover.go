@@ -24,6 +24,7 @@ package discover
 import (
 	sch 	"ycp2p/scheduler"
 	yclog	"ycp2p/logger"
+	"fmt"
 )
 
 
@@ -50,6 +51,7 @@ type discoverManager struct {
 	ptnMe		interface{}			// task node pointer to myself
 	ptnTab		interface{}			// task node pointer to table manager task
 	ptnPeMgr	interface{}			// task node pointer to peer manager task
+	more		int					// number more peers are needed
 }
 
 var dcvMgr = discoverManager {}
@@ -79,6 +81,7 @@ func DcvMgrProc(ptn interface{}, msg *sch.SchMessage) sch.SchErrno {
 	var eno DcvMgrErrno = DcvMgrEnoNone
 
 	switch msg.Id {
+
 	case sch.EvSchPoweron:
 		eno = DcvMgrPoweron(ptn)
 
@@ -136,11 +139,15 @@ func DcvMgrPoweron(ptn interface{}) DcvMgrErrno {
 // Poweroff handler
 //
 func DcvMgrPoweroff(ptn interface{}) DcvMgrErrno {
+
 	if eno := sch.SchinfTaskDone(ptn, sch.SchEnoKilled); eno != sch.SchEnoNone {
+
 		yclog.LogCallerFileLine("DcvMgrPoweroff: done task failed, eno: %d", eno)
 		return DcvMgrEnoScheduler
 	}
+
 	yclog.LogCallerFileLine("DcvMgrPoweroff: task done")
+
 	return DcvMgrEnoNone
 }
 
@@ -163,16 +170,37 @@ func DcvMgrFindNodeReq(req *sch.MsgDcvFindNodeReq) DcvMgrErrno {
 
 	var schMsg = sch.SchMessage{}
 	var reqRefresh = sch.MsgTabRefreshReq{nil,nil}
+
+	//
+	// Update "more" counter
+	//
+
+	if dcvMgr.more = req.More; dcvMgr.more <= 0 {
+
+		yclog.LogCallerFileLine("DcvMgrFindNodeReq: " +
+			"no more needed, more: %d",
+			dcvMgr.more)
+
+		return DcvMgrEnoNone
+	}
+
+	//
+	// More needed, ask the table task to refresh
+	//
+
 	if eno := sch.SchinfMakeMessage(&schMsg, dcvMgr.ptnMe, dcvMgr.ptnTab, sch.EvTabRefreshReq, &reqRefresh);
 		eno != sch.SchEnoNone {
+
 		yclog.LogCallerFileLine("DcvMgrFindNodeReq: SchinfMakeMessage failed, eno: %d", eno)
 		return DcvMgrEnoScheduler
 	}
 
 	if eno := sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
+
 		yclog.LogCallerFileLine("DcvMgrFindNodeReq: " +
 			"SchinfSendMessage failed, eno: %d, target: %s",
 			eno, sch.SchinfGetTaskName(dcvMgr.ptnTab))
+
 		return DcvMgrEnoScheduler
 	}
 
@@ -189,10 +217,23 @@ func DcvMgrTabRefreshRsp(rsp *sch.MsgTabRefreshRsp) DcvMgrErrno {
 	// manager task. For more, see comments aboved in function DcvMgrFindNodeReq pls.
 	//
 
-	var r = sch.MsgDcvFindNodeRsp{}
-	r.Nodes = rsp.Nodes
+	if dcvMgr.more <= 0 {
+
+		yclog.LogCallerFileLine("DcvMgrTabRefreshRsp: " +
+			"discarded, no more needed, more: %d, rsp: %s",
+			dcvMgr.more,
+			fmt.Sprintf("%+v", rsp))
+
+		return DcvMgrEnoNone
+	}
+
+	//
+	// Report nodes to peer manager and update "more" counter
+	//
 
 	var schMsg = sch.SchMessage{}
+	var r = sch.MsgDcvFindNodeRsp{}
+	r.Nodes = rsp.Nodes
 
 	if eno := sch.SchinfMakeMessage(&schMsg, dcvMgr.ptnMe, dcvMgr.ptnPeMgr, sch.EvDcvFindNodeRsp, &r);
 	eno != sch.SchEnoNone {
@@ -210,9 +251,16 @@ func DcvMgrTabRefreshRsp(rsp *sch.MsgTabRefreshRsp) DcvMgrErrno {
 		return DcvMgrEnoScheduler
 	}
 
+	//
+	// Update "more" counter
+	//
+
+	dcvMgr.more += len(r.Nodes)
+
 	yclog.LogCallerFileLine("DcvMgrTabRefreshRsp: " +
-		"send EvDcvFindNodeRsp ok, target: %s",
-		sch.SchinfGetTaskName(dcvMgr.ptnPeMgr))
+		"send EvDcvFindNodeRsp ok, target: %s, more: %d",
+		sch.SchinfGetTaskName(dcvMgr.ptnPeMgr),
+		dcvMgr.more)
 
 	return DcvMgrEnoNone
 }

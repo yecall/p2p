@@ -33,6 +33,7 @@ import (
 	um		"ycp2p/discover/udpmsg"
 	yclog	"ycp2p/logger"
 	"io"
+	"math/rand"
 )
 
 //
@@ -1074,7 +1075,42 @@ func peMgrHandshakeRsp(msg interface{}) PeMgrErrno {
 				"duplicated, node: %s",
 				fmt.Sprintf("%X", rsp.peNode.ID))
 
-			if eno := peMgrKillInst(rsp.ptn, rsp.peNode); eno != PeMgrEnoNone {
+			//
+			// Here we could not kill instance rudely, the instance state should be
+			// compared with each other to determine whom would be killed.
+			//
+
+			var ptn2Kill interface{} = nil
+			var node2Kill *ycfg.Node = nil
+
+			dupInst := peMgr.nodes[rsp.peNode.ID]
+			cmp := inst.state.compare(dupInst.state)
+
+			if cmp < 0 {
+				ptn2Kill = rsp.ptn
+				node2Kill = rsp.peNode
+			} else if cmp > 0 {
+				ptn2Kill = dupInst.ptnMe
+				node2Kill = &dupInst.node
+			} else {
+				if rand.Int() & 0x01 == 0 {
+					ptn2Kill = rsp.ptn
+					node2Kill = rsp.peNode
+				} else {
+					ptn2Kill = dupInst.ptnMe
+					node2Kill = &dupInst.node
+				}
+			}
+
+			//
+			// Kill instance selected above
+			//
+
+			yclog.LogCallerFileLine("peMgrHandshakeRsp: " +
+				"node2Kill: %s",
+				fmt.Sprintf("%X", *node2Kill))
+
+			if eno := peMgrKillInst(ptn2Kill, node2Kill); eno != PeMgrEnoNone {
 
 				yclog.LogCallerFileLine("peMgrHandshakeRsp: "+
 					"peMgrKillInst failed, node: %s",
@@ -1083,7 +1119,13 @@ func peMgrHandshakeRsp(msg interface{}) PeMgrErrno {
 				return eno
 			}
 
-			return PeMgrEnoDuplicaated
+			//
+			// If the response instance killed, return then
+			//
+
+			if ptn2Kill == rsp.ptn {
+				return PeMgrEnoDuplicaated
+			}
 		}
 	}
 
@@ -1668,12 +1710,25 @@ func peMgrAsk4More() PeMgrErrno {
 	// "exclude" are not applied currently.
 	//
 
+	more := peMgr.obpNum - peMgr.cfg.maxOutbounds
+
+	if more >= 0 {
+
+		yclog.LogCallerFileLine("peMgrAsk4More: " +
+			"no more needed, obpNum: %d, max: %d",
+			peMgr.obpNum,
+			peMgr.cfg.maxOutbounds)
+
+		return PeMgrEnoNone
+	}
+
 	var eno sch.SchErrno
 	var schMsg = sch.SchMessage{}
 
 	var req = sch.MsgDcvFindNodeReq {
-		Include: nil,
-		Exclude: nil,
+		More:		more,
+		Include:	nil,
+		Exclude:	nil,
 	}
 
 	eno = sch.SchinfMakeMessage(&schMsg, peMgr.ptnMe, peMgr.ptnDcv, sch.EvDcvFindNodeReq, &req)
@@ -3297,4 +3352,14 @@ func piP2pPongProc(inst *peerInstance, pong *Pingpong) PeMgrErrno {
 	return PeMgrEnoNone
 }
 
+//
+// Compare peer instance to a specific state
+//
+func ( pis peerInstState)compare(s peerInstState) int {
 
+	//
+	// See definition about peerInstState pls.
+	//
+
+	return int(pis - s)
+}

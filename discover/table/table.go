@@ -1917,13 +1917,13 @@ func tabUpdateNodeDb4Bounding(pn *Node, pit *time.Time, pot *time.Time) TabMgrEr
 	return TabMgrEnoNone
 }
 
-//
+
 // Update buckets
 //
 func tabUpdateBucket(inst *instCtrlBlock, result int) TabMgrErrno {
 
 	if inst == nil {
-		yclog.LogCallerFileLine("tabUpdateBucket: invalid parameters")
+		yclog.LogCallerFileLine("tabUpdateBucket: invaliNd parameters")
 		return TabMgrEnoParameter
 	}
 
