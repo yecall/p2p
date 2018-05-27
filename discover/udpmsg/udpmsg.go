@@ -42,6 +42,7 @@ const (
 type UdpMsgType int
 
 type (
+
 	// Endpoint
 	Endpoint struct {
 		IP			net.IP		// ip address

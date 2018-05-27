@@ -23,6 +23,7 @@ package peer
 import (
 	"io"
 	"time"
+	"net"
 	ggio "github.com/gogo/protobuf/io"
 	ycfg	"ycp2p/config"
 	pb		"ycp2p/peer/pb"
@@ -65,6 +66,9 @@ type Protocol struct {
 //
 type Handshake struct {
 	NodeId		ycfg.NodeID	// node identity
+	IP			net.IP		// ip address
+	UDP			uint32		// udp port number
+	TCP			uint32		// tcp port number
 	ProtoNum	uint32		// number of protocols supported
 	Protocols	[]Protocol	// version of protocol
 }
@@ -227,6 +231,9 @@ func (upkg *P2pPackage)getHandshakeInbound(inst *peerInstance) (*Handshake, PeMg
 
 	var ptrMsg = new(Handshake)
 	copy(ptrMsg.NodeId[:], pbHS.NodeId)
+	ptrMsg.IP = append(ptrMsg.IP, pbHS.IP...)
+	ptrMsg.UDP = *pbHS.UDP
+	ptrMsg.TCP = *pbHS.TCP
 	ptrMsg.ProtoNum = *pbHS.ProtoNum
 
 	ptrMsg.Protocols = make([]Protocol, len(pbHS.Protocols))
@@ -249,6 +256,9 @@ func (upkg *P2pPackage)putHandshakeOutbound(inst *peerInstance, hs *Handshake) P
 
 	pbHandshakeMsg := new(pb.P2PMessage_Handshake)
 	pbHandshakeMsg.NodeId = append(pbHandshakeMsg.NodeId, hs.NodeId[:] ...)
+	pbHandshakeMsg.IP = append(pbHandshakeMsg.IP, hs.IP...)
+	pbHandshakeMsg.TCP = &hs.TCP
+	pbHandshakeMsg.UDP = &hs.UDP
 	pbHandshakeMsg.ProtoNum = &hs.ProtoNum
 	pbHandshakeMsg.Protocols = make([]*pb.P2PMessage_Protocol, *pbHandshakeMsg.ProtoNum)
 

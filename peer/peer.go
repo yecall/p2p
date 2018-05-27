@@ -26,6 +26,7 @@ import (
 	"time"
 	"fmt"
 	"sync"
+	"math/rand"
 	ggio "github.com/gogo/protobuf/io"
 	ycfg	"ycp2p/config"
 	sch 	"ycp2p/scheduler"
@@ -33,7 +34,6 @@ import (
 	um		"ycp2p/discover/udpmsg"
 	yclog	"ycp2p/logger"
 	"io"
-	"math/rand"
 )
 
 //
@@ -92,7 +92,8 @@ type peMgrConfig struct {
 	maxOutbounds	int				// max concurrency outbounds
 	maxInBounds		int				// max concurrency inbounds
 	ip				net.IP			// ip address
-	port			uint16			// port numbers
+	port			uint16			// tcp port number
+	udp				uint16			// udp port number, used with handshake procedure
 	nodeId			ycfg.NodeID		// the node's public key
 	statics			[]*ycfg.Node	// statics nodes
 	noDial			bool			// do not dial outbound
@@ -302,6 +303,7 @@ func peMgrPoweron(ptn interface{}) PeMgrErrno {
 		maxInBounds:	cfg.MaxInBounds,
 		ip:				cfg.IP,
 		port:			cfg.Port,
+		udp:			cfg.UDP,
 		nodeId:			cfg.ID,
 		statics:		cfg.Statics,
 		noDial:			cfg.NoDial,
@@ -1710,7 +1712,7 @@ func peMgrAsk4More() PeMgrErrno {
 	// "exclude" are not applied currently.
 	//
 
-	more := peMgr.obpNum - peMgr.cfg.maxOutbounds
+	more := peMgr.cfg.maxOutbounds - peMgr.obpNum
 
 	if more >= 0 {
 
@@ -1852,9 +1854,9 @@ type peerInstance struct {
 	raddr		*net.TCPAddr				// remote ip address
 	dir			int							// direction: outbound(+1) or inbound(-1)
 	node		ycfg.Node					// peer "node" information
-	maxPkgSize	int							// max size of tcpmsg package
 	protoNum	uint32						// peer protocol number
 	protocols	[]Protocol					// peer protocol table
+	maxPkgSize	int							// max size of tcpmsg package
 	ppTid		int							// pingpong timer identity
 	p2pkgLock	sync.Mutex					// lock for p2p package tx-sync
 	p2pkgRx		P2pInfPkgCallback			// incoming p2p package callback
@@ -1865,6 +1867,9 @@ type peerInstance struct {
 	rxExit		chan PeMgrErrno				// RX had been done
 	ppSeq		uint64						// pingpong sequence no.
 	ppCnt		int							// pingpong counter
+	rxEno		PeMgrErrno					// rx errno
+	txEno		PeMgrErrno					// tx errno
+	ppEno		PeMgrErrno					// pingpong errno
 }
 
 //
@@ -1899,6 +1904,9 @@ var peerInstDefault = peerInstance {
 	rxExit:		nil,
 	ppSeq:		0,
 	ppCnt:		0,
+	rxEno:		PeMgrEnoNone,
+	txEno:		PeMgrEnoNone,
+	ppEno:		PeMgrEnoNone,
 }
 
 //
@@ -2216,8 +2224,19 @@ func piPingpongReq(inst *peerInstance, msg interface{}) PeMgrErrno {
 
 	//
 	// The ping procedure is inted by a timer internal the peer task
-	// instance, or from outside module for some purpose.
+	// instance, or from outside module for some purpose. Notice, it
+	// is just for "ping" here, not for "pong" which is sent when peer
+	// ping message received.
 	//
+
+	if inst.ppEno != PeMgrEnoNone {
+
+		yclog.LogCallerFileLine("piPingpongReq: " +
+			"nothing done, ppEno: %d",
+			inst.ppEno)
+
+		return PeMgrEnoResource
+	}
 
 	if msg != nil {
 
@@ -2247,6 +2266,8 @@ func piPingpongReq(inst *peerInstance, msg interface{}) PeMgrErrno {
 			fmt.Sprintf("%X", inst.node.ID))
 
 		Lock4Cb.Lock()
+
+		inst.ppEno = eno
 
 		if P2pIndHandler != nil {
 
@@ -2463,6 +2484,9 @@ func piEstablishedInd(inst *peerInstance, msg interface{}) PeMgrErrno {
 
 	inst.conn.SetDeadline(time.Time{})
 	inst.state = peInstStateActivated
+	inst.txEno = PeMgrEnoNone
+	inst.rxEno = PeMgrEnoNone
+	inst.ppEno = PeMgrEnoNone
 
 	//
 	// setup IO writer and reader
@@ -2677,26 +2701,37 @@ func piHandshakeInbound(inst *peerInstance) PeMgrErrno {
 		return eno
 	}
 
+	yclog.LogCallerFileLine("piHandshakeInbound: " +
+		"read handshake: %s, peer: %s",
+		fmt.Sprintf("%+v", hs),
+		inst.raddr.String())
+
 	//
-	// backup info about protocols supported by peer
+	// backup info about protocols supported by peer. notice that here we can
+	// check against the ip and tcp port from handshake with that obtained from
+	// underlying network, but we not now.
 	//
 
 	inst.protoNum = hs.ProtoNum
 	inst.protocols = hs.Protocols
 	inst.node.ID = hs.NodeId
-	inst.node.IP = append(inst.node.IP, inst.raddr.IP...)
-	inst.node.TCP = uint16(inst.raddr.Port)
-	inst.node.UDP = uint16(inst.raddr.Port)
+	inst.node.IP = append(inst.node.IP, hs.IP...)
+	inst.node.TCP = uint16(hs.TCP)
+	inst.node.UDP = uint16(hs.UDP)
 
 	//
 	// write outbound handshake to remote peer
 	//
 
 	yclog.LogCallerFileLine("piHandshakeInbound: " +
-		"try to write the outbund Handshake to raddr: %s",
+		"write Handshake: %s, peer: %s",
+		fmt.Sprintf("%+v", hs),
 		inst.raddr.String())
 
 	hs.NodeId = peMgr.cfg.nodeId
+	hs.IP = append(hs.IP, peMgr.cfg.ip ...)
+	hs.UDP = uint32(peMgr.cfg.udp)
+	hs.TCP = uint32(peMgr.cfg.port)
 	hs.ProtoNum = peMgr.cfg.protoNum
 	hs.Protocols = peMgr.cfg.protocols
 
@@ -2738,8 +2773,16 @@ func piHandshakeOutbound(inst *peerInstance) PeMgrErrno {
 	//
 
 	hs.NodeId = peMgr.cfg.nodeId
+	hs.IP = append(hs.IP, peMgr.cfg.ip ...)
+	hs.UDP = uint32(peMgr.cfg.udp)
+	hs.TCP = uint32(peMgr.cfg.port)
 	hs.ProtoNum = peMgr.cfg.protoNum
 	hs.Protocols = append(hs.Protocols, peMgr.cfg.protocols ...)
+
+	yclog.LogCallerFileLine("piHandshakeOutbound: " +
+		"write handshake: %s, peer: %s",
+		fmt.Sprintf("%+v", hs),
+		inst.raddr.String())
 
 	if eno = pkg.putHandshakeOutbound(inst, hs); eno != PeMgrEnoNone {
 
@@ -2766,15 +2809,25 @@ func piHandshakeOutbound(inst *peerInstance) PeMgrErrno {
 		return eno
 	}
 
+	yclog.LogCallerFileLine("piHandshakeOutbound: " +
+		"read handshake: %s, peer: %s",
+		fmt.Sprintf("%+v", hs),
+		inst.raddr.String())
+
 	//
 	// since it's an outbound peer, the peer node id is known before this
-	// handshake procedure carried out, we can check against these twos.
+	// handshake procedure carried out, we can check against these twos,
+	// and we update the remains.
 	//
 
 	if hs.NodeId != inst.node.ID {
 		yclog.LogCallerFileLine("piHandshakeOutbound: node identity mismathced")
 		return PeMgrEnoMessage
 	}
+
+	inst.node.TCP = uint16(hs.TCP)
+	inst.node.UDP = uint16(hs.UDP)
+	inst.node.IP = append(inst.node.IP, hs.IP ...)
 
 	//
 	// backup info about protocols supported by peer;
@@ -2977,16 +3030,25 @@ txBreak:
 		//
 
 		select {
+
 		case done = <-inst.txDone:
+
 			yclog.LogCallerFileLine("piTx: done with: %d", done)
+
 			inst.txExit<-done
 			break txBreak
+
 		default:
 		}
 
 		//
 		// send user package, lock needed
 		//
+
+		if inst.txEno != PeMgrEnoNone {
+			yclog.LogCallerFileLine("piTx: txEno: %d", inst.txEno)
+			continue
+		}
 
 		inst.p2pkgLock.Lock()
 
@@ -3005,7 +3067,8 @@ txBreak:
 
 			yclog.LogCallerFileLine("piTx: " +
 				"send package, Pid: %d, PayloadLength: %d",
-				upkg.Pid, upkg.PayloadLength)
+				upkg.Pid,
+				upkg.PayloadLength)
 
 			if eno := upkg.SendPackage(inst); eno != PeMgrEnoNone {
 
@@ -3022,6 +3085,8 @@ txBreak:
 				yclog.LogCallerFileLine("piTx: " +
 					"call P2pIndHandler for SendPackage failed, eno: %d",
 					eno)
+
+				inst.txEno = eno
 
 				Lock4Cb.Lock()
 
@@ -3081,16 +3146,25 @@ rxBreak:
 		//
 
 		select {
+
 		case done = <-inst.rxDone:
+
 			yclog.LogCallerFileLine("piRx: done with: %d", done)
+
 			inst.rxExit<-done
 			break rxBreak
+
 		default:
 		}
 
 		//
 		// try reading the peer
 		//
+
+		if inst.rxEno != PeMgrEnoNone {
+			yclog.LogCallerFileLine("piRx: rxEno: %d", inst.rxEno)
+			continue
+		}
 
 		yclog.LogCallerFileLine("piRx: try RecvPackage ...")
 
@@ -3113,6 +3187,8 @@ rxBreak:
 				eno)
 
 			Lock4Cb.Lock()
+
+			inst.rxEno = eno
 
 			if P2pIndHandler != nil {
 
@@ -3355,7 +3431,7 @@ func piP2pPongProc(inst *peerInstance, pong *Pingpong) PeMgrErrno {
 //
 // Compare peer instance to a specific state
 //
-func ( pis peerInstState)compare(s peerInstState) int {
+func (pis peerInstState) compare(s peerInstState) int {
 
 	//
 	// See definition about peerInstState pls.

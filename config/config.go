@@ -176,7 +176,8 @@ type Cfg4PeerListener struct {
 
 type Cfg4PeerManager struct {
 	IP				net.IP		// ip address
-	Port			uint16		// port number
+	Port			uint16		// tcp port number
+	UDP				uint16		// udp port number, used with handshake procedure
 	ID				NodeID		// the node's public key
 	MaxPeers		int			// max peers would be
 	MaxOutbounds	int			// max concurrency outbounds
@@ -228,7 +229,7 @@ const (
 )
 
 var dftLocal = Node {
-	IP:		net.IPv4(192,168,2,178),
+	IP:		net.IPv4(192,168,2,102),
 	UDP:	dftUdpPort,
 	TCP:	dftTcpPort,
 	ID:		NodeID{0},
@@ -670,6 +671,7 @@ func P2pConfig4PeerManager() *Cfg4PeerManager {
 	return &Cfg4PeerManager {
 		IP:				config.Local.IP,
 		Port:			config.Local.TCP,
+		UDP:			config.Local.UDP,
 		ID:				config.Local.ID,
 		MaxPeers:		config.MaxPeers,
 		MaxOutbounds:	config.MaxOutbounds,

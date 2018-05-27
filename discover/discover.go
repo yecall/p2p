@@ -22,9 +22,10 @@
 package discover
 
 import (
+	"fmt"
+	ycfg	"ycp2p/config"
 	sch 	"ycp2p/scheduler"
 	yclog	"ycp2p/logger"
-	"fmt"
 )
 
 
@@ -67,6 +68,7 @@ func init() {
 	dcvMgr.ptnMe	= nil
 	dcvMgr.ptnTab	= nil
 	dcvMgr.ptnPeMgr = nil
+	dcvMgr.more		= ycfg.MaxOutbounds
 }
 
 //
@@ -255,7 +257,7 @@ func DcvMgrTabRefreshRsp(rsp *sch.MsgTabRefreshRsp) DcvMgrErrno {
 	// Update "more" counter
 	//
 
-	dcvMgr.more += len(r.Nodes)
+	dcvMgr.more -= len(r.Nodes)
 
 	yclog.LogCallerFileLine("DcvMgrTabRefreshRsp: " +
 		"send EvDcvFindNodeRsp ok, target: %s, more: %d",
