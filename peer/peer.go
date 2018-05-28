@@ -26,6 +26,7 @@ import (
 	"time"
 	"fmt"
 	"sync"
+	"io"
 	"math/rand"
 	ggio "github.com/gogo/protobuf/io"
 	ycfg	"ycp2p/config"
@@ -33,7 +34,6 @@ import (
 	tab		"ycp2p/discover/table"
 	um		"ycp2p/discover/udpmsg"
 	yclog	"ycp2p/logger"
-	"io"
 )
 
 //

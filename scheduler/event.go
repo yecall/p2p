@@ -143,9 +143,9 @@ const (
 	EvNblFindNodeRsp		= EvNblUdpBase	+ 2
 	EvNblPingpongReq		= EvNblUdpBase	+ 3
 	EvNblPingpongRsp		= EvNblUdpBase	+ 4
-	EvNblPingedInd			= EvNblUdpBase + 5
-	EvNblPongedInd			= EvNblUdpBase + 6
-	EvNblQueriedInd		= EvNblUdpBase + 7
+	EvNblPingedInd			= EvNblUdpBase	+ 5
+	EvNblPongedInd			= EvNblUdpBase	+ 6
+	EvNblQueriedInd			= EvNblUdpBase	+ 7
 )
 
 //

@@ -714,7 +714,8 @@ func (ni *neighborInst) NgbProtoDieCb(ptn interface{}) sch.SchErrno {
 	}
 
 	//
-	// kill any timer if needed
+	// kill any timer if needed, should not care the result returned from
+	// scheduler, for timer might have been killed by scheduler.
 	//
 
 	if ni.tidPP != sch.SchInvalidTid {
@@ -724,8 +725,6 @@ func (ni *neighborInst) NgbProtoDieCb(ptn interface{}) sch.SchErrno {
 			yclog.LogCallerFileLine("NgbProtoDieCb: " +
 				"SchinfKillTimer fialed, eno: %d",
 				eno)
-
-			return eno
 		}
 	}
 
@@ -736,8 +735,6 @@ func (ni *neighborInst) NgbProtoDieCb(ptn interface{}) sch.SchErrno {
 			yclog.LogCallerFileLine("NgbProtoDieCb: " +
 				"SchinfKillTimer fialed, eno: %d",
 				eno)
-
-			return eno
 		}
 	}
 

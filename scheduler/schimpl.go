@@ -1461,19 +1461,24 @@ func schimplStopTaskEx(ptn *schTaskNode) SchErrno {
 	}
 
 	//
-	// call user task to die
+	// callback user task to die.
 	//
 
 	if ptn.task.dieCb != nil {
 
 		if eno = ptn.task.dieCb(ptn); eno != SchEnoNone {
 
+			//
+			// Notice: here dieCb return failed, but we SHOULD NOT care it since
+			// this function is called into a user context, we can not return here
+			// or the resources allocated to this task will leak. We had to go
+			// ahead.
+			//
+
 			yclog.LogCallerFileLine("schimplStopTaskEx: "+
 				"dieCb failed, task: %s, eno: %d",
 				ptn.task.name,
 				eno)
-
-			return eno
 		}
 	}
 
