@@ -48,7 +48,7 @@ const (
 	PeMgrEnoOs
 	PeMgrEnoMessage
 	PeMgrEnoDuplicaated
-	PeMgrEnoUnsup
+	PeMgrEnoNotfound
 	PeMgrEnoInternal
 	PeMgrEnoPingpongTh
 	PeMgrEnoUnknown
@@ -1033,10 +1033,24 @@ func peMgrHandshakeRsp(msg interface{}) PeMgrErrno {
 	//
 	// This is an event from an instance task of outbound or inbound peer, telling
 	// the result about the handshake procedure between a pair of peers.
+	// Notice: here we could receive response that sent by a peer instance task had
+	// been killed for a duplicated inbound/outbound case, for details, see bellow
+	// of this function please. We should check this case to discard the response
+	// than do anything.
 	//
 
 	var rsp = msg.(*msgHandshakeRsp)
-	var inst = peMgr.peers[rsp.ptn]
+	var inst *peerInstance
+	var lived bool
+
+	if inst, lived = peMgr.peers[rsp.ptn]; inst == nil || !lived {
+
+		yclog.LogCallerFileLine("peMgrHandshakeRsp: " +
+			"instance not found, rsp: %s",
+			fmt.Sprintf("%+v", *rsp))
+
+		return PeMgrEnoNotfound
+	}
 
 	yclog.LogCallerFileLine("peMgrHandshakeRsp:" +
 		"response for handshake received: %s",
@@ -1066,7 +1080,9 @@ func peMgrHandshakeRsp(msg interface{}) PeMgrErrno {
 	}
 
 	//
-	// Check duplicated for inbound instance
+	// Check duplicated for inbound instance. Notice: only here the peer manager can known the
+	// identity of peer to determine if it's duplicated to a outbound instance, which is an
+	// instance connect from local to the same peer.
 	//
 
 	if inst.dir == PeInstDirInbound {
@@ -1079,7 +1095,9 @@ func peMgrHandshakeRsp(msg interface{}) PeMgrErrno {
 
 			//
 			// Here we could not kill instance rudely, the instance state should be
-			// compared with each other to determine whom would be killed.
+			// compared with each other to determine whom would be killed. Since here
+			// handshake response received, the duplicated inbound instance must be
+			// in "handshook" state.
 			//
 
 			var ptn2Kill interface{} = nil
@@ -1105,7 +1123,12 @@ func peMgrHandshakeRsp(msg interface{}) PeMgrErrno {
 			}
 
 			//
-			// Kill instance selected above
+			// Kill instance selected above. Notice: the one to be killed might be busy in
+			// handshake procedure (must be the inbound one), if it's killed, the peer manager
+			// might receive a handshake response message without mapping rsp.ptn to instance
+			// pointer, see function peMgrKillInst please, the map between these twos removed
+			// there, so the peer manager must check this case to discard that response. See
+			// above of this function(handshake response handler) please.
 			//
 
 			yclog.LogCallerFileLine("peMgrHandshakeRsp: " +
