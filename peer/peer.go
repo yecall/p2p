@@ -1654,7 +1654,9 @@ func peMgrKillInst(ptn interface{}, node *ycfg.Node) PeMgrErrno {
 	//
 	// Notice: the possible pingpong timer should be closed before the
 	// connection closing, since the timer handler would try to send ping
-	// message on the connection.
+	// message on the connection. But since this function should be called
+	// before peer activated, this seems not necessary, for pingpong timer
+	// is still not be created for peer instance before its' activation.
 	//
 
 	var peInst = peMgr.peers[ptn]
@@ -2266,12 +2268,29 @@ func piPingpongReq(inst *peerInstance, msg interface{}) PeMgrErrno {
 	// is just for "ping" here, not for "pong" which is sent when peer
 	// ping message received.
 	//
+	// Notice:
+	//
+	// If errors had been fired on the conection, we should return do
+	// nothing;
+	//
+	// If the connection had been closed, we should not try to ping,
+	// this is possible for the message needs some time to be shcedled
+	// here.
+	//
 
 	if inst.ppEno != PeMgrEnoNone {
 
 		yclog.LogCallerFileLine("piPingpongReq: " +
 			"nothing done, ppEno: %d",
 			inst.ppEno)
+
+		return PeMgrEnoResource
+	}
+
+	if inst.conn == nil {
+
+		yclog.LogCallerFileLine("piPingpongReq: " +
+			"connection had been closed")
 
 		return PeMgrEnoResource
 	}
@@ -2289,6 +2308,7 @@ func piPingpongReq(inst *peerInstance, msg interface{}) PeMgrErrno {
 		Seq:	inst.ppSeq,
 		Extra:	nil,
 	}
+
 	inst.ppSeq++
 
 	upkg := new(P2pPackage)
