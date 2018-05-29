@@ -1652,8 +1652,23 @@ func peMgrKillInst(ptn interface{}, node *ycfg.Node) PeMgrErrno {
 	// we close it so the instance would get out event it's blocked in
 	// actions on its' connection.
 	//
+	// Notice: the possible pingpong timer should be closed before the
+	// connection closing, since the timer handler would try to send ping
+	// message on the connection.
+	//
 
 	var peInst = peMgr.peers[ptn]
+
+	if peInst.ppTid != sch.SchInvalidTid {
+
+		if eno := sch.SchinfKillTimer(ptn, peInst.ppTid); eno != sch.SchEnoNone {
+			yclog.LogCallerFileLine("peMgrKillInst: " +
+				"SchinfKillTimer failed, eno: %d",
+				eno)
+		}
+
+		peInst.ppTid = sch.SchInvalidTid
+	}
 
 	if peInst.conn != nil {
 
@@ -2246,7 +2261,7 @@ func piHandshakeReq(inst *peerInstance, msg interface{}) PeMgrErrno {
 func piPingpongReq(inst *peerInstance, msg interface{}) PeMgrErrno {
 
 	//
-	// The ping procedure is inted by a timer internal the peer task
+	// The ping procedure is fired by a timer internal the peer task
 	// instance, or from outside module for some purpose. Notice, it
 	// is just for "ping" here, not for "pong" which is sent when peer
 	// ping message received.
@@ -3360,7 +3375,9 @@ func piP2pPkgProc(inst *peerInstance, upkg *P2pPackage) PeMgrErrno {
 	}
 
 	//
-	// check message identity
+	// check message identity. we discard any handshake messages received here
+	// since handshake procedure had been passed, and dynamic handshake is not
+	// supported currently.
 	//
 
 	switch msg.Mid {
