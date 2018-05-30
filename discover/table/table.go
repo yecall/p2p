@@ -2961,7 +2961,7 @@ func TabBucketAddNode(n *um.Node, lastPing *time.Time, lastPong *time.Time) TabM
 	tabMgr.lock.Lock()
 	defer tabMgr.lock.Unlock()
 
-	return tabBucketAddNode(n, lastPong, lastPong)
+	return tabBucketAddNode(n, lastPing, lastPong)
 }
 
 

@@ -142,7 +142,6 @@ type Config struct {
 	StaticNodes		[]*Node				// static nodes
 	NodeDataDir		string				// node data directory
 	NodeDatabase	string				// node database
-	ListenAddr		string				// address listened
 	NoDial			bool				// outboundless flag
 	BootstrapNode	bool				// bootstrap node flag
 	Local			Node				// myself
