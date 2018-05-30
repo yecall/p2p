@@ -313,13 +313,13 @@ timerLoop:
 
 			case stop := <-ptm.tmcb.stop:
 
+				ptm.tmcb.taskNode.task.lock.Lock()
+
 				yclog.LogCallerFileLine("schimplTimerCommonTask: " +
 					"stop, tid: %d, utid: %d, timer:%s, task: %s",
 					ptm.tmcb.taskNode.task.tmIdxTab[ptm],
 					ptm.tmcb.utid, ptm.tmcb.name,
 					ptm.tmcb.taskNode.task.name)
-
-				ptm.tmcb.taskNode.task.lock.Lock()
 
 				if stop == true {
 
@@ -386,14 +386,14 @@ absTimerLoop:
 				// see function schimplKillTimer for details please.
 				//
 
+				ptm.tmcb.taskNode.task.lock.Lock()
+				p2pSDL.lock.Lock()
+
 				yclog.LogCallerFileLine("schimplTimerCommonTask: "+
 					"expired, tid: %d, utid: %d, timer:%s, task: %s",
 					ptm.tmcb.taskNode.task.tmIdxTab[ptm],
 					ptm.tmcb.utid, ptm.tmcb.name,
 					ptm.tmcb.taskNode.task.name)
-
-				ptm.tmcb.taskNode.task.lock.Lock()
-				p2pSDL.lock.Lock()
 
 				if eno := schimplSendTimerEvent(ptm); eno != SchEnoNone {
 
@@ -410,15 +410,15 @@ absTimerLoop:
 
 			case stop := <-ptm.tmcb.stop:
 
+				ptm.tmcb.taskNode.task.lock.Lock()
+				p2pSDL.lock.Lock()
+
 				yclog.LogCallerFileLine("schimplTimerCommonTask: "+
 					"stop, tid: %d, utid: %d, timer:%s, task: %s",
 					ptm.tmcb.taskNode.task.tmIdxTab[ptm],
 					ptm.tmcb.utid,
 					ptm.tmcb.name,
 					ptm.tmcb.taskNode.task.name)
-
-				ptm.tmcb.taskNode.task.lock.Lock()
-				p2pSDL.lock.Lock()
 
 				if stop == true {
 
