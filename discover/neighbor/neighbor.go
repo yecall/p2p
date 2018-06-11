@@ -86,6 +86,7 @@ const (
 	NgbProtoEnoOs
 	NgbProtoEnoEncode
 	NgbProtoEnoTimeout
+	NgbProtoEnoUdp
 )
 
 type NgbProtoErrno int
@@ -202,9 +203,66 @@ func (inst *neighborInst) NgbProtoFindNodeReq(ptn interface{}, fn *um.FindNode) 
 
 	if eno := sendUdpMsg(buf, &dst); eno != sch.SchEnoNone {
 
+		//
+		// response FindNode  NgbProtoEnoUdp to table task
+		//
+
 		yclog.LogCallerFileLine("NgbProtoFindNodeReq：" +
-	 		"sendUdpMsg failed, dst: %s, eno: %d",
-	 		dst.String(), eno)
+			"sendUdpMsg failed, dst: %s, eno: %d",
+			dst.String(), eno)
+
+		var rsp = sch.NblFindNodeRsp{}
+		var schMsg  = sch.SchMessage{}
+
+		rsp.Result = (NgbProtoEnoUdp << 16) + tab.TabMgrEnoUdp
+		rsp.FindNode = inst.msgBody.(*um.FindNode)
+
+		if eno := sch.SchinfMakeMessage(&schMsg, inst.ptn, ngbMgr.ptnTab,
+			sch.EvNblFindNodeRsp, &rsp); eno != sch.SchEnoNone {
+
+			yclog.LogCallerFileLine("NgbProtoFindNodeReq: " +
+				"SchinfMakeMessage failed, eno: %d",
+				eno)
+
+			return NgbMgrEnoScheduler
+		}
+
+		if eno := sch.SchinfSendMessage(&schMsg); eno != sch.SchEnoNone {
+
+			yclog.LogCallerFileLine("NgbProtoFindNodeReq: "+
+				"SchinfSendMessage failed, eno: %d, sender: %s, recver: %s",
+				eno,
+				sch.SchinfGetMessageSender(&schMsg),
+				sch.SchinfGetMessageRecver(&schMsg))
+
+			return NgbMgrEnoScheduler
+		}
+
+		yclog.LogCallerFileLine("NgbProtoFindNodeReq: " +
+			"EvNblFindNodeRsp sent ok, target: %s",
+			sch.SchinfGetTaskName(ngbMgr.ptnTab))
+
+		//
+		// remove ourself from map in manager. notice: since we had setup the calback
+		// for task done(killed), this cleaning would carried out by scheduler, but
+		// we do cleaning here to obtain a more clear seen.
+		//
+
+		ngbMgr.cleanMap(inst.name)
+
+		//
+		// done the instance task
+		//
+
+		if eno := sch.SchinfTaskDone(inst.ptn, sch.SchEnoNone); eno != sch.SchEnoNone {
+
+			yclog.LogCallerFileLine("NgbProtoFindNodeReq: " +
+				"SchinfTaskDone failed, eno: %d, name: %s",
+				eno,
+				sch.SchinfGetTaskName(inst.ptn))
+
+			return NgbProtoEnoScheduler
+		}
 
 	 	return NgbProtoEnoOs
 	 }

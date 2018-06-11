@@ -50,6 +50,7 @@ const (
 	TabMgrEnoFindNodeFailed
 	TabMgrEnoPingpongFailed
 	TabMgrEnoTimeout
+	TabMgrEnoUdp
 	TabMgrEnoResource
 	TabMgrEnoRemove
 )
@@ -2472,11 +2473,14 @@ func tabDeleteActiveQueryInst(inst *instCtrlBlock) TabMgrErrno {
 
 				if eno := sch.SchinfKillTimer(tabMgr.ptnMe, inst.tid); eno != sch.SchEnoNone {
 
+					//
+					// Notice: we should not care the return value of function SchinfKillTimer, since the timer
+					// might have been removed by scheduler when we try to kill it.
+					//
+
 					yclog.LogCallerFileLine("tabDeleteActiveQueryInst: " +
 						"kill timer failed, eno: %d",
 						eno	)
-
-					return TabMgrEnoScheduler
 				}
 
 				inst.tid = sch.SchInvalidTid
