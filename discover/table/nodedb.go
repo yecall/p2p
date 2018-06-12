@@ -54,8 +54,15 @@ import (
 	//
 	// "github.com/ethereum/go-ethereum/crypto"
 	//
+
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rlp"
+
+	//
+	// Modified: 20180503, yeeco
+	//
+	//"github.com/ethereum/go-ethereum/rlp"
+	//
+
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/errors"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
@@ -208,7 +215,13 @@ func (db *nodeDB) node(id NodeID) *Node {
 		return nil
 	}
 	node := new(Node)
-	if err := rlp.DecodeBytes(blob, node); err != nil {
+
+	//
+	// Modified: 20180612, yeeco
+	//
+	//if err := rlp.DecodeBytes(blob, node); err != nil {
+	//
+	if err := DecodeBytes(blob, node); err != nil {
 		log.Error("Failed to decode node RLP", "err", err)
 		return nil
 	}
@@ -225,7 +238,12 @@ func (db *nodeDB) node(id NodeID) *Node {
 
 // updateNode inserts - potentially overwriting - a node into the peer database.
 func (db *nodeDB) updateNode(node *Node) error {
-	blob, err := rlp.EncodeToBytes(node)
+	//
+	// Modified: 20180612, yeeco
+	//
+	//blob, err := rlp.EncodeToBytes(node)
+	//
+	blob, err := EncodeToBytes(node)
 	if err != nil {
 		return err
 	}
@@ -397,7 +415,12 @@ func nextNode(it iterator.Iterator) *Node {
 			continue
 		}
 		var n Node
-		if err := rlp.DecodeBytes(it.Value(), &n); err != nil {
+		//
+		// Modified: 20180612, yeeco
+		//
+		//if err := rlp.DecodeBytes(it.Value(), &n); err != nil {
+		//
+		if err := DecodeBytes(it.Value(), &n); err != nil {
 			log.Warn("Failed to decode node RLP", "id", id, "err", err)
 			continue
 		}
@@ -412,3 +435,44 @@ func (db *nodeDB) close() {
 	db.lvl.Close()
 }
 
+
+
+//
+// Added by yeeco to remove the reference to Ethereum's rlp
+//
+func EncodeToBytes(node *Node) ([]byte, error) {
+	if node == nil {
+		return nil, nil
+	}
+
+	blob := make([]byte, 0)
+
+	blob = append(blob, node.IP...)
+
+	udp := node.UDP
+	hb := byte((udp >> 8) & 0xff)
+	lb := byte(udp & 0xff)
+	blob = append(blob, []byte{hb,lb}...)
+
+	tcp := node.TCP
+	hb = byte((tcp >> 8) & 0xff)
+	lb = byte(tcp & 0xff)
+	blob = append(blob, []byte{hb,lb}...)
+
+	blob = append(blob, node.ID[:]...)
+	blob = append(blob, node.sha[:]...)
+
+	return blob, nil
+}
+
+//
+// Added by yeeco to remove the reference to Ethereum's rlp
+//
+func DecodeBytes(blob []byte, node *Node) error {
+	copy(node.IP, blob[0:16])
+	node.UDP = uint16((blob[16] << 8) + blob[17])
+	node.TCP = uint16((blob[18] << 8) + blob[19])
+	copy(node.ID[0:], blob[20:20+cap(node.ID)])
+	copy(node.sha[0:], blob[20+cap(node.ID):])
+	return nil
+}
