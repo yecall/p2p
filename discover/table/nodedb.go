@@ -39,8 +39,6 @@ import 	"crypto/sha256"
 // We had modified some source codes (mainly to pass the compiler).
 //
 
-
-
 import (
 	"bytes"
 	"crypto/rand"
@@ -55,7 +53,8 @@ import (
 	// "github.com/ethereum/go-ethereum/crypto"
 	//
 
-	"github.com/ethereum/go-ethereum/log"
+	//"github.com/ethereum/go-ethereum/log"
+	yclog "github.com/yeeco/p2p/logger"
 
 	//
 	// Modified: 20180503, yeeco
@@ -222,7 +221,8 @@ func (db *nodeDB) node(id NodeID) *Node {
 	//if err := rlp.DecodeBytes(blob, node); err != nil {
 	//
 	if err := DecodeBytes(blob, node); err != nil {
-		log.Error("Failed to decode node RLP", "err", err)
+		//log.Error("Failed to decode node RLP", "err", err)
+		yclog.LogCallerFileLine("node: DecodeBytes failed")
 		return nil
 	}
 
@@ -288,7 +288,8 @@ func (db *nodeDB) expirer() {
 		select {
 		case <-tick.C:
 			if err := db.expireNodes(); err != nil {
-				log.Error("Failed to expire nodedb items", "err", err)
+				//log.Error("Failed to expire nodedb items", "err", err)
+				yclog.LogCallerFileLine("expirer: expireNodes failed, err: %s", err.Error())
 			}
 		case <-db.quit:
 			return
@@ -410,7 +411,8 @@ seek:
 // database entries.
 func nextNode(it iterator.Iterator) *Node {
 	for end := false; !end; end = !it.Next() {
-		id, field := splitKey(it.Key())
+		//id, field := splitKey(it.Key())
+		_, field := splitKey(it.Key())
 		if field != nodeDBDiscoverRoot {
 			continue
 		}
@@ -421,7 +423,8 @@ func nextNode(it iterator.Iterator) *Node {
 		//if err := rlp.DecodeBytes(it.Value(), &n); err != nil {
 		//
 		if err := DecodeBytes(it.Value(), &n); err != nil {
-			log.Warn("Failed to decode node RLP", "id", id, "err", err)
+			//log.Warn("Failed to decode node RLP", "id", id, "err", err)
+			yclog.LogCallerFileLine("nextNode: DecodeBytes failed")
 			continue
 		}
 		return &n
