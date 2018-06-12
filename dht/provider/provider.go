@@ -8,8 +8,8 @@
 package provider
 
 import (
-	sch 	"ycp2p/scheduler"
-	yclog	"ycp2p/logger"
+	sch 	"github.com/yeeco/p2p/scheduler"
+	yclog	"github.com/yeeco/p2p/logger"
 )
 
 //

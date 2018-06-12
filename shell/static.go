@@ -22,18 +22,18 @@
 package shell
 
 import (
-	sch 	"ycp2p/scheduler"
-	dcv		"ycp2p/discover"
-	tab		"ycp2p/discover/table"
-	ngb		"ycp2p/discover/neighbor"
-			"ycp2p/peer"
-			"ycp2p/dht"
-	dhtro	"ycp2p/dht/router"
-	dhtch	"ycp2p/dht/chunker"
-	dhtre	"ycp2p/dht/retriver"
-	dhtst	"ycp2p/dht/storer"
-	dhtsy	"ycp2p/dht/syncer"
-	yclog	"ycp2p/logger"
+	sch 	"github.com/yeeco/p2p/scheduler"
+	dcv		"github.com/yeeco/p2p/discover"
+	tab		"github.com/yeeco/p2p/discover/table"
+	ngb		"github.com/yeeco/p2p/discover/neighbor"
+			"github.com/yeeco/p2p/peer"
+			"github.com/yeeco/p2p/dht"
+	dhtro	"github.com/yeeco/p2p/dht/router"
+	dhtch	"github.com/yeeco/p2p/dht/chunker"
+	dhtre	"github.com/yeeco/p2p/dht/retriver"
+	dhtst	"github.com/yeeco/p2p/dht/storer"
+	dhtsy	"github.com/yeeco/p2p/dht/syncer"
+	yclog	"github.com/yeeco/p2p/logger"
 )
 
 //

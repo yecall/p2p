@@ -22,9 +22,9 @@ package udpmsg
 
 import (
 	"net"
-	yclog	"ycp2p/logger"
-	ycfg	"ycp2p/config"
-	pb		"ycp2p/discover/udpmsg/pb"
+	yclog	"github.com/yeeco/p2p/logger"
+	ycfg	"github.com/yeeco/p2p/config"
+	pb		"github.com/yeeco/p2p/discover/udpmsg/pb"
 )
 
 //

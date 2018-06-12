@@ -25,11 +25,11 @@ import (
 	"sync"
 	"time"
 	"fmt"
-	sch		"ycp2p/scheduler"
-	um		"ycp2p/discover/udpmsg"
-	ycfg	"ycp2p/config"
-	yclog	"ycp2p/logger"
-	tab		"ycp2p/discover/table"
+	sch		"github.com/yeeco/p2p/scheduler"
+	um		"github.com/yeeco/p2p/discover/udpmsg"
+	ycfg	"github.com/yeeco/p2p/config"
+	yclog	"github.com/yeeco/p2p/logger"
+	tab		"github.com/yeeco/p2p/discover/table"
 )
 
 
@@ -264,7 +264,7 @@ func (inst *neighborInst) NgbProtoFindNodeReq(ptn interface{}, fn *um.FindNode) 
 			return NgbProtoEnoScheduler
 		}
 
-	 	return NgbProtoEnoOs
+	 	return NgbProtoEnoUdp
 	 }
 
 	yclog.LogCallerFileLine("NgbProtoFindNodeReq: " +

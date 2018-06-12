@@ -28,10 +28,10 @@ import (
 	"fmt"
 	"sync"
 	"crypto/sha256"
-	sch		"ycp2p/scheduler"
-	ycfg	"ycp2p/config"
-	um		"ycp2p/discover/udpmsg"
-	yclog	"ycp2p/logger"
+	sch		"github.com/yeeco/p2p/scheduler"
+	ycfg	"github.com/yeeco/p2p/config"
+	um		"github.com/yeeco/p2p/discover/udpmsg"
+	yclog	"github.com/yeeco/p2p/logger"
 )
 
 

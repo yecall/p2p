@@ -25,9 +25,9 @@ import (
 	"time"
 	"net"
 	ggio "github.com/gogo/protobuf/io"
-	ycfg	"ycp2p/config"
-	pb		"ycp2p/peer/pb"
-	yclog	"ycp2p/logger"
+	ycfg	"github.com/yeeco/p2p/config"
+	pb		"github.com/yeeco/p2p/peer/pb"
+	yclog	"github.com/yeeco/p2p/logger"
 )
 
 

@@ -24,9 +24,9 @@ package peer
 import (
 	"net"
 	"fmt"
-	ycfg	"ycp2p/config"
-	sch		"ycp2p/scheduler"
-	yclog	"ycp2p/logger"
+	ycfg	"github.com/yeeco/p2p/config"
+	sch		"github.com/yeeco/p2p/scheduler"
+	yclog	"github.com/yeeco/p2p/logger"
 	"sync"
 )
 

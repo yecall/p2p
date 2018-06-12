@@ -24,7 +24,7 @@ package scheduler
 import(
 	"fmt"
 	"time"
-	yclog "ycp2p/logger"
+	yclog "github.com/yeeco/p2p/logger"
 	"sync"
 )
 

@@ -29,8 +29,8 @@
 package scheduler
 
 import (
-	ycfg	"ycp2p/config"
-	um		"ycp2p/discover/udpmsg"
+	ycfg	"github.com/yeeco/p2p/config"
+	um		"github.com/yeeco/p2p/discover/udpmsg"
 )
 
 

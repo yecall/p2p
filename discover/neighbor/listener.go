@@ -26,10 +26,10 @@ import (
 	"net"
 	"fmt"
 	"time"
-	sch		"ycp2p/scheduler"
-	cfg		"ycp2p/config"
-	umsg	"ycp2p/discover/udpmsg"
-	yclog	"ycp2p/logger"
+	sch		"github.com/yeeco/p2p/scheduler"
+	cfg		"github.com/yeeco/p2p/config"
+	umsg	"github.com/yeeco/p2p/discover/udpmsg"
+	yclog	"github.com/yeeco/p2p/logger"
 )
 
 //

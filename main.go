@@ -27,11 +27,11 @@ import (
 	"time"
 	"fmt"
 	"os/signal"
-	"ycp2p/shell"
-	"ycp2p/peer"
-	ycfg	"ycp2p/config"
-	yclog	"ycp2p/logger"
-	sch		"ycp2p/scheduler"
+	"github.com/yeeco/p2p/shell"
+	"github.com/yeeco/p2p/peer"
+	ycfg	"github.com/yeeco/p2p/config"
+	yclog	"github.com/yeeco/p2p/logger"
+	sch		"github.com/yeeco/p2p/scheduler"
 )
 
 

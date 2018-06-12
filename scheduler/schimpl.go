@@ -26,7 +26,7 @@ import (
 	"strings"
 	"fmt"
 	golog	"log"
-	yclog	"ycp2p/logger"
+	yclog	"github.com/yeeco/p2p/logger"
 )
 
 //

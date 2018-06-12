@@ -29,11 +29,11 @@ import (
 	"io"
 	"math/rand"
 	ggio "github.com/gogo/protobuf/io"
-	ycfg	"ycp2p/config"
-	sch 	"ycp2p/scheduler"
-	tab		"ycp2p/discover/table"
-	um		"ycp2p/discover/udpmsg"
-	yclog	"ycp2p/logger"
+	ycfg	"github.com/yeeco/p2p/config"
+	sch 	"github.com/yeeco/p2p/scheduler"
+	tab		"github.com/yeeco/p2p/discover/table"
+	um		"github.com/yeeco/p2p/discover/udpmsg"
+	yclog	"github.com/yeeco/p2p/logger"
 )
 
 //
