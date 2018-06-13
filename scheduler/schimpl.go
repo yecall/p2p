@@ -1771,7 +1771,10 @@ func schimplSetTimer(ptn *schTaskNode, tdc *timerDescription) (SchErrno, int) {
 
 	ptn.task.tmTab[tid] = ptm
 	ptn.task.tmIdxTab[ptm] = tid
+
+	p2pSDL.lock.Lock()
 	p2pSDL.tmMap[ptm] = ptn
+	p2pSDL.lock.Unlock()
 
 	//
 	// setup timer control block
