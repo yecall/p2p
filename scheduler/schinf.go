@@ -147,19 +147,6 @@ type SchTaskDescription struct {
 }
 
 //
-// Descriptor for a user task group to be created
-//
-type SchTaskGroupDescription struct {
-	Grp		string							// user task group name
-	MbList	[]string						// member name list
-	MbSize	int								// mailbox size
-	Ep		SchUserTaskEp					// user task entry point
-	Wd		*SchWatchDog					// watchdog
-	Flag	int								// flag: start at once or to be suspended
-	DieCb	func(interface{}) SchErrno		// callbacked when going to die
-}
-
-//
 // Timer type
 //
 const (
@@ -212,13 +199,6 @@ func SchinfSchedulerStart(tsd []TaskStaticDescription, tpo []string) (SchErrno, 
 //
 // Create a single task
 //
-func SchinfCreateTaskGroup(taskGrpDesc *SchTaskGroupDescription)(SchErrno, interface{}) {
-	return schimplCreateTaskGroup((*schTaskGroupDescription)(taskGrpDesc))
-}
-
-//
-// Create a task group
-//
 func SchinfCreateTask(taskDesc *SchTaskDescription)(SchErrno, interface{}) {
 	return schimplCreateTask((*schTaskDescription)(taskDesc))
 }
@@ -235,13 +215,6 @@ func SchinfStartTask(name string) SchErrno {
 //
 func SchinfStartTaskEx(ptn interface{}) SchErrno {
 	return schimplStartTaskEx(ptn.(*schTaskNode))
-}
-
-//
-// Start a task group
-//
-func SchinfStartTaskGroup(grp string) (SchErrno, int) {
-	return schimplStartTaskGroup(grp)
 }
 
 //
@@ -267,13 +240,6 @@ func SchinfStopTask(ptn interface{}) SchErrno {
 //
 func SchinfDeleteTask(name string) SchErrno {
 	return schimplDeleteTask(name)
-}
-
-//
-// Delete a task group
-//
-func SchinfDeleteTaskGroup(grp string) SchErrno {
-	return schimplDeleteTaskGroup(grp)
 }
 
 //

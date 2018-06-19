@@ -1091,83 +1091,6 @@ func schimplCreateTask(taskDesc *schTaskDescription) (SchErrno, interface{}){
 }
 
 //
-// Create a task group
-//
-type schTaskGroupDescription SchTaskGroupDescription
-
-func schimplCreateTaskGroup(taskGrpDesc *schTaskGroupDescription)(SchErrno, interface{}) {
-
-	if taskGrpDesc == nil {
-		yclog.LogCallerFileLine("schimplCreateTaskGroup: invalid parameter")
-		return SchEnoParameter, nil
-	}
-
-	//
-	// check total member number
-	//
-
-	mbCount := len(taskGrpDesc.MbList)
-
-	if mbCount > schMaxGroupSize {
-		yclog.LogCallerFileLine("schimplCreateTaskGroup: too much group members")
-		return SchEnoResource, nil
-	}
-
-	//
-	// deal with each group member
-	//
-
-	var tkDesc = schTaskDescription {
-		Name:	"",
-		MbSize:	taskGrpDesc.MbSize,
-		Ep:		taskGrpDesc.Ep,
-		Wd:		taskGrpDesc.Wd,
-		Flag:	taskGrpDesc.Flag,
-		DieCb:	taskGrpDesc.DieCb,
-	}
-
-	var ptnTab = make([]*schTaskNode, mbCount)
-
-	for _, mbName := range taskGrpDesc.MbList {
-
-		tkDesc.Name = mbName
-
-		if eno, ptn := schimplCreateTask(&tkDesc); eno != SchEnoNone || ptn == nil {
-
-			//
-			// When failed for a member, just debug out now. More needed in
-			// the future.
-			//
-
-			yclog.LogCallerFileLine("schimplCreateTaskGroup: " +
-				"create task failed, eno: %d",
-				eno)
-
-			return eno, nil
-		}
-
-		ptnTab = append(ptnTab, nil)
-	}
-
-	//
-	// update group map
-	//
-
-	p2pSDL.lock.Lock()
-	defer p2pSDL.lock.Unlock()
-
-	p2pSDL.grpMap[schTaskGroupName(taskGrpDesc.Grp)] = ptnTab
-	p2pSDL.grpCnt++
-
-	//
-	// notice: SchEnoNone always ret, caller should check ptnTab to known
-	// those fialed
-	//
-
-	return SchEnoNone, ptnTab
-}
-
-//
 // Start a single task by task name
 //
 func schimplStartTask(name string) SchErrno {
@@ -1258,81 +1181,6 @@ func schimplStartTaskEx(ptn *schTaskNode) SchErrno {
 }
 
 //
-// Start a task group by group name
-//
-func schimplStartTaskGroup(grp string) (SchErrno, int) {
-
-	//
-	// Notice: only those suspended member user task can be started, so this function
-	// does not create new user task, instead, it try to find the suspended member task
-	// of the specific group and then start it.
-	//
-
-	var failedCount = 0
-
-	//
-	// check group counter
-	//
-
-	if p2pSDL.grpCnt <= 0 {
-		yclog.LogCallerFileLine("schimplStartTaskGroup: none of group exist")
-		return SchEnoNotFound, -1
-	}
-
-	//
-	// group must be exist
-	//
-
-	if _, err := p2pSDL.grpMap[schTaskGroupName(grp)]; !err {
-
-		yclog.LogCallerFileLine("schimplStartTaskGroup: " +
-			"not exist, group: %s",
-			grp)
-
-		return SchEnoMismatched, -1
-	}
-
-	//
-	// deal with each member of group
-	//
-
-	var mbTaskMap = p2pSDL.grpMap[schTaskGroupName(grp)]
-
-	for _, ptn := range mbTaskMap {
-
-		yclog.LogCallerFileLine("schimplStartTaskGroup: s" +
-			"tart member task: %s of group: %s",
-			ptn.task.name,
-			grp)
-
-		if eno := schimplStartTask(ptn.task.name); eno != SchEnoNone {
-
-			yclog.LogCallerFileLine("schimplStartTaskGroup: " +
-				"schimplStartTask failed, task: %s, group: %s",
-				ptn.task.name,
-				grp)
-
-			failedCount++
-		}
-	}
-
-	//
-	// check total failed counter to return
-	//
-
-	if failedCount > 0 {
-
-		yclog.LogCallerFileLine("schimplStartTaskGroup: " +
-			"total failed count: %d",
-			failedCount)
-
-		return SchEnoUnknown, failedCount
-	}
-
-	return SchEnoNone, 0
-}
-
-//
 // Stop a single task by task name
 //
 func schimplStopTask(name string) SchErrno {
@@ -1364,68 +1212,6 @@ func schimplStopTask(name string) SchErrno {
 	ptn.task.done<-SchEnoKilled
 
 	<-ptn.task.stopped
-
-	return SchEnoNone
-}
-
-//
-// Stop a task group
-//
-func schimplStopTaskGroup(grp string) SchErrno {
-
-	//
-	// check group counter
-	//
-
-	if p2pSDL.grpCnt <= 0 {
-		yclog.LogCallerFileLine("schimplStopTaskGroup: none of group exist")
-		return SchEnoNotFound
-	}
-
-	//
-	// check if specific group exist
-	//
-
-	if _, err := p2pSDL.grpMap[schTaskGroupName(grp)]; !err {
-
-		yclog.LogCallerFileLine("schimplStopTaskGroup: " +
-			"not exist, group: %s",
-			grp)
-
-		return SchEnoNotFound
-	}
-
-	//
-	// deal with each member of group
-	//
-
-	var mbTaskMap = p2pSDL.grpMap[schTaskGroupName(grp)]
-
-	for mbName, mbTaskNode := range mbTaskMap {
-
-		yclog.LogCallerFileLine("schimplStopTaskGroup: " +
-			"stop member task: %s of group: %s",
-			mbName, grp)
-
-		if eno := schimplTaskDone(mbTaskNode, SchEnoKilled); eno != SchEnoNone {
-
-			yclog.LogCallerFileLine("schimplStopTaskGroup: " +
-				"schimplTaskDone failed, eno: %d",
-				eno	)
-
-			return eno
-		}
-	}
-
-	//
-	// remove group
-	//
-
-	p2pSDL.lock.Lock()
-	defer p2pSDL.lock.Unlock()
-
-	delete(p2pSDL.grpMap, schTaskGroupName(grp))
-	p2pSDL.grpCnt--
 
 	return SchEnoNone
 }
@@ -1592,18 +1378,6 @@ func schimplDeleteTask(name string) SchErrno {
 	//
 
 	return schimplStopTask(name)
-}
-
-//
-// Delete a task group by group name
-//
-func schimplDeleteTaskGroup(grp string) SchErrno {
-
-	//
-	// Currently, "Delete" implented as "Stop"
-	//
-
-	return schimplStopTaskGroup(grp)
 }
 
 //
