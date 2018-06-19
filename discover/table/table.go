@@ -955,26 +955,13 @@ func tabMgrQueriedInd(findNode *um.FindNode) TabMgrErrno {
 	// check if remote node should be bound
 	//
 
-	yclog.LogCallerFileLine("tabMgrQueriedInd: " +
-		"check if should be bound: %s",
-		fmt.Sprintf("%X", findNode.From.NodeId))
-
 	if tabShouldBound(NodeID(findNode.From.NodeId)) != true {
-
-		yclog.LogCallerFileLine("tabMgrQueriedInd: " +
-			"node should not be bound: %s",
-			fmt.Sprintf("%X", findNode.From.NodeId))
-
 		return TabMgrEnoNone
 	}
 
 	//
 	// add node into pending queue for bounding
 	//
-
-	yclog.LogCallerFileLine("tabMgrQueriedInd: " +
-		"add node to pending queue for bounding: %s",
-		fmt.Sprintf("%X", findNode.From.NodeId))
 
 	if eno := tabAddPendingBoundInst(&findNode.From); eno != TabMgrEnoNone {
 
@@ -988,9 +975,6 @@ func tabMgrQueriedInd(findNode *um.FindNode) TabMgrErrno {
 	//
 	// try to active more bounding instances
 	//
-
-	yclog.LogCallerFileLine("tabMgrQueriedInd: " +
-		"try more for active bounding")
 
 	if eno := tabActiveBoundInst(); eno != TabMgrEnoNone {
 
@@ -1544,11 +1528,6 @@ func tabQuery(target *NodeID, nodes []*Node) TabMgrErrno {
 
 	remain := len(nodes)
 	actNum := len(tabMgr.queryIcb)
-	pndNum := len(tabMgr.queryPending)
-
-	yclog.LogCallerFileLine("tabQuery: " +
-		"remain: %d, actNum: %d, pndNum: %d",
-		remain, actNum, pndNum)
 
 	if remain == 0 {
 		yclog.LogCallerFileLine("tabQuery: invalid parameters, no node to be handled")
@@ -1648,14 +1627,6 @@ func tabQuery(target *NodeID, nodes []*Node) TabMgrErrno {
 				return eno
 			}
 
-			yclog.LogCallerFileLine("tabQuery: active query appended and EvNblFindNodeReq sent, \n" +
-				"\t\tid: %s\n" +
-				"\t\tip: %s, udp-port: %d, tcp-port: %d",
-				ycfg.P2pNodeId2HexString(msg.To.NodeId),
-				msg.To.IP.String(),
-				msg.To.UDP,
-				msg.To.TCP)
-
 			tabMgr.queryIcb = append(tabMgr.queryIcb, icb)
 			actNum++
 		}
@@ -1678,10 +1649,6 @@ func tabQuery(target *NodeID, nodes []*Node) TabMgrErrno {
 
 		if nodes[loop].ID == tabMgr.cfg.local.ID {
 
-			yclog.LogCallerFileLine("tabQuery: " +
-				"not to query ourselves: %s",
-				fmt.Sprintf("%X", nodes[loop].ID))
-
 			continue
 		}
 
@@ -1694,10 +1661,6 @@ func tabQuery(target *NodeID, nodes []*Node) TabMgrErrno {
 		for _, qp := range tabMgr.queryPending {
 
 			if qp.node.ID == nodes[loop].ID {
-
-				yclog.LogCallerFileLine("tabQuery: " +
-					"not to query duplicated: %s",
-					fmt.Sprintf("%X", nodes[loop].ID))
 
 				dup = true
 				break
@@ -1714,10 +1677,6 @@ func tabQuery(target *NodeID, nodes []*Node) TabMgrErrno {
 			node:nodes[loop],
 			target: target,
 		})
-
-		yclog.LogCallerFileLine("tabQuery: " +
-			"node append to query pending, id: %s",
-			ycfg.P2pNodeId2HexString(nodes[loop].ID))
 	}
 
 	return TabMgrEnoNone
@@ -1848,9 +1807,6 @@ func tabUpdateNodeDb4Bounding(pn *Node, pit *time.Time, pot *time.Time) TabMgrEr
 
 	if node := tabMgr.nodeDb.node(NodeID(pn.ID)); node == nil {
 
-		yclog.LogCallerFileLine("tabUpdateNodeDb4Bounding: " +
-			"node not exist, need to add it")
-
 		if err := tabMgr.nodeDb.updateNode(pn); err != nil {
 
 			yclog.LogCallerFileLine("tabUpdateNodeDb4Bounding: " +
@@ -1860,15 +1816,6 @@ func tabUpdateNodeDb4Bounding(pn *Node, pit *time.Time, pot *time.Time) TabMgrEr
 			return TabMgrEnoDatabase
 		}
 
-		yclog.LogCallerFileLine("tabUpdateNodeDb4Bounding: " +
-			"new node added: %s",
-			fmt.Sprintf("%X", pn.ID)	)
-
-	} else {
-
-		yclog.LogCallerFileLine("tabUpdateNodeDb4Bounding: " +
-			"it's an old node: %s",
-			fmt.Sprintf("%X", pn.ID)	)
 	}
 
 	if pit != nil {
@@ -1880,10 +1827,6 @@ func tabUpdateNodeDb4Bounding(pn *Node, pit *time.Time, pot *time.Time) TabMgrEr
 
 			return TabMgrEnoDatabase
 		}
-
-		yclog.LogCallerFileLine("tabUpdateNodeDb4Bounding: " +
-			"updateLastPing ok, last ping time: %s, node: %s",
-			pit.String(), fmt.Sprintf("%X", pn.ID))
 	}
 
 	if pot != nil {
@@ -1895,10 +1838,6 @@ func tabUpdateNodeDb4Bounding(pn *Node, pit *time.Time, pot *time.Time) TabMgrEr
 
 			return TabMgrEnoDatabase
 		}
-
-		yclog.LogCallerFileLine("tabUpdateNodeDb4Bounding: " +
-			"updateLastPong ok, last pong time: %s, node: %s",
-			pot.String(), fmt.Sprintf("%X", pn.ID))
 	}
 
 	fails := 0
@@ -1910,10 +1849,6 @@ func tabUpdateNodeDb4Bounding(pn *Node, pit *time.Time, pot *time.Time) TabMgrEr
 
 		return TabMgrEnoDatabase
 	}
-
-	yclog.LogCallerFileLine("tabUpdateNodeDb4Bounding: " +
-		"updateFindFails ok, fails: %d",
-		fails)
 
 	return TabMgrEnoNone
 }
@@ -1935,15 +1870,12 @@ func tabUpdateBucket(inst *instCtrlBlock, result int) TabMgrErrno {
 	// 3) When findnode failed counter reach the threshold, remove peer node from bucket;
 	//
 
-	yclog.LogCallerFileLine("tabUpdateBucket: state: %d, result: %d", inst.state, result)
-
 	var eno TabMgrErrno
 
 	switch {
 
 	case inst.state == TabInstStateQuering && result == TabMgrEnoNone:
 
-		yclog.LogCallerFileLine("tabUpdateBucket: need not to do anything")
 		return TabMgrEnoNone
 
 	case (inst.state == TabInstStateQuering || inst.state == TabInstStateQTimeout) && result != TabMgrEnoNone:
@@ -1952,14 +1884,8 @@ func tabUpdateBucket(inst *instCtrlBlock, result int) TabMgrErrno {
 
 		if eno = tabBucketUpdateFailCounter(id, +1); eno == TabMgrEnoRemove {
 
-			yclog.LogCallerFileLine("tabUpdateBucket: " +
-				"remove node: %s",
-				fmt.Sprintf("%X", id))
-
 			return tabBucketRemoveNode(id)
 		}
-
-		yclog.LogCallerFileLine("tabUpdateBucket: eno: %d", eno)
 
 		return eno
 
@@ -2152,11 +2078,6 @@ func tabBucketUpdateFailCounter(id NodeID, delta int) TabMgrErrno {
 		yclog.LogCallerFileLine("tabBucketUpdateFailCounter: threshold reached")
 		return TabMgrEnoRemove
 	}
-
-	yclog.LogCallerFileLine("tabBucketUpdateFailCounter: " +
-		"delta: %d, current fail counter: %d",
-		delta,
-		tabMgr.buckets[bidx].nodes[nidx].failCount)
 
 	return TabMgrEnoNone
 }
@@ -2628,10 +2549,6 @@ func tabAddPendingBoundInst(node *um.Node) TabMgrErrno {
 		return TabMgrEnoParameter
 	}
 
-	yclog.LogCallerFileLine("tabAddPendingBoundInst: " +
-		"node: %s",
-		fmt.Sprintf("%+v", *node))
-
 	if len(tabMgr.boundPending) >= TabInstBPendingMax {
 		yclog.LogCallerFileLine("tabAddPendingBoundInst: pending table is full")
 		return TabMgrEnoResource
@@ -2640,10 +2557,6 @@ func tabAddPendingBoundInst(node *um.Node) TabMgrErrno {
 	for _, bp := range tabMgr.boundPending {
 
 		if bp.ID == node.NodeId {
-
-			yclog.LogCallerFileLine("tabAddPendingBoundInst: " +
-				"not to bound duplicated: %s",
-				fmt.Sprintf("%X", bp.ID))
 
 			return TabMgrEnoDuplicated
 		}
@@ -2660,7 +2573,6 @@ func tabAddPendingBoundInst(node *um.Node) TabMgrErrno {
 	}
 
 	tabMgr.boundPending = append(tabMgr.boundPending, &n)
-	yclog.LogCallerFileLine("tabAddPendingBoundInst: pending bound appended")
 
 	return TabMgrEnoNone
 }
@@ -2690,19 +2602,11 @@ func tabActiveBoundInst() TabMgrErrno {
 
 		var pn = tabMgr.boundPending[0]
 
-		yclog.LogCallerFileLine("tabActiveBoundInst: " +
-			"pending node: %s",
-			fmt.Sprintf("%+v", *pn))
-
 		//
 		// Check not to bound ourselves
 		//
 
 		if pn.ID == tabMgr.cfg.local.ID {
-
-			yclog.LogCallerFileLine("tabActiveBoundInst: " +
-				"not to bound ourselves: %s",
-				fmt.Sprintf("%X", pn.ID))
 
 			tabMgr.boundPending = tabMgr.boundPending[1:]
 			continue
@@ -2718,10 +2622,6 @@ func tabActiveBoundInst() TabMgrErrno {
 
 			if bi.req.(*um.Ping).To.NodeId == pn.ID {
 
-				yclog.LogCallerFileLine("tabActiveBoundInst: " +
-					"not to bound duplicated: %s",
-					fmt.Sprintf("%X", pn.ID))
-
 				tabMgr.boundPending = append(tabMgr.boundPending[:0], tabMgr.boundPending[1:]...)
 				dup = true
 				break
@@ -2735,10 +2635,6 @@ func tabActiveBoundInst() TabMgrErrno {
 		//
 
 		if tabShouldBound(NodeID(pn.ID)) == false {
-
-			yclog.LogCallerFileLine("tabActiveBoundInst: " +
-				"need not to bound, peer: %s",
-				fmt.Sprintf("%X", pn.ID))
 
 			tabMgr.boundPending = append(tabMgr.boundPending[:0], tabMgr.boundPending[1:]...)
 
@@ -2756,6 +2652,7 @@ func tabActiveBoundInst() TabMgrErrno {
 			}
 
 			if eno := tabDiscoverResp(&umNode); eno != TabMgrEnoNone {
+
 				yclog.LogCallerFileLine("tabActiveBoundInst: " +
 					"tabDiscoverResp failed, eno: %d",
 					eno)
@@ -2862,9 +2759,6 @@ func tabActiveBoundInst() TabMgrErrno {
 
 		tabMgr.boundPending = append(tabMgr.boundPending[:0], tabMgr.boundPending[1:] ...)
 		tabMgr.boundIcb = append(tabMgr.boundIcb, icb)
-
-		yclog.LogCallerFileLine("tabActiveBoundInst: " +
-			"pending bound removed and activated")
 	}
 
 	return TabMgrEnoNone
@@ -2935,10 +2829,6 @@ func tabShouldBound(id NodeID) bool {
 	agePing := time.Since(tabMgr.nodeDb.lastPing(id))
 
 	needed := failCnt > 0 || agePong > nodeReboundDuration || agePing > nodeReboundDuration
-
-	yclog.LogCallerFileLine("tabShouldBound: " +
-		"needed: %t, failCnt: %d, agePing: %f, agePong: %f",
-		needed, failCnt, agePing.Seconds(), agePing.Seconds())
 
 	return needed
 }

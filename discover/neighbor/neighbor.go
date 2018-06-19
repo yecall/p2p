@@ -1237,10 +1237,6 @@ func (ngbMgr *neighborManager)FindNodeHandler(findNode *um.FindNode) NgbMgrErrno
 	// to add the sender node to bucket and node database.
 	//
 
-	yclog.LogCallerFileLine("FindNodeHandler: " +
-		"handle FindNode message from peer: %s",
-		fmt.Sprintf("%+v", *findNode))
-
 	if findNode.To.NodeId != lsnMgr.cfg.ID {
 		yclog.LogCallerFileLine("FindNodeHandler: " +
 				"local is not the destination: %s",
@@ -1275,10 +1271,6 @@ func (ngbMgr *neighborManager)FindNodeHandler(findNode *um.FindNode) NgbMgrErrno
 
 	} else if findNode.From.NodeId == findNode.Target {
 
-		yclog.LogCallerFileLine("FindNodeHandler: " +
-			"the sender is the target: %s",
-			fmt.Sprintf("%X", findNode.Target	))
-
 		num := len(nodes)
 		if num < tab.TabInstQPendingMax {
 
@@ -1310,10 +1302,6 @@ func (ngbMgr *neighborManager)FindNodeHandler(findNode *um.FindNode) NgbMgrErrno
 
 	}
 
-	yclog.LogCallerFileLine("FindNodeHandler: " +
-		"neighbors message to be sent: %s",
-		fmt.Sprintf("%+v", neighbors))
-
 	toAddr := net.UDPAddr {
 		IP: 	findNode.From.IP,
 		Port:	int(findNode.From.UDP),
@@ -1339,10 +1327,6 @@ func (ngbMgr *neighborManager)FindNodeHandler(findNode *um.FindNode) NgbMgrErrno
 			return NgbMgrEnoUdp
 		}
 
-		yclog.LogCallerFileLine("FindNodeHandler: " +
-			"send Neighbors message ok, peer: %s",
-			fmt.Sprintf("%+v", neighbors.To))
-
 	} else {
 
 		yclog.LogCallerFileLine("FindNodeHandler: " +
@@ -1359,10 +1343,6 @@ func (ngbMgr *neighborManager)FindNodeHandler(findNode *um.FindNode) NgbMgrErrno
 
 	strPeerNodeId := ycfg.P2pNodeId2HexString(findNode.From.NodeId)
 	if ngbMgr.checkMap(strPeerNodeId, um.UdpMsgTypeAny) == false {
-
-		yclog.LogCallerFileLine("FindNodeHandler: "+
-			"indicate that we are queried by node: %s",
-			fmt.Sprintf("%+v", findNode.From))
 
 		var schMsg= sch.SchMessage{}
 
@@ -1384,10 +1364,6 @@ func (ngbMgr *neighborManager)FindNodeHandler(findNode *um.FindNode) NgbMgrErrno
 
 			return NgbMgrEnoScheduler
 		}
-
-		yclog.LogCallerFileLine("FindNodeHandler: "+
-			"send EvNblQueriedInd ok, target: %s",
-			sch.SchinfGetTaskName(ngbMgr.ptnTab))
 	}
 
 	return NgbMgrEnoNone
@@ -1408,10 +1384,6 @@ func (ngbMgr *neighborManager)NeighborsHandler(nbs *um.Neighbors) NgbMgrErrno {
 	// for peer node, we do not start a neighbor instance here in this function,
 	// instead, we discard this "Neighbors" message then return at once.
 	//
-
-	yclog.LogCallerFileLine("NeighborsHandler: " +
-		"handle Neighbors message from peer: %s",
-		fmt.Sprintf("%+v", *nbs))
 
 	if nbs.To.NodeId != lsnMgr.cfg.ID {
 
@@ -1456,10 +1428,6 @@ func (ngbMgr *neighborManager)NeighborsHandler(nbs *um.Neighbors) NgbMgrErrno {
 
 		return NgbMgrEnoScheduler
 	}
-
-	yclog.LogCallerFileLine("NeighborsHandler: " +
-		"EvNblFindNodeRsp sent ok, target: %s",
-		sch.SchinfGetTaskName(ptnNgb))
 
 	return NgbMgrEnoNone
 }
