@@ -1,2 +1,3 @@
-# p2p
-p2p network
+# p2p (Deprecated)
+
+Go to the new YeeCo chain project: [yeeroot](https://github.com/yeeco/yeeroot)
